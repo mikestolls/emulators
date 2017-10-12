@@ -1,5 +1,4 @@
-// main.c : Defines the entry point for the console application.
-//
+#pragma once
 
 #include <SFML/Graphics.hpp>
 
@@ -28,7 +27,7 @@ namespace chip8
 									sf::Keyboard::V, 0xF,
 	};
 
-	int run_chip8(int argc, char** argv)
+	int run_emulator(int argc, char** argv)
 	{
 		std::string filename = "";
 
@@ -66,7 +65,7 @@ namespace chip8
 	
 		// init scpu and load rom
 		cpu.initialize();
-		cpu.loadROM(rom.romdata, rom.romsize);
+		cpu.loadROM(rom.romdata, rom.romsize & 0xFFFF);
 
 		std::chrono::milliseconds curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 		std::chrono::milliseconds lastTime = curTime;
@@ -114,7 +113,7 @@ namespace chip8
 					{
 						if (cpu.gfx[pixel++] != 0)
 						{
-							whiteRect.setPosition(x * pixelSize, y * pixelSize);
+							whiteRect.setPosition((float)(x * pixelSize), (float)(y * pixelSize));
 							window.draw(whiteRect);
 						}
 					}

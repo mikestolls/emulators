@@ -2,11 +2,13 @@
 //
 
 #include "emulators\chip8.h"
+#include "emulators\gameboy.h"
 
 int main(int argc, char** argv)
 {
 	// main entry point for all emulators. for now just run emulator, eventually could add more global function to reset all emulators, control mapping, etc.
-	chip8::run_chip8(argc, argv);
+	//chip8::run_emulator(argc, argv);
+	gameboy::run_emulator(argc, argv);
 
     return 0;
 }
