@@ -1,0 +1,13 @@
+0x200   0x6100  LOAD    $0,r1           # 6XNN: put NN into X register
+0x202   0x6B00  LOAD    $0,r11          # 6XNN: put NN into X register
+0x204   0x6C00  LOAD    $0,r12          # 6XNN: put NN into X register
+0x206   0x220A  CALL    0x20A           # 2NNN: call subroutine at addr NNN
+0x208   0x1218  JUMP    0x218           # 1NNN: set program counter to NNN
+0x20A   0xF129  LDSPR   r1              # FX29: set I to the memory addr of font character in X
+0x20C   0xDBC5  DRAW    r11,r12,$5      # DXYN: Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision
+0x20E   0x7101  ADD     $1,r1           # 7XNN: adds NN to the value of register X
+0x210   0x7B06  ADD     $6,r11          # 7XNN: adds NN to the value of register X
+0x212   0x3105  SKE     r1,$5           # 3XNN: skip next instruction if X register == NN
+0x214   0x120A  JUMP    0x20A           # 1NNN: set program counter to NNN
+0x216   0x00EE  RTS                     # 00EE: returns from subroutine
+0x218   0x1218  JUMP    0x218           # 1NNN: set program counter to NNN
