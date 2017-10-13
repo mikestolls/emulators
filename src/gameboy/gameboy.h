@@ -2,7 +2,8 @@
 
 #include <SFML/Graphics.hpp>
 
-#include "cpus\cpu_z80.h"
+#include "cpu.h"
+#include "rom.h"
 
 namespace gameboy
 {
@@ -10,7 +11,7 @@ namespace gameboy
 	{
 		std::string filename = "";
 
-		/*if (argc < 2)
+		if (argc < 2)
 		{
 			printf("Error - arguments: [options] rom_filename\noptions:\n\t-d\tdisassemble rom\n\t-a\tassemle rom\n");
 			return -1;
@@ -30,10 +31,11 @@ namespace gameboy
 			{
 				return -1;
 			}
-		}*/
+		}
 
 		// load and run the rom
-		z80::cpu cpu;
+		gameboy::cpu cpu;
+		gameboy::rom rom(filename.c_str());
 
 		// init sfml
 		u8 pixelSize = 4;

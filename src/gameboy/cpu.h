@@ -2,7 +2,7 @@
 
 #include "defines.h"
 
-namespace z80
+namespace gameboy
 {
 	class cpu
 	{

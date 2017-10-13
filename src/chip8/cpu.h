@@ -86,7 +86,7 @@ namespace chip8
 			return 0;
 		}
 
-		int loadROM(u8* romdata, u16 romsize)
+		int load_rom(u8* romdata, u16 romsize)
 		{
 			// copy rom memory into chip memory. program starts at location 0x200
 			memcpy(&memory[0x200], romdata, romsize);
@@ -95,7 +95,7 @@ namespace chip8
 			return 0;
 		}
 
-		int updateCycle()
+		int update_cycle()
 		{
 			// fetch opcode
 			u16 opcode = (memory[PC++] << 8);
@@ -387,7 +387,7 @@ namespace chip8
 			return 0;
 		}
 
-		int setKeys(u8 key, bool pressed)
+		int set_keys(u8 key, bool pressed)
 		{
 			keystate[key] = (pressed ? 1 : 0);
 

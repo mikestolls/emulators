@@ -1,8 +1,8 @@
 // main.c : Defines the entry point for the console application.
 //
 
-#include "emulators\chip8.h"
-#include "emulators\gameboy.h"
+#include "chip8\chip8.h"
+#include "gameboy\gameboy.h"
 
 int main(int argc, char** argv)
 {

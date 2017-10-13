@@ -2,10 +2,10 @@
 
 #include <SFML/Graphics.hpp>
 
-#include "cpus/cpu_chip8.h"
-#include "roms/rom_chip8.h"
-#include "disassemblers/disassembler_chip8.h"
-#include "assemblers/assembler_chip8.h"
+#include "cpu.h"
+#include "rom.h"
+#include "disassembler.h"
+#include "assembler.h"
 
 namespace chip8
 {
@@ -65,7 +65,7 @@ namespace chip8
 	
 		// init scpu and load rom
 		cpu.initialize();
-		cpu.loadROM(rom.romdata, rom.romsize & 0xFFFF);
+		cpu.load_rom(rom.romdata, rom.romsize & 0xFFFF);
 
 		std::chrono::milliseconds curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 		std::chrono::milliseconds lastTime = curTime;
@@ -84,11 +84,11 @@ namespace chip8
 			{
 				if (sf::Keyboard::isKeyPressed(static_cast<sf::Keyboard::Key>(chip8::keyboard[i])))
 				{
-					cpu.setKeys(chip8::keyboard[i + 1], true);
+					cpu.set_keys(chip8::keyboard[i + 1], true);
 				}
 				else
 				{
-					cpu.setKeys(chip8::keyboard[i + 1], false);
+					cpu.set_keys(chip8::keyboard[i + 1], false);
 				}
 			}
 		
@@ -98,7 +98,7 @@ namespace chip8
 			}
 
 			// update the cpu emulation
-			cpu.updateCycle();
+			cpu.update_cycle();
 
 			if (cpu.drawFlag)
 			{

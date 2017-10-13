@@ -1,7 +1,7 @@
 #pragma once
 
 #include "defines.h"
-#include "roms/rom_chip8.h"
+#include "rom.h"
 
 namespace chip8
 {
