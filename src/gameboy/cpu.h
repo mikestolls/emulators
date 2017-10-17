@@ -133,7 +133,7 @@ namespace gameboy
 		// read 8 and 16 bit at PC. increment PC
 		inline u8 readpc_u8()
 		{
-			u8 val = memory_module->readMemory(R.pc++);
+			u8 val = memory_module->read_memory(R.pc++);
 
 			return val;
 		}
@@ -141,8 +141,8 @@ namespace gameboy
 		inline u16 readpc_u16()
 		{
 			// lsb is first in memory
-			u16 val = memory_module->readMemory(R.pc++);
-			val |= (memory_module->readMemory(R.pc++) << 8);
+			u16 val = memory_module->read_memory(R.pc++);
+			val |= (memory_module->read_memory(R.pc++) << 8);
 
 			return val;
 		}
@@ -195,7 +195,7 @@ namespace gameboy
 			{
 				switch (z)
 				{
-				case 0x0:
+				case 0x0: // z = 0
 				{
 					switch (y)
 					{
@@ -226,9 +226,9 @@ namespace gameboy
 					}
 					break;
 				}
-				case 0x1:
+				case 0x1: // z = 1
 				{
-					switch (y)
+					switch (q)
 					{
 					case 0x0:
 						// LD register_pairs[p] with nn
@@ -238,6 +238,63 @@ namespace gameboy
 						// ADD HL with register_pairs[p]
 						R.hl += *register_pairs[p];
 						break;
+					}
+					break;
+				}
+				case 0x2: // z = 2
+				{
+					switch (q)
+					{
+					case 0x0:
+					{
+						switch (p)
+						{
+						case 0x0:
+							// LD (BC) with A
+							memory_module->write_memory(R.bc, &R.a, 1);
+							break;
+						case 0x1:
+							// LD (DE) with A
+							memory_module->write_memory(R.de, &R.a, 1);
+							break;
+						case 0x2:
+							// LDI (HL) with A. inc HL
+							memory_module->write_memory(R.hl, &R.a, 1);
+							R.hl++;
+							break;
+						case 0x3:
+							// LDD (HL) with A. decr HL
+							memory_module->write_memory(R.hl, &R.a, 1);
+							R.hl--;
+							break;
+						}
+						break;
+					}
+					case 0x1:
+					{
+						switch (p)
+						{
+						case 0x0:
+							// LD A with (BC)
+							R.a = memory_module->read_memory(R.bc);
+							break;
+						case 0x1:
+							// LD A with (DE)
+							R.a = memory_module->read_memory(R.de);
+							break;
+						case 0x2:
+							// LDI A with (HL). inc HL
+							R.a = memory_module->read_memory(R.hl);
+							R.hl++;
+							break;
+						case 0x3:
+							// LDD A with (HL). decr HL
+							R.a = memory_module->read_memory(R.hl);
+							R.hl--;
+							break;
+						}
+						break;
+					}
 					}
 					break;
 				}

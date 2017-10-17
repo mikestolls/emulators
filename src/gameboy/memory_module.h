@@ -15,7 +15,7 @@ namespace gameboy
 		}
 
 
-		u8* getMemory(u16 addr)
+		u8* get_memory(u16 addr)
 		{
 			if (addr <= 0x4000) // catridge rom data
 			{
@@ -28,7 +28,7 @@ namespace gameboy
 			}
 		}
 
-		u8 readMemory(u16 addr)
+		u8 read_memory(u16 addr)
 		{
 			if (addr <= 0x4000) // catridge rom data
 			{
@@ -41,7 +41,7 @@ namespace gameboy
 			}
 		}
 
-		void writeMemory(const u16 addr, const u8* value, const u8 size)
+		void write_memory(const u16 addr, const u8* value, const u8 size)
 		{
 			if (addr <= 0x4000) // catridge rom data
 			{
