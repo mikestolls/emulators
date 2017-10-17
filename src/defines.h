@@ -12,6 +12,7 @@
 #include <vector>
 #include <map>
 #include <cctype>
+#include <functional>
 
 typedef unsigned char u8;
 typedef unsigned short u16;

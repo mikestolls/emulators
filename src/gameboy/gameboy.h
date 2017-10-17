@@ -34,8 +34,8 @@ namespace gameboy
 		}
 
 		// load and run the rom
-		gameboy::cpu cpu;
 		gameboy::rom rom(filename.c_str());
+		gameboy::memory_module memory(&rom);
 
 		// init sfml
 		u8 pixelSize = 4;
@@ -46,8 +46,7 @@ namespace gameboy
 		whiteRect.setFillColor(sf::Color::White);
 
 		// init scpu and load rom
-		//cpu.initialize();
-		//cpu.loadROM(rom.romdata, rom.romsize);
+		cpu::initialize(&memory);
 
 		std::chrono::milliseconds curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 		std::chrono::milliseconds lastTime = curTime;
@@ -68,7 +67,7 @@ namespace gameboy
 			}
 
 			// update the cpu emulation
-			//cpu.updateCycle();
+			cpu::update_cycle();
 
 			//if (cpu.drawFlag)
 			{

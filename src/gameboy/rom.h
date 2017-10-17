@@ -4,10 +4,8 @@
 
 namespace gameboy
 {
-	class rom
+	struct rom
 	{
-	public:
-
 		enum CATRIDGE_TYPE
 		{
 			ROM_ONLY = 0,

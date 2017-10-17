@@ -4,10 +4,8 @@
 
 namespace chip8
 {
-	class rom
+	struct rom
 	{
-	public:
-
 		u8* romdata;
 		u64 romsize;
 		std::string filename;
