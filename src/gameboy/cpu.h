@@ -5,6 +5,36 @@
 #include "gameboy\memory_module.h"
 #include "gameboy\cpu_instructions.h"
 
+//Opcode  Z80				GMB
+//---------------------------------------------
+//08      EX   AF, AF		LD(nn), SP
+//10      DJNZ PC + dd      STOP
+//22      LD(nn), HL		LDI(HL), A
+//2A      LD   HL, (nn)		LDI  A, (HL)
+//32      LD(nn), A			LDD(HL), A
+//3A      LD   A, (nn)		LDD  A, (HL)
+//D3      OUT(n), A			-
+//D9      EXX				RETI
+//DB      IN   A, (n)		-
+//DD      <IX>				-
+//E0      RET  PO			LD(FF00 + n), A
+//E2      JP   PO, nn		LD(FF00 + C), A
+//E3      EX(SP), HL		-
+//E4      CALL P0, nn		-
+//E8      RET  PE			ADD  SP, dd
+//EA      JP   PE, nn		LD(nn), A
+//EB      EX   DE, HL		-
+//EC      CALL PE, nn		-
+//ED      <pref>			-
+//F0      RET  P			LD   A, (FF00 + n)
+//F2      JP   P, nn		LD   A, (FF00 + C)
+//F4      CALL P, nn		-
+//F8      RET  M			LD   HL, SP + dd
+//FA      JP   M, nn		LD   A, (nn)
+//FC      CALL M, nn		-
+//FD      <IY>				-
+//CB3X    SLL  r / (HL)		SWAP r / (HL)
+
 namespace gameboy
 {
 	namespace cpu
@@ -72,54 +102,59 @@ namespace gameboy
 
 		// register pointers used by decoder
 		u16* register_pairs[] = { &R.bc, &R.de, &R.hl, &R.sp };
+		u16* register_pairs2[] = { &R.bc, &R.de, &R.hl, &R.af };
+		u8* register_single[] = { &R.b, &R.c, &R.d, &R.e, &R.h, &R.l, memory_module->get_memory(R.hl), &R.a };
 		
 		// set and get flag helpers
-		inline void set_flags(u8 flags)
+		inline void set_flag(u8 flag)
 		{
-			R.f |= flags;
+			flag = (1 << flag);
+			R.f |= flag;
 		}
 
-		inline void clear_flags()
+		inline void clear_flag(u8 flag)
+		{
+			flag = (1 << flag);
+			R.f &= ~flag; // clear the bit
+		}
+
+		inline u8 get_flag(u8 flag)
+		{
+			flag = (1 << flag);
+			return ((R.f & flag) >> flag);
+		}
+
+		inline void clear_all_flags()
 		{
 			R.f = 0x0;
 		}
 
-		inline u8 compare_flags(u8 flags)
-		{
-			return R.f & flags;
-		}
-
-		inline bool check_flag(u8 flag)
-		{
-			return ((R.f & flag) == flag);
-		}
-
 		enum FLAGS
 		{
-			FLAG_ZERO = (1 << 7),
-			FLAG_SUBTRACTION = (1 << 6),
-			FLAG_HALFCARRY = (1 << 5),
-			FLAG_CARRY = (1 << 4)
+			FLAG_CARRY = 4,
+			FLAG_HALFCARRY = 5,
+			FLAG_SUBTRACTION = 6,
+			FLAG_ZERO = 7,
 		};
 
 		inline bool condition_notzero()
 		{
-			return !check_flag(FLAG_ZERO);
+			return get_flag(FLAG_ZERO) == 0;
 		}
 
 		inline bool condition_zero()
 		{
-			return check_flag(FLAG_ZERO);
+			return get_flag(FLAG_ZERO) != 0;
 		}
 
 		inline bool condition_notcarry()
 		{
-			return !check_flag(FLAG_CARRY);
+			return get_flag(FLAG_CARRY) == 0;
 		}
 
 		inline bool condition_carry()
 		{
-			return check_flag(FLAG_CARRY);
+			return get_flag(FLAG_CARRY);
 		}
 
 		inline bool condition_invalid()
@@ -207,10 +242,11 @@ namespace gameboy
 						R.sp = readpc_u16();
 						break;
 					case 0x2:
-						// STOP - diff from z80
+						// STOP
 						running = false;
 						break;
 					case 0x3:
+						// JR d
 						R.pc += (s8)readpc_u8(); // relative jump is singed offset
 						break;
 					case 0x4:
@@ -298,9 +334,108 @@ namespace gameboy
 					}
 					break;
 				}
+				case 0x3: // z = 3
+				{
+					switch (q)
+					{
+					case 0x0:
+						// INC register_pairs[p]
+						*register_pairs[p]++;
+						break;
+					case 0x1:
+						// DEC register_pairs[p]
+						*register_pairs[p]--;
+						break;
+					}
+					break;
+				}
+				case 0x4: // z = 4
+					// INC register_single[y]
+					*register_single[y]++;
+					break;
+				case 0x5: // z = 5
+					// DEC register_single[y]
+					*register_single[y]--;
+					break;
+				case 0x6: // z = 6
+					// LD register_single[y] with n
+					*register_single[y] = readpc_u8();
+					break;
+				case 0x7: // z = 7
+				{
+					switch (y)
+					{
+					case 0x0:
+					{
+						// RLC A
+						u8 carry = R.a >> 7;
+						R.a = (R.a << 1) | carry;
+						clear_all_flags(); // reset flags
+						if (carry) { set_flag(FLAG_CARRY); }
+						break;
+					}
+					case 0x1:
+					{
+						// RRC A
+						u8 carry = R.a & 0x1;
+						R.a = (R.a >> 1) | (carry << 7);
+						clear_all_flags(); // reset flags
+						if (carry) { set_flag(FLAG_CARRY); }
+						break;
+					}
+					case 0x2:
+					{
+						// RL A
+						u8 carry = R.a >> 7;
+						R.a = (R.a << 1) | get_flag(FLAG_CARRY); // rotate with carry flag
+						clear_all_flags(); // reset flags
+						if (carry) { set_flag(FLAG_CARRY); }
+						break;
+					}
+					case 0x3:
+					{
+						// RR A
+						u8 carry = R.a & 0x1;
+						R.a = (R.a >> 1) | (get_flag(FLAG_CARRY) << 7); // rotate with carry flag
+						clear_all_flags(); // reset flags
+						if (carry) { set_flag(FLAG_CARRY); }
+						break;
+					}
+					case 0x4:
+						// DA A
+						printf("Error - Not implemented\n");
+						break;
+					case 0x5:
+						// CPL
+						R.a = ~R.a;
+						set_flag(FLAG_HALFCARRY);
+						set_flag(FLAG_SUBTRACTION);
+						break;
+					case 0x6:
+						// SCF
+						set_flag(FLAG_CARRY);
+						clear_flag(FLAG_HALFCARRY);
+						clear_flag(FLAG_SUBTRACTION);
+						break;
+					case 0x7:
+						// CCF
+						if (get_flag(FLAG_CARRY))
+						{
+							clear_flag(FLAG_CARRY);
+						}
+						else
+						{
+							set_flag(FLAG_CARRY);
+						}
+						clear_flag(FLAG_HALFCARRY);
+						clear_flag(FLAG_SUBTRACTION);
+						break;
+					}
+					break;
+				}
 				}
 				break;
-			}
+				} // end x = 0
 			}
 
 			return 0;
