@@ -25,7 +25,7 @@ typedef int s32;
 typedef long s64;
 
 #define warning(x)					__pragma(message("[warning] - " x));
-#define warning_assert(x)			warning(x); assert(0);
+#define warning_assert(x)			warning(x); assert(0); 
 
 namespace string_helpers
 {

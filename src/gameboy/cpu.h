@@ -284,7 +284,7 @@ namespace gameboy
 			R.de = 0x00D8;
 			R.hl = 0x014D;
 
-			R.pc = 0x0100; // starting entry point of the ROM
+			R.pc = 0x0; // starting entry point of the ROM
 			R.sp = 0xFFFE;
 
 			return 0;
@@ -663,7 +663,7 @@ namespace gameboy
 					{
 					case 0x0:
 						// JP nn
-						warning_assert("JP nn");
+						R.pc = readpc_u16();
 						break;
 					case 0x1:
 						// CB prefix
