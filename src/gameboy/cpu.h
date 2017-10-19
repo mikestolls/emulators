@@ -33,7 +33,7 @@
 //FA      JP   M, nn		LD   A, (nn)			not implemented
 //FC      CALL M, nn		-						done
 //FD      <IY>				-						done
-//CB3X    SLL  r / (HL)		SWAP r / (HL)
+//CB3X    SLL  r / (HL)		SWAP r / (HL)			not implemented - rot[6] should be a swap
 
 namespace gameboy
 {
@@ -215,6 +215,49 @@ namespace gameboy
 
 		void(*alu_function[])(u8*) = { alu_add, alu_add_carry, alu_sub, alu_sub_carry, alu_and, alu_xor, alu_or, alu_cp };
 
+		// rotation and shift operations
+		inline void rot_rlc(u8* r)
+		{
+			warning_assert("rot rlc function not implemented");
+		}
+
+		inline void rot_rrc(u8* r)
+		{
+			warning_assert("rot rrc function not implemented");
+		}
+
+		inline void rot_rl(u8* r)
+		{
+			warning_assert("rot rl function not implemented");
+		}
+
+		inline void rot_rr(u8* r)
+		{
+			warning_assert("rot rr function not implemented");
+		}
+
+		inline void rot_sla(u8* r)
+		{
+			warning_assert("rot sla function not implemented");
+		}
+
+		inline void rot_sra(u8* r)
+		{
+			warning_assert("rot sra function not implemented");
+		}
+
+		inline void rot_swap(u8* r)
+		{
+			warning_assert("rot swap function not implemented");
+		}
+
+		inline void rot_srl(u8* r)
+		{
+			warning_assert("rot srl function not implemented");
+		}
+
+		void(*rot_function[])(u8*) = { rot_rlc , rot_rrc, rot_rl, rot_rr, rot_sla, rot_sra, rot_swap, rot_srl };
+
 		// read 8 and 16 bit at PC. increment PC
 		inline u8 readpc_u8()
 		{
@@ -258,22 +301,14 @@ namespace gameboy
 			return 0;
 		}
 
-		int update_cycle()
+		int decode_nonprefixed(u8 opcode)
 		{
-			if (!running || halt)
-			{
-				// processor is stopped
-				return 0;
-			}
-
-			// fetch the opcode
-			u8 opcode = readpc_u8();
-
 			u8 x = (opcode >> 6);
 			u8 y = (opcode >> 3) & 0x7;
 			u8 z = (opcode & 0x7);
 			u8 p = (opcode >> 4) & 0x3;
 			u8 q = (opcode >> 3) & 0x1;
+
 			switch (x)
 			{
 			case 0x0: // x = 0
@@ -426,7 +461,7 @@ namespace gameboy
 						clear_all_flags(); // reset flags
 						if (carry)
 						{
-							set_flag(FLAG_CARRY); 
+							set_flag(FLAG_CARRY);
 						}
 						break;
 					}
@@ -437,7 +472,7 @@ namespace gameboy
 						R.a = (R.a >> 1) | (carry << 7);
 						clear_all_flags(); // reset flags
 						if (carry)
-						{ 
+						{
 							set_flag(FLAG_CARRY);
 						}
 						break;
@@ -448,9 +483,9 @@ namespace gameboy
 						u8 carry = R.a >> 7;
 						R.a = (R.a << 1) | get_flag(FLAG_CARRY); // rotate with carry flag
 						clear_all_flags(); // reset flags
-						if (carry) 
-						{ 
-							set_flag(FLAG_CARRY); 
+						if (carry)
+						{
+							set_flag(FLAG_CARRY);
 						}
 						break;
 					}
@@ -460,9 +495,9 @@ namespace gameboy
 						u8 carry = R.a & 0x1;
 						R.a = (R.a >> 1) | (get_flag(FLAG_CARRY) << 7); // rotate with carry flag
 						clear_all_flags(); // reset flags
-						if (carry) 
-						{ 
-							set_flag(FLAG_CARRY); 
+						if (carry)
+						{
+							set_flag(FLAG_CARRY);
 						}
 						break;
 					}
@@ -703,13 +738,69 @@ namespace gameboy
 					break;
 				}
 				case 0x7: // z = 7
-					// RST at pc 7 * 8
+						  // RST at pc 7 * 8
 					reset();
 					R.pc = y * 8;
 					break;
 				}
 				break;
 			}
+			}
+
+			return 0;
+		}
+
+		int decode_prefixed_cb(u8 opcode)
+		{
+			u8 x = (opcode >> 6);
+			u8 y = (opcode >> 3) & 0x7;
+			u8 z = (opcode & 0x7);
+			u8 p = (opcode >> 4) & 0x3;
+			u8 q = (opcode >> 3) & 0x1;
+
+			switch (x)
+			{
+			case 0x0:
+				// rot_function[y] with register_single[z]
+				warning_assert("rot[y] with register_single[z]");
+				break;
+			case 0x1:
+				// test bit y from register_single[z]
+				warning_assert("test bit y from register_single[z]");
+				break;
+			case 0x2:
+				// reset bit y from register_single[z]
+				warning_assert("reset bit y from register_single[z]");
+				break;
+			case 0x3:
+				// set bit y from register_single[z]
+				warning_assert("set bit y from register_single[z]");
+				break;
+			}
+
+			return 0;
+		}
+
+		int update_cycle()
+		{
+			if (!running || halt)
+			{
+				// processor is stopped
+				return 0;
+			}
+
+			// fetch the opcode
+			u8 opcode = readpc_u8();
+
+			// decode. gameboy only has CB prefix
+			if (opcode == 0xCB)
+			{
+				opcode = readpc_u8();
+				decode_prefixed_cb(opcode);
+			}
+			else
+			{
+				decode_nonprefixed(opcode);
 			}
 
 			return 0;
