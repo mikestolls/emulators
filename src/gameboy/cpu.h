@@ -551,12 +551,16 @@ namespace gameboy
 					case 0x5:
 					case 0x6:
 					case 0x7:
+					{
+						s8 val = (s8)readpc_u8();
+
 						// JR conditions[y - 4], d - relative jump
-						if (condition_funct[y - 4])
+						if (condition_funct[y - 4]())
 						{
-							R.pc += (s8)readpc_u8(); // relative jump is singed offset
+							R.pc += val; // relative jump is singed offset
 						}
 						break;
+					}
 					}
 					break;
 				}
@@ -823,7 +827,7 @@ namespace gameboy
 					case 0x2:
 					case 0x3:
 						// RET if condition_funct[y]
-						if (condition_funct[y])
+						if (condition_funct[y]())
 						{
 							warning_assert("RET if condition_funct[y]");
 						}
@@ -904,12 +908,15 @@ namespace gameboy
 					case 0x1:
 					case 0x2:
 					case 0x3:
+					{
 						// JP to nn if condition_funct[y]
-						if (condition_funct[y])
+						u16 val = readpc_u16();
+						if (condition_funct[y]())
 						{
-							R.pc = readpc_u16();
+							R.pc = val;
 						}
 						break;
+					}
 					case 0x4:
 						// LD mem(FF00 + C) with A
 						warning_assert("LD mem(FF00 + C) with A");
