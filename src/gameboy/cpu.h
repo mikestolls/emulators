@@ -29,11 +29,11 @@
 //F0      RET  P			LD   A, (FF00 + n)		not implemented.
 //F2      JP   P, nn		LD   A, (FF00 + C)		not implemented. check if supported
 //F4      CALL P, nn		-						done
-//F8      RET  M			LD   HL, SP + dd		not implemented - check if 8 or 16 bit operand
+//F8      RET  M			LD   HL, SP + d			done
 //FA      JP   M, nn		LD   A, (nn)			not implemented
 //FC      CALL M, nn		-						done
 //FD      <IY>				-						done
-//CB3X    SLL  r / (HL)		SWAP r / (HL)			not implemented - rot[6] should be a swap
+//CB3X    SLL  r / (HL)		SWAP r / (HL)			done
 
 namespace gameboy
 {
@@ -218,42 +218,139 @@ namespace gameboy
 		// rotation and shift operations
 		inline void rot_rlc(u8* r)
 		{
-			warning_assert("rot rlc function not implemented");
+			u8 carry = (*r & 0x80);
+			*r = (*r << 1) | carry;
+
+			clear_all_flags();
+			if (carry)
+			{
+				set_flag(FLAG_CARRY);
+			}
+
+			// if not register a, we set zero flag
+			if (r != &R.a && *r == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void rot_rrc(u8* r)
 		{
-			warning_assert("rot rrc function not implemented");
+			u8 carry = (*r & 0x1);
+			*r = (*r >> 1) | (carry << 7);
+
+			clear_all_flags();
+			if (carry)
+			{
+				set_flag(FLAG_CARRY);
+			}
+
+			// if not register a, we set zero flag
+			if (r != &R.a && *r == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void rot_rl(u8* r)
 		{
-			warning_assert("rot rl function not implemented");
+			u8 carry = get_flag(FLAG_CARRY);
+
+			clear_all_flags();
+			if ((*r >> 7))
+			{
+				set_flag(FLAG_CARRY);
+			}
+
+			*r = (*r << 1) | carry;
+
+			// if not register a, we set zero flag
+			if (r != &R.a && *r == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void rot_rr(u8* r)
 		{
-			warning_assert("rot rr function not implemented");
+			u8 carry = get_flag(FLAG_CARRY);
+
+			clear_all_flags();
+			if (*r & 0x1)
+			{
+				set_flag(FLAG_CARRY);
+			}
+
+			*r = (*r >> 1) | (carry << 7);
+
+			// if not register a, we set zero flag
+			if (r != &R.a && *r == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void rot_sla(u8* r)
 		{
-			warning_assert("rot sla function not implemented");
+			clear_all_flags();
+			if (*r & 0x80)
+			{
+				set_flag(FLAG_CARRY);
+			}
+
+			*r <<= 1;
+
+			// if set zero flag
+			if (*r == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void rot_sra(u8* r)
 		{
-			warning_assert("rot sra function not implemented");
+			clear_all_flags();
+			if (*r & 0x1)
+			{
+				set_flag(FLAG_CARRY);
+			}
+
+			*r = (*r & 0x80) | (*r >> 1); // high bit stays
+
+			// set zero flag
+			if (*r == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void rot_swap(u8* r)
 		{
-			warning_assert("rot swap function not implemented");
+			clear_all_flags();
+			*r = ((*r & 0x0F) << 4) | ((*r & 0xF0) >> 4);
+
+			// set zero flag
+			if (*r == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void rot_srl(u8* r)
 		{
-			warning_assert("rot srl function not implemented");
+			clear_all_flags();
+			if (*r & 0x1)
+			{
+				set_flag(FLAG_CARRY);
+			}
+
+			*r >>= 1; // high bit 0
+
+			// set zero flag
+			if (*r == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		void(*rot_function[])(u8*) = { rot_rlc , rot_rrc, rot_rl, rot_rr, rot_sla, rot_sra, rot_swap, rot_srl };
@@ -293,8 +390,6 @@ namespace gameboy
 		int initialize(gameboy::memory_module* memory)
 		{
 			memory_module = memory;
-
-			register_single[6] = memory_module->get_memory(R.hl); // need to point this to mem
 			
 			reset();
 
@@ -587,9 +682,27 @@ namespace gameboy
 						warning_assert("LD A with mem(FF00 + n)");
 						break;
 					case 0x7:
-						// ADD (signed)nn to SP then LD HL with SP
-						warning_assert("ADD (signed)nn to SP then LD HL with SP");
+					{
+						// ADD (signed)n to SP then LD HL with SP
+						clear_all_flags();
+						u8 operand = readpc_u8();
+						u32 res = R.sp + (s8)operand;
+
+						// check for carry
+						if (res & 0xFFFF0000)
+						{
+							set_flag(FLAG_CARRY);
+						}
+
+						// check for the half carry. low byte + low byte greater than byte value
+						if ((R.sp & 0x0F) + (operand & 0x0F) > 0x0F)
+						{
+							set_flag(FLAG_HALFCARRY);
+						}
+
+						R.hl = (u16)(res & 0xFFFF);
 						break;
+					}
 					}
 					break;
 				}
@@ -788,6 +901,9 @@ namespace gameboy
 				// processor is stopped
 				return 0;
 			}
+
+			// need to point this to mem. small hack for the (HL) register instructons
+			register_single[6] = memory_module->get_memory(R.hl); 
 
 			// fetch the opcode
 			u8 opcode = readpc_u8();
