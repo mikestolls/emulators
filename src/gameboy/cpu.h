@@ -170,39 +170,154 @@ namespace gameboy
 		// alu functions for instructions
 		inline void alu_add(u8* r)
 		{
-			R.a += *r;
+			u16 res = R.a + *r;
+
+			// set flags
+			clear_all_flags();
+
+			// check for carry
+			if (res & 0xFF00)
+			{
+				set_flag(FLAG_CARRY);
+			}
+
+			// check for the half carry
+			if ((R.a & 0x0F) + (*r & 0x0F) > 0x0F)
+			{
+				set_flag(FLAG_HALFCARRY);
+			}
+
+			// set new value
+			R.a = (u8)(res & 0xFF);
+
+			if (R.a == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void alu_add_carry(u8* r)
 		{
-			R.a += *r;
-			R.a += get_flag(FLAG_CARRY);
+			u16 res = R.a + *r + get_flag(FLAG_CARRY);
+
+			// set flags
+			clear_all_flags();
+
+			// check for carry
+			if (res & 0xFF00)
+			{
+				set_flag(FLAG_CARRY);
+			}
+
+			// check for the half carry. low byte + low byte greater than byte value
+			if ((R.a & 0x0F) + (*r & 0x0F) > 0x0F)
+			{
+				set_flag(FLAG_HALFCARRY);
+			}
+
+			// set new value
+			R.a = (u8)(res & 0xFF);
+
+			if (R.a == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void alu_sub(u8* r)
 		{
+			// set flags
+			clear_all_flags();
+			set_flag(FLAG_SUBTRACTION);
+		
+			// check for carry
+			if (*r > R.a)
+			{
+				set_flag(FLAG_CARRY);
+			}
+
+			// check for the half carry
+			if ((*r & 0x0F) > (R.a & 0x0F))
+			{
+				set_flag(FLAG_HALFCARRY);
+			}
+
+			// set new value
 			R.a -= *r;
+
+			if (R.a == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void alu_sub_carry(u8* r)
 		{
-			R.a -= *r;
-			R.a -= get_flag(FLAG_CARRY);
+			u8 val = *r + get_flag(FLAG_CARRY);
+
+			// set flags
+			clear_all_flags();
+			set_flag(FLAG_SUBTRACTION);
+
+			// check for carry
+			if (val > R.a)
+			{
+				set_flag(FLAG_CARRY);
+			}
+
+			// check for the half carry
+			if ((val & 0x0F) > (R.a & 0x0F))
+			{
+				set_flag(FLAG_HALFCARRY);
+			}
+
+			// set new value
+			R.a -= val;
+
+			if (R.a == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 		
 		inline void alu_and(u8* r)
 		{
 			R.a &= *r;
+
+			// set flags
+			clear_all_flags();
+			set_flag(FLAG_HALFCARRY);
+
+			if (R.a == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void alu_xor(u8* r)
 		{
 			R.a ^= *r;
+
+			// set flags
+			clear_all_flags();
+
+			if (R.a == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void alu_or(u8* r)
 		{
 			R.a |= *r;
+
+			// set flags
+			clear_all_flags();
+
+			if (R.a == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
 		}
 
 		inline void alu_cp(u8* r)
@@ -534,11 +649,55 @@ namespace gameboy
 				}
 				case 0x4: // z = 4
 					// INC register_single[y]
-					*register_single[y]++;
+					// check for the half carry only
+					if (*register_single[y] == 0x0F)
+					{
+						set_flag(FLAG_HALFCARRY);
+					}
+					else
+					{
+						clear_flag(FLAG_HALFCARRY);
+					}
+
+					// set new value
+					*register_single[y] += 1;
+
+					if (*register_single[y] == 0)
+					{
+						set_flag(FLAG_ZERO);
+					}
+					else
+					{
+						clear_flag(FLAG_ZERO);
+					}
+
+					clear_flag(FLAG_SUBTRACTION);
 					break;
 				case 0x5: // z = 5
 					// DEC register_single[y]
-					*register_single[y]--;
+					// check for the half carry only
+					if (*register_single[y] & 0x0F)
+					{
+						clear_flag(FLAG_HALFCARRY);
+					}
+					else
+					{
+						set_flag(FLAG_HALFCARRY);
+					}
+
+					// set new value
+					*register_single[y] -= 1;
+
+					if (*register_single[y] == 0)
+					{
+						set_flag(FLAG_ZERO);
+					}
+					else
+					{
+						clear_flag(FLAG_ZERO);
+					}
+
+					set_flag(FLAG_SUBTRACTION);
 					break;
 				case 0x6: // z = 6
 					// LD register_single[y] with n
@@ -694,7 +853,7 @@ namespace gameboy
 							set_flag(FLAG_CARRY);
 						}
 
-						// check for the half carry. low byte + low byte greater than byte value
+						// check for the half carry.
 						if ((R.sp & 0x0F) + (operand & 0x0F) > 0x0F)
 						{
 							set_flag(FLAG_HALFCARRY);
