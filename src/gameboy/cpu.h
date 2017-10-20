@@ -3,7 +3,7 @@
 #include "defines.h"
 
 #include "gameboy\memory_module.h"
-#include "gameboy\cpu_instructions.h"
+#include "gameboy\interrupts.h"
 
 //Opcode  Z80				GMB
 //---------------------------------------------
@@ -17,16 +17,16 @@
 //D9      EXX				RETI					not implemented
 //DB      IN   A, (n)		-						done
 //DD      <IX>				-						done
-//E0      RET  PO			LD(FF00 + n), A			not implemented
+//E0      RET  PO			LD(FF00 + n), A			done
 //E2      JP   PO, nn		LD(FF00 + C), A			not implemented
 //E3      EX(SP), HL		-						done
 //E4      CALL P0, nn		-						done
-//E8      RET  PE			ADD  SP, dd				not implemented - check if 8 or 16 bit operand
+//E8      RET  PE			ADD  SP, d				done
 //EA      JP   PE, nn		LD(nn), A				not implemented
 //EB      EX   DE, HL		-						done
 //EC      CALL PE, nn		-						done
 //ED      <pref>			-						done
-//F0      RET  P			LD   A, (FF00 + n)		not implemented.
+//F0      RET  P			LD   A, (FF00 + n)		done
 //F2      JP   P, nn		LD   A, (FF00 + C)		not implemented. check if supported
 //F4      CALL P, nn		-						done
 //F8      RET  M			LD   HL, SP + d			done
@@ -858,7 +858,7 @@ namespace gameboy
 						break;
 					case 0x4:
 						// LD mem(FF00 + n) with A
-						warning_assert("LD mem(FF00 + n) with A");
+						memory_module->write_memory(0xFF00 + readpc_u8(), &R.a, 1);
 						break;
 					case 0x5:
 					{
@@ -884,7 +884,7 @@ namespace gameboy
 					}
 					case 0x6:
 						// LD A with mem(FF00 + n)
-						warning_assert("LD A with mem(FF00 + n)");
+						R.a = memory_module->read_memory(0xFF00 + readpc_u8());
 						break;
 					case 0x7:
 					{
@@ -999,11 +999,11 @@ namespace gameboy
 						break;
 					case 0x6:
 						// DI - disable interupts
-						warning_assert("DI - disable interupts");
+						disable_interrupts();
 						break;
 					case 0x7:
 						// EI - enable interupts
-						warning_assert("EI - enable interupts");
+						enable_interrupts();
 						break;
 					}
 					break;
