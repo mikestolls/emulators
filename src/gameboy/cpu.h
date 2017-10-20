@@ -18,16 +18,16 @@
 //DB      IN   A, (n)		-						done
 //DD      <IX>				-						done
 //E0      RET  PO			LD(FF00 + n), A			done
-//E2      JP   PO, nn		LD(FF00 + C), A			not implemented
+//E2      JP   PO, nn		LD(FF00 + C), A			done
 //E3      EX(SP), HL		-						done
 //E4      CALL P0, nn		-						done
 //E8      RET  PE			ADD  SP, d				done
-//EA      JP   PE, nn		LD(nn), A				not implemented
+//EA      JP   PE, nn		LD(nn), A				done
 //EB      EX   DE, HL		-						done
 //EC      CALL PE, nn		-						done
 //ED      <pref>			-						done
 //F0      RET  P			LD   A, (FF00 + n)		done
-//F2      JP   P, nn		LD   A, (FF00 + C)		not implemented. check if supported
+//F2      JP   P, nn		LD   A, (FF00 + C)		done
 //F4      CALL P, nn		-						done
 //F8      RET  M			LD   HL, SP + d			done
 //FA      JP   M, nn		LD   A, (nn)			not implemented
@@ -961,19 +961,19 @@ namespace gameboy
 					}
 					case 0x4:
 						// LD mem(FF00 + C) with A
-						warning_assert("LD mem(FF00 + C) with A");
+						memory_module->write_memory(0xFF00 + R.c, &R.a, 1);
 						break;
 					case 0x5:
 						// LD mem(nn) with A
-						warning_assert("LD mem(nn) with A");
+						memory_module->write_memory(readpc_u16(), &R.a, 1);
 						break;
 					case 0x6:
 						// LD A with mem(FF00 + C)
-						warning_assert("LD A with mem(FF00 + C)");
+						R.a = memory_module->read_memory(0xFF00 + R.c);
 						break;
 					case 0x7:
 						// LD A with mem(nn)
-						warning_assert("LD A with mem(nn)");
+						R.a = memory_module->read_memory(readpc_u16());
 						break;
 					}
 					break;
@@ -988,7 +988,8 @@ namespace gameboy
 						break;
 					case 0x1:
 						// CB prefix
-						warning_assert("CB prefix");
+						printf("Error - CB prefix opcode should not get here\n");
+						assert(0);
 						break;
 					case 0x2:
 					case 0x3:
@@ -1083,19 +1084,26 @@ namespace gameboy
 			{
 			case 0x0:
 				// rot_function[y] with register_single[z]
-				warning_assert("rot[y] with register_single[z]");
+				rot_function[y](register_single[z]);
 				break;
 			case 0x1:
 				// test bit y from register_single[z]
-				warning_assert("test bit y from register_single[z]");
+				if (*register_single[z] | (1 << y))
+				{
+					clear_flag(FLAG_ZERO);
+				}
+
+				set_flag(FLAG_ZERO);
+				set_flag(FLAG_HALFCARRY);
+				clear_flag(FLAG_SUBTRACTION);
 				break;
 			case 0x2:
 				// reset bit y from register_single[z]
-				warning_assert("reset bit y from register_single[z]");
+				*register_single[z] &= ~(1 << y);
 				break;
 			case 0x3:
 				// set bit y from register_single[z]
-				warning_assert("set bit y from register_single[z]");
+				*register_single[z] |= (1 << y);
 				break;
 			}
 
