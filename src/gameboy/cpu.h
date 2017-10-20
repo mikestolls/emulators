@@ -30,7 +30,7 @@
 //F2      JP   P, nn		LD   A, (FF00 + C)		done
 //F4      CALL P, nn		-						done
 //F8      RET  M			LD   HL, SP + d			done
-//FA      JP   M, nn		LD   A, (nn)			not implemented
+//FA      JP   M, nn		LD   A, (nn)			done
 //FC      CALL M, nn		-						done
 //FD      <IY>				-						done
 //CB3X    SLL  r / (HL)		SWAP r / (HL)			done
@@ -853,7 +853,8 @@ namespace gameboy
 						// RET if condition_funct[y]
 						if (condition_funct[y]())
 						{
-							warning_assert("RET if condition_funct[y]");
+							R.pc = memory_module->read_memory(R.sp++);
+							R.pc |= (memory_module->read_memory(R.sp++) << 8);
 						}
 						break;
 					case 0x4:
@@ -916,7 +917,8 @@ namespace gameboy
 					if (q == 0)
 					{
 						// POP stack ptr to register_pairs2[p]
-						warning_assert("POP stack ptr to register_pairs2[p]");
+						*register_pairs2[p] = memory_module->read_memory(R.sp++);
+						*register_pairs2[p] |= (memory_module->read_memory(R.sp++) << 8);
 					}
 					else
 					{
@@ -924,11 +926,14 @@ namespace gameboy
 						{
 						case 0x0:
 							// RET
-							warning_assert("RET");
+							R.pc = memory_module->read_memory(R.sp++);
+							R.pc |= (memory_module->read_memory(R.sp++) << 8);
 							break;
 						case 0x1:
 							// RETI
-							warning_assert("RETI");
+							R.pc = memory_module->read_memory(R.sp++);
+							R.pc |= (memory_module->read_memory(R.sp++) << 8);
+							interrupt_master = true;
 							break;
 						case 0x2:
 							// JP (HL)
@@ -1017,9 +1022,21 @@ namespace gameboy
 					case 0x1:
 					case 0x2:
 					case 0x3:
+					{
 						// CALL nn if condition_funct[y]
-						warning_assert("CALL nn if condition_funct[y]");
+						u16 val = readpc_u16();
+						if (condition_funct[y]())
+						{
+							u8 low = (R.pc & 0x00FF);
+							u8 high = (R.pc >> 8);
+
+							R.sp -= 2;
+							memory_module->write_memory(R.sp, &low, 1);
+							memory_module->write_memory(R.sp + 1, &high, 1);
+							R.pc = val;
+						}
 						break;
+					}
 					case 0x4:
 					case 0x5:
 					case 0x6:
@@ -1035,14 +1052,26 @@ namespace gameboy
 					if (q == 0)
 					{
 						// PUSH register_pairs2[p]
-						warning_assert("PUSH register_pairs2[p]");
+						u8 low = (*register_pairs2[p] & 0x00FF);
+						u8 high = (*register_pairs2[p] >> 8);
+
+						R.sp -= 2;
+						memory_module->write_memory(R.sp, &low, 1);
+						memory_module->write_memory(R.sp + 1, &high, 1);
 					}
 					else
 					{
 						if (p == 0)
 						{
 							// CALL nn
-							warning_assert("CALL nn");
+							u16 val = readpc_u16();
+							u8 low = (R.pc & 0x00FF);
+							u8 high = (R.pc >> 8);
+
+							R.sp -= 2;
+							memory_module->write_memory(R.sp, &low, 1);
+							memory_module->write_memory(R.sp + 1, &high, 1);
+							R.pc = val;
 						}
 						else
 						{
