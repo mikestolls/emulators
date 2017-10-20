@@ -574,7 +574,31 @@ namespace gameboy
 						break;
 					case 0x1:
 						// ADD HL with register_pairs[p]
-						R.hl += *register_pairs[p];
+						u32 res = R.hl + *register_pairs[p];
+
+						// check for carry
+						if (res & 0xFFFF0000)
+						{
+							set_flag(FLAG_CARRY);
+						}
+						else
+						{
+							clear_flag(FLAG_CARRY);
+						}
+
+						// check for the half carry.
+						if ((R.hl & 0x0F) + (*register_pairs[p] & 0x0F) > 0x0F)
+						{
+							set_flag(FLAG_HALFCARRY);
+						}
+						else
+						{
+							clear_flag(FLAG_HALFCARRY);
+						}
+
+						clear_flag(FLAG_SUBTRACTION);
+
+						R.hl = (u16)(res & 0xFFFF);
 						break;
 					}
 					break;
@@ -837,9 +861,27 @@ namespace gameboy
 						warning_assert("LD mem(FF00 + n) with A");
 						break;
 					case 0x5:
-						// ADD SP with (signed)nn
-						warning_assert("ADD SP with (signed)nn");
+					{
+						// ADD SP with (signed)n
+						s8 val = (s8)readpc_u8();
+						u32 res = R.sp + val;
+
+						// check for carry
+						clear_all_flags();
+						if (res & 0xFFFF0000)
+						{
+							set_flag(FLAG_CARRY);
+						}
+
+						// check for the half carry.
+						if ((R.sp & 0x0F) + (val & 0x0F) > 0x0F)
+						{
+							set_flag(FLAG_HALFCARRY);
+						}
+
+						R.sp = (u16)(res & 0xFFFF);
 						break;
+					}
 					case 0x6:
 						// LD A with mem(FF00 + n)
 						warning_assert("LD A with mem(FF00 + n)");

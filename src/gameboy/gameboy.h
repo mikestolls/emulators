@@ -84,7 +84,7 @@ namespace gameboy
 			std::chrono::duration<double, std::milli> minFrameTime(1000.0 / 360.0);
 			if (delta < minFrameTime)
 			{
-				std::this_thread::sleep_for(minFrameTime - delta);
+				//std::this_thread::sleep_for(minFrameTime - delta);
 			}
 
 			lastTime = curTime;
