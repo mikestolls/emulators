@@ -14,7 +14,7 @@
 //32      LD(nn), A			LDD(HL), A				done
 //3A      LD   A, (nn)		LDD  A, (HL)			done
 //D3      OUT(n), A			-						done
-//D9      EXX				RETI					not implemented
+//D9      EXX				RETI					done
 //DB      IN   A, (n)		-						done
 //DD      <IX>				-						done
 //E0      RET  PO			LD(FF00 + n), A			done
@@ -156,7 +156,7 @@ namespace gameboy
 
 		inline bool condition_carry()
 		{
-			return get_flag(FLAG_CARRY);
+			return get_flag(FLAG_CARRY) != 0;
 		}
 
 		inline bool condition_invalid()
@@ -519,6 +519,8 @@ namespace gameboy
 			u8 p = (opcode >> 4) & 0x3;
 			u8 q = (opcode >> 3) & 0x1;
 
+			u8 cycles = 0;
+
 			switch (x)
 			{
 			case 0x0: // x = 0
@@ -537,6 +539,7 @@ namespace gameboy
 						// LD mem NN with SP
 						u16 addr = readpc_u16();
 						memory_module->write_memory(addr, (const u8*)&R.sp, 2);
+						cycles = 20;
 						break;
 					}
 					case 0x2:
@@ -571,6 +574,7 @@ namespace gameboy
 					case 0x0:
 						// LD register_pairs[p] with nn
 						*register_pairs[p] = readpc_u16();
+						cycles = 12;
 						break;
 					case 0x1:
 						// ADD HL with register_pairs[p]
@@ -614,20 +618,24 @@ namespace gameboy
 						case 0x0:
 							// LD (BC) with A
 							memory_module->write_memory(R.bc, &R.a, 1);
+							cycles = 8;
 							break;
 						case 0x1:
 							// LD (DE) with A
 							memory_module->write_memory(R.de, &R.a, 1);
+							cycles = 8;
 							break;
 						case 0x2:
 							// LDI (HL) with A. inc HL
 							memory_module->write_memory(R.hl, &R.a, 1);
 							R.hl++;
+							cycles = 8;
 							break;
 						case 0x3:
 							// LDD (HL) with A. decr HL
 							memory_module->write_memory(R.hl, &R.a, 1);
 							R.hl--;
+							cycles = 8;
 							break;
 						}
 						break;
@@ -639,20 +647,24 @@ namespace gameboy
 						case 0x0:
 							// LD A with (BC)
 							R.a = memory_module->read_memory(R.bc);
+							cycles = 8;
 							break;
 						case 0x1:
 							// LD A with (DE)
 							R.a = memory_module->read_memory(R.de);
+							cycles = 8;
 							break;
 						case 0x2:
 							// LDI A with (HL). inc HL
 							R.a = memory_module->read_memory(R.hl);
 							R.hl++;
+							cycles = 8;
 							break;
 						case 0x3:
 							// LDD A with (HL). decr HL
 							R.a = memory_module->read_memory(R.hl);
 							R.hl--;
+							cycles = 8;
 							break;
 						}
 						break;
@@ -730,6 +742,15 @@ namespace gameboy
 				case 0x6: // z = 6
 					// LD register_single[y] with n
 					*register_single[y] = readpc_u8();
+
+					if (y == 6) // register is (HL)
+					{
+						cycles = 12;
+					}
+					else
+					{
+						cycles = 8;
+					}
 					break;
 				case 0x7: // z = 7
 				{
@@ -820,7 +841,7 @@ namespace gameboy
 			} // end x = 0
 			case 0x1: // x = 1
 			{
-				if (z == 6)
+				if (z == 6 && y== 6)
 				{
 					// HALT
 					halt = true;
@@ -829,6 +850,15 @@ namespace gameboy
 				{
 					// LD register_single[y] with register_single[z]
 					*register_single[y] = *register_single[z];
+
+					if (y == 6 || z == 6) // register is (HL)
+					{
+						cycles = 8;
+					}
+					else
+					{
+						cycles = 4;
+					}
 				}
 				break;
 			} // end x = 1
@@ -860,6 +890,7 @@ namespace gameboy
 					case 0x4:
 						// LD mem(FF00 + n) with A
 						memory_module->write_memory(0xFF00 + readpc_u8(), &R.a, 1);
+						cycles = 12;
 						break;
 					case 0x5:
 					{
@@ -886,6 +917,7 @@ namespace gameboy
 					case 0x6:
 						// LD A with mem(FF00 + n)
 						R.a = memory_module->read_memory(0xFF00 + readpc_u8());
+						cycles = 12;
 						break;
 					case 0x7:
 					{
@@ -906,7 +938,8 @@ namespace gameboy
 							set_flag(FLAG_HALFCARRY);
 						}
 
-						R.hl = (u16)(res & 0xFFFF);
+						R.hl = (u16)(res & 0xFFFF); 
+						cycles = 12;
 						break;
 					}
 					}
@@ -942,6 +975,7 @@ namespace gameboy
 						case 0x3:
 							// LD SP with HL
 							R.sp = R.hl;
+							cycles = 8;
 							break;
 						}
 					}
@@ -967,18 +1001,22 @@ namespace gameboy
 					case 0x4:
 						// LD mem(FF00 + C) with A
 						memory_module->write_memory(0xFF00 + R.c, &R.a, 1);
+						cycles = 8;
 						break;
 					case 0x5:
 						// LD mem(nn) with A
 						memory_module->write_memory(readpc_u16(), &R.a, 1);
+						cycles = 16;
 						break;
 					case 0x6:
 						// LD A with mem(FF00 + C)
 						R.a = memory_module->read_memory(0xFF00 + R.c);
+						cycles = 8;
 						break;
 					case 0x7:
 						// LD A with mem(nn)
 						R.a = memory_module->read_memory(readpc_u16());
+						cycles = 16;
 						break;
 					}
 					break;
@@ -1139,7 +1177,7 @@ namespace gameboy
 			return 0;
 		}
 
-		int update_cycle()
+		int execute_opcode()
 		{
 			if (!running || halt)
 			{

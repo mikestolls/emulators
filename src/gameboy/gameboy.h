@@ -3,6 +3,7 @@
 #include <SFML/Graphics.hpp>
 
 #include "cpu.h"
+#include "gpu.h"
 #include "rom.h"
 
 namespace gameboy
@@ -45,8 +46,9 @@ namespace gameboy
 		sf::RectangleShape whiteRect(sf::Vector2f(pixelSize, pixelSize));
 		whiteRect.setFillColor(sf::Color::White);
 
-		// init scpu and load rom
+		// init cpu and load rom
 		cpu::initialize(&memory);
+		gpu::initialize(&memory);
 
 		std::chrono::milliseconds curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 		std::chrono::milliseconds lastTime = curTime;
@@ -67,7 +69,7 @@ namespace gameboy
 			}
 
 			// update the cpu emulation
-			cpu::update_cycle();
+			cpu::execute_opcode();
 
 			//if (cpu.drawFlag)
 			{
@@ -81,10 +83,10 @@ namespace gameboy
 			curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 			std::chrono::milliseconds delta = curTime - lastTime;
 
-			std::chrono::duration<double, std::milli> minFrameTime(1000.0 / 360.0);
+			std::chrono::duration<double, std::milli> minFrameTime(1000.0 / 60.0);
 			if (delta < minFrameTime)
 			{
-				//std::this_thread::sleep_for(minFrameTime - delta);
+				std::this_thread::sleep_for(minFrameTime - delta);
 			}
 
 			lastTime = curTime;
