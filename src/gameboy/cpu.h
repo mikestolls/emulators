@@ -603,6 +603,8 @@ namespace gameboy
 						clear_flag(FLAG_SUBTRACTION);
 
 						R.hl = (u16)(res & 0xFFFF);
+
+						cycles = 8;
 						break;
 					}
 					break;
@@ -679,10 +681,12 @@ namespace gameboy
 					case 0x0:
 						// INC register_pairs[p]
 						*register_pairs[p]++;
+						cycles = 8;
 						break;
 					case 0x1:
 						// DEC register_pairs[p]
 						*register_pairs[p]--;
+						cycles = 8;
 						break;
 					}
 					break;
@@ -712,6 +716,15 @@ namespace gameboy
 					}
 
 					clear_flag(FLAG_SUBTRACTION);
+
+					if (y == 6) // register (HL)
+					{
+						cycles = 12;
+					}
+					else
+					{
+						cycles = 4;
+					}
 					break;
 				case 0x5: // z = 5
 					// DEC register_single[y]
@@ -738,6 +751,15 @@ namespace gameboy
 					}
 
 					set_flag(FLAG_SUBTRACTION);
+
+					if (y == 6) // register (HL)
+					{
+						cycles = 12;
+					}
+					else
+					{
+						cycles = 4;
+					}
 					break;
 				case 0x6: // z = 6
 					// LD register_single[y] with n
@@ -866,6 +888,15 @@ namespace gameboy
 			{
 				// alu[y] with register_single[z]
 				alu_function[y](register_single[z]);
+
+				if (z == 6) // using (HL) register
+				{
+					cycles = 8;
+				}
+				else
+				{
+					cycles = 4;
+				}
 				break;
 			}
 			case 0x3: // x = 3
@@ -912,6 +943,8 @@ namespace gameboy
 						}
 
 						R.sp = (u16)(res & 0xFFFF);
+
+						cycles = 16;
 						break;
 					}
 					case 0x6:
@@ -952,6 +985,7 @@ namespace gameboy
 						// POP stack ptr to register_pairs2[p]
 						*register_pairs2[p] = memory_module->read_memory(R.sp++);
 						*register_pairs2[p] |= (memory_module->read_memory(R.sp++) << 8);
+						cycles = 12;
 					}
 					else
 					{
@@ -1096,6 +1130,8 @@ namespace gameboy
 						R.sp -= 2;
 						memory_module->write_memory(R.sp, &low, 1);
 						memory_module->write_memory(R.sp + 1, &high, 1);
+
+						cycles = 16;
 					}
 					else
 					{
@@ -1124,6 +1160,7 @@ namespace gameboy
 					// alu[y] with n
 					u8 value = readpc_u8();
 					alu_function[y](&value);
+					cycles = 8;
 					break;
 				}
 				case 0x7: // z = 7
