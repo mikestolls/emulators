@@ -686,12 +686,12 @@ namespace gameboy
 					{
 					case 0x0:
 						// INC register_pairs[p]
-						*register_pairs[p]++;
+						(*register_pairs[p])++;
 						cycles = 8;
 						break;
 					case 0x1:
 						// DEC register_pairs[p]
-						*register_pairs[p]--;
+						(*register_pairs[p])--;
 						cycles = 8;
 						break;
 					}

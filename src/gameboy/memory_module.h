@@ -66,7 +66,7 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
-					if ((memory_map[i].access & MEMORY_READABLE) == 0)
+					if ((memory_map[i].access & MEMORY_READABLE) == 0 || memory_map[i].memory == nullptr)
 					{
 						printf("Error - reading from memory map that is not readable\n");
 						return 0;
@@ -87,7 +87,7 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
-					if ((memory_map[i].access & MEMORY_READABLE) == 0)
+					if ((memory_map[i].access & MEMORY_READABLE) == 0 || memory_map[i].memory == nullptr)
 					{
 						printf("Error - reading from memory map that is not readable\n");
 						return 0;
@@ -108,7 +108,7 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
-					if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
+					if ((memory_map[i].access & MEMORY_WRITABLE) == 0 || memory_map[i].memory == nullptr)
 					{
 						printf("Error - writing to memory map that is not readable\n");
 						return;
