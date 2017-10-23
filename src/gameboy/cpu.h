@@ -533,6 +533,7 @@ namespace gameboy
 					{
 					case 0x0:
 						// NOP
+						cycles = 4;
 						break;
 					case 0x1:
 					{
@@ -545,6 +546,7 @@ namespace gameboy
 					case 0x2:
 						// STOP
 						running = false;
+						cycles = 4;
 						break;
 					case 0x3:
 						// JR d
@@ -788,6 +790,8 @@ namespace gameboy
 						{
 							set_flag(FLAG_CARRY);
 						}
+
+						cycles = 4;
 						break;
 					}
 					case 0x1:
@@ -800,6 +804,8 @@ namespace gameboy
 						{
 							set_flag(FLAG_CARRY);
 						}
+
+						cycles = 4;
 						break;
 					}
 					case 0x2:
@@ -812,6 +818,8 @@ namespace gameboy
 						{
 							set_flag(FLAG_CARRY);
 						}
+
+						cycles = 4;
 						break;
 					}
 					case 0x3:
@@ -824,23 +832,31 @@ namespace gameboy
 						{
 							set_flag(FLAG_CARRY);
 						}
+
+						cycles = 4;
 						break;
 					}
 					case 0x4:
 						// DA A
 						warning_assert("DA A");
+
+						cycles = 4;
 						break;
 					case 0x5:
 						// CPL
 						R.a = ~R.a;
 						set_flag(FLAG_HALFCARRY);
 						set_flag(FLAG_SUBTRACTION);
+
+						cycles = 4;
 						break;
 					case 0x6:
 						// SCF
 						set_flag(FLAG_CARRY);
 						clear_flag(FLAG_HALFCARRY);
 						clear_flag(FLAG_SUBTRACTION);
+
+						cycles = 4;
 						break;
 					case 0x7:
 						// CCF
@@ -854,6 +870,8 @@ namespace gameboy
 						}
 						clear_flag(FLAG_HALFCARRY);
 						clear_flag(FLAG_SUBTRACTION);
+
+						cycles = 4;
 						break;
 					}
 					break;
@@ -867,6 +885,7 @@ namespace gameboy
 				{
 					// HALT
 					halt = true;
+					cycles = 4;
 				}
 				else
 				{
@@ -1078,10 +1097,12 @@ namespace gameboy
 					case 0x6:
 						// DI - disable interupts
 						disable_interrupts();
+						cycles = 4;
 						break;
 					case 0x7:
 						// EI - enable interupts
 						enable_interrupts();
+						cycles = 4;
 						break;
 					}
 					break;
@@ -1173,7 +1194,7 @@ namespace gameboy
 			}
 			}
 
-			return 0;
+			return cycles;
 		}
 
 		int decode_prefixed_cb(u8 opcode)
@@ -1184,11 +1205,22 @@ namespace gameboy
 			u8 p = (opcode >> 4) & 0x3;
 			u8 q = (opcode >> 3) & 0x1;
 
+			u8 cycles = 0;
+
 			switch (x)
 			{
 			case 0x0:
 				// rot_function[y] with register_single[z]
 				rot_function[y](register_single[z]);
+
+				if (z == 6) // (HL) register
+				{
+					cycles = 16;
+				}
+				else
+				{
+					cycles = 8;
+				}
 				break;
 			case 0x1:
 				// test bit y from register_single[z]
@@ -1211,7 +1243,7 @@ namespace gameboy
 				break;
 			}
 
-			return 0;
+			return cycles;
 		}
 
 		int execute_opcode()
@@ -1225,6 +1257,8 @@ namespace gameboy
 			// need to point this to mem. small hack for the (HL) register instructons
 			register_single[6] = memory_module->get_memory(R.hl); 
 
+			u8 cycles = 0;
+
 			// fetch the opcode
 			u8 opcode = readpc_u8();
 
@@ -1232,11 +1266,11 @@ namespace gameboy
 			if (opcode == 0xCB)
 			{
 				opcode = readpc_u8();
-				decode_prefixed_cb(opcode);
+				cycles = decode_prefixed_cb(opcode);
 			}
 			else
 			{
-				decode_nonprefixed(opcode);
+				cycles = decode_nonprefixed(opcode);
 			}
 
 			return 0;
