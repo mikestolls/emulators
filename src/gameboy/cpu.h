@@ -558,16 +558,16 @@ namespace gameboy
 					case 0x6:
 					case 0x7:
 					{
+						cycles = 8; // if condition true 12, if false 8
+
 						s8 val = (s8)readpc_u8();
 
 						// JR conditions[y - 4], d - relative jump
 						if (condition_funct[y - 4]())
 						{
 							R.pc += val; // relative jump is singed offset
-							cycles = 4;
+							cycles += 4;
 						}
-
-						cycles += 8; // if condition true 12, if false 8
 						break;
 					}
 					}
@@ -935,10 +935,13 @@ namespace gameboy
 					case 0x2:
 					case 0x3:
 						// RET if condition_funct[y]
+						cycles = 8;
 						if (condition_funct[y]())
 						{
 							R.pc = memory_module->read_memory(R.sp++);
 							R.pc |= (memory_module->read_memory(R.sp++) << 8);
+
+							cycles += 12;
 						}
 						break;
 					case 0x4:
@@ -1018,12 +1021,16 @@ namespace gameboy
 							// RET
 							R.pc = memory_module->read_memory(R.sp++);
 							R.pc |= (memory_module->read_memory(R.sp++) << 8);
+
+							cycles = 16;
 							break;
 						case 0x1:
 							// RETI
 							R.pc = memory_module->read_memory(R.sp++);
 							R.pc |= (memory_module->read_memory(R.sp++) << 8);
 							interrupt_master = true;
+
+							cycles = 16;
 							break;
 						case 0x2:
 							// JP (HL)
@@ -1049,16 +1056,16 @@ namespace gameboy
 					case 0x2:
 					case 0x3:
 					{
+						cycles = 12; // 16 if true, 12 is false
+
 						// JP to nn if condition_funct[y]
 						u16 val = readpc_u16();
 						if (condition_funct[y]())
 						{
 							R.pc = val;
 
-							cycles = 4;
+							cycles += 4;
 						}
-
-						cycles += 12; // 16 if true, 12 is false
 						break;
 					}
 					case 0x4:
@@ -1128,6 +1135,8 @@ namespace gameboy
 					case 0x2:
 					case 0x3:
 					{
+						cycles = 12;
+
 						// CALL nn if condition_funct[y]
 						u16 val = readpc_u16();
 						if (condition_funct[y]())
@@ -1139,6 +1148,8 @@ namespace gameboy
 							memory_module->write_memory(R.sp, &low, 1);
 							memory_module->write_memory(R.sp + 1, &high, 1);
 							R.pc = val;
+
+							cycles += 12;
 						}
 						break;
 					}
@@ -1179,6 +1190,8 @@ namespace gameboy
 							memory_module->write_memory(R.sp, &low, 1);
 							memory_module->write_memory(R.sp + 1, &high, 1);
 							R.pc = val;
+
+							cycles = 24;
 						}
 						else
 						{
@@ -1197,9 +1210,11 @@ namespace gameboy
 					break;
 				}
 				case 0x7: // z = 7
-						  // RST at pc 7 * 8
+					// RST at pc 7 * 8
 					reset();
 					R.pc = y * 8;
+
+					cycles = 16;
 					break;
 				}
 				break;
@@ -1312,7 +1327,12 @@ namespace gameboy
 				cycles = decode_nonprefixed(opcode);
 			}
 
-			return 0;
+			if (cycles == 0)
+			{
+				printf("Error - 0 cycles returned from opcode\n");
+			}
+
+			return cycles;
 		}
 	}
 }
