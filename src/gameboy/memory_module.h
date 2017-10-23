@@ -47,7 +47,7 @@ namespace gameboy
 		memory_module(gameboy::rom* rom)
 		{
 			memory_map[MEMORY_CATRIDGE_ROM]				= { 0x0000, 0x3FFF, rom->romdata, MEMORY_READABLE }; 
-			memory_map[MEMORY_CATRIDGE_SWITCHABLE_ROM]	= { 0x4000, 0x7FFF, nullptr, MEMORY_READABLE };
+			memory_map[MEMORY_CATRIDGE_SWITCHABLE_ROM]	= { 0x4000, 0x7FFF, &rom->romdata[0x4000], MEMORY_READABLE };
 			memory_map[MEMORY_VRAM]						= { 0x8000, 0x9FFF, vram, MEMORY_READABLE | MEMORY_WRITABLE };
 			memory_map[MEMORY_EXTERNAL_RAM]				= { 0xA000, 0xBFFF, nullptr, MEMORY_READABLE | MEMORY_WRITABLE }; 
 			memory_map[MEMORY_WORKING_RAM]				= { 0xC000, 0xDFFF, working_ram, MEMORY_READABLE | MEMORY_WRITABLE }; 
