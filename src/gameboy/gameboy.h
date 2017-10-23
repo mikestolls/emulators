@@ -53,6 +53,11 @@ namespace gameboy
 		std::chrono::milliseconds curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 		std::chrono::milliseconds lastTime = curTime;
 
+		const u32 cycles_per_sec = 4194304;
+		const u32 fps = 60;
+		const u32 cycles_per_frame = cycles_per_sec / fps;
+		u32 cycle_count = 0;
+
 		while (window.isOpen())
 		{
 			// poll for window events
@@ -68,17 +73,22 @@ namespace gameboy
 				//cpu.reset();
 			}
 
-			// update the cpu emulation
-			cpu::execute_opcode();
-
-			//if (cpu.drawFlag)
+			while (cycle_count < cycles_per_frame)
 			{
-				// clear window
-				window.clear();
-
-				// display on windows
-				window.display();
+				// update the cpu emulation
+				u8 cpu_cycles = cpu::execute_opcode();
+				cycle_count += cpu_cycles;
+				gpu::update(cpu_cycles);
 			}
+
+			// once we have passed cycles per frame reset cycle count
+			cycle_count -= cycles_per_frame;
+
+			// clear window
+			window.clear();
+
+			// display on windows
+			window.display();
 
 			curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 			std::chrono::milliseconds delta = curTime - lastTime;

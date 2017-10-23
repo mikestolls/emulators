@@ -34,10 +34,13 @@ namespace gameboy
 	class memory_module
 	{
 	public:
+		// NOTE: eventually make memory one full buffer and map inside that.
 		u8 working_ram[0xDFFF - 0xC000];
 		u8 io_registers[0xFF7F - 0xFF00];
 		u8 zero_page[0xFFFE - 0xFF80];
 		u8 interupt_enabled[1];
+		u8 vram[0x9FFF - 0x8000];
+		u8 oam[0xFE9F - 0xFE00];
 
 		memory_map_object memory_map[MEMORY_COUNT];
 		
@@ -45,11 +48,11 @@ namespace gameboy
 		{
 			memory_map[MEMORY_CATRIDGE_ROM]				= { 0x0000, 0x3FFF, rom->romdata, MEMORY_READABLE }; 
 			memory_map[MEMORY_CATRIDGE_SWITCHABLE_ROM]	= { 0x4000, 0x7FFF, nullptr, MEMORY_READABLE };
-			memory_map[MEMORY_VRAM]						= { 0x8000, 0x9FFF, nullptr, MEMORY_READABLE | MEMORY_WRITABLE };
+			memory_map[MEMORY_VRAM]						= { 0x8000, 0x9FFF, vram, MEMORY_READABLE | MEMORY_WRITABLE };
 			memory_map[MEMORY_EXTERNAL_RAM]				= { 0xA000, 0xBFFF, nullptr, MEMORY_READABLE | MEMORY_WRITABLE }; 
 			memory_map[MEMORY_WORKING_RAM]				= { 0xC000, 0xDFFF, working_ram, MEMORY_READABLE | MEMORY_WRITABLE }; 
 			memory_map[MEMORY_ECHO_RAM]					= { 0xE000, 0xFDFF, working_ram, MEMORY_READABLE | MEMORY_WRITABLE };
-			memory_map[MEMORY_OAM]						= { 0xFE00, 0xFE9F, nullptr, MEMORY_READABLE | MEMORY_WRITABLE };
+			memory_map[MEMORY_OAM]						= { 0xFE00, 0xFE9F, oam, MEMORY_READABLE | MEMORY_WRITABLE };
 			memory_map[MEMORY_NOTUSED]					= { 0xFEA0, 0xFEFF, nullptr, 0 }; 
 			memory_map[MEMORY_IO_REGISTERS]				= { 0xFF00, 0xFF7F, io_registers, MEMORY_READABLE | MEMORY_WRITABLE };
 			memory_map[MEMORY_ZERO_PAGE]				= { 0xFF80, 0xFFFE, zero_page, MEMORY_READABLE | MEMORY_WRITABLE };
