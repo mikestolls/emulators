@@ -551,6 +551,7 @@ namespace gameboy
 					case 0x3:
 						// JR d
 						R.pc += (s8)readpc_u8(); // relative jump is singed offset
+						cycles = 12;
 						break;
 					case 0x4:
 					case 0x5:
@@ -563,7 +564,10 @@ namespace gameboy
 						if (condition_funct[y - 4]())
 						{
 							R.pc += val; // relative jump is singed offset
+							cycles = 4;
 						}
+
+						cycles += 8; // if condition true 12, if false 8
 						break;
 					}
 					}
@@ -1024,6 +1028,8 @@ namespace gameboy
 						case 0x2:
 							// JP (HL)
 							R.pc = R.hl;
+
+							cycles = 4;
 							break;
 						case 0x3:
 							// LD SP with HL
@@ -1048,7 +1054,11 @@ namespace gameboy
 						if (condition_funct[y]())
 						{
 							R.pc = val;
+
+							cycles = 4;
 						}
+
+						cycles += 12; // 16 if true, 12 is false
 						break;
 					}
 					case 0x4:
@@ -1081,6 +1091,8 @@ namespace gameboy
 					case 0x0:
 						// JP nn
 						R.pc = readpc_u16();
+
+						cycles = 16;
 						break;
 					case 0x1:
 						// CB prefix
@@ -1232,14 +1244,41 @@ namespace gameboy
 				set_flag(FLAG_ZERO);
 				set_flag(FLAG_HALFCARRY);
 				clear_flag(FLAG_SUBTRACTION);
+
+				if (z == 6) // (HL) register
+				{
+					cycles = 12;
+				}
+				else
+				{
+					cycles = 8;
+				}
 				break;
 			case 0x2:
 				// reset bit y from register_single[z]
 				*register_single[z] &= ~(1 << y);
+
+				if (z == 6) // (HL) register
+				{
+					cycles = 16;
+				}
+				else
+				{
+					cycles = 8;
+				}
 				break;
 			case 0x3:
 				// set bit y from register_single[z]
 				*register_single[z] |= (1 << y);
+
+				if (z == 6) // (HL) register
+				{
+					cycles = 16;
+				}
+				else
+				{
+					cycles = 8;
+				}
 				break;
 			}
 
