@@ -90,10 +90,11 @@ namespace gameboy
 			// display on windows
 			window.display();
 
+			// limit fps
 			curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 			std::chrono::milliseconds delta = curTime - lastTime;
 
-			std::chrono::duration<double, std::milli> minFrameTime(1000.0 / 60.0);
+			std::chrono::duration<double, std::milli> minFrameTime(1000.0 / (float)fps);
 			if (delta < minFrameTime)
 			{
 				std::this_thread::sleep_for(minFrameTime - delta);

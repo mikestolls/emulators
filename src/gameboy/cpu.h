@@ -121,8 +121,7 @@ namespace gameboy
 
 		inline u8 get_flag(u8 flag)
 		{
-			flag = (1 << flag);
-			return ((R.f & flag) >> flag);
+			return ((R.f & (1 << flag)) >> flag);
 		}
 
 		inline void clear_all_flags()
@@ -498,6 +497,8 @@ namespace gameboy
 
 			R.pc = 0x0; // starting entry point of the ROM
 			R.sp = 0xFFFE;
+
+			memory_module->reset();
 
 			return 0;
 		}
@@ -1210,12 +1211,21 @@ namespace gameboy
 					break;
 				}
 				case 0x7: // z = 7
-					// RST at pc 7 * 8
-					reset();
+				{
+					// RST at pc 7 * 8. basically a CALL
+					u8 low = (R.pc & 0x00FF);
+					u8 high = (R.pc >> 8);
+
+					// save current PC to stack
+					R.sp -= 2;
+					memory_module->write_memory(R.sp, &low, 1);
+					memory_module->write_memory(R.sp + 1, &high, 1);
+
 					R.pc = y * 8;
 
 					cycles = 16;
 					break;
+				}
 				}
 				break;
 			}
