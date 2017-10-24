@@ -38,7 +38,7 @@ namespace gameboy
 		u8 working_ram[0xDFFF - 0xC000];
 		u8 io_registers[0xFF7F - 0xFF00];
 		u8 zero_page[0xFFFE - 0xFF80];
-		u8 interupt_enabled[1];
+		u8 interrupt_enabled[1];
 		u8 vram[0x9FFF - 0x8000];
 		u8 oam[0xFE9F - 0xFE00];
 
@@ -126,7 +126,7 @@ namespace gameboy
 			memory_map[MEMORY_NOTUSED]					= { 0xFEA0, 0xFEFF, nullptr, 0 }; 
 			memory_map[MEMORY_IO_REGISTERS]				= { 0xFF00, 0xFF7F, io_registers, MEMORY_READABLE | MEMORY_WRITABLE };
 			memory_map[MEMORY_ZERO_PAGE]				= { 0xFF80, 0xFFFE, zero_page, MEMORY_READABLE | MEMORY_WRITABLE };
-			memory_map[MEMORY_INTERRUPT_FLAG]			= { 0xFFFF, 0xFFFF, interupt_enabled, MEMORY_READABLE | MEMORY_WRITABLE };
+			memory_map[MEMORY_INTERRUPT_FLAG]			= { 0xFFFF, 0xFFFF, interrupt_enabled, MEMORY_READABLE | MEMORY_WRITABLE };
 		}
 
 		int reset()

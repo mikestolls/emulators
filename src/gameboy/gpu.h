@@ -3,7 +3,6 @@
 #include "defines.h"
 
 #include "gameboy\memory_module.h"
-#include "gameboy\interrupts.h"
 
 namespace gameboy
 {
@@ -154,6 +153,7 @@ namespace gameboy
 				else if (*scanline == 144)
 				{
 					// start of vblank
+					cpu::set_request_interrupt_flag(cpu::INTERRUPT_VBLANK);
 				}
 				else if (*scanline > 153)
 				{

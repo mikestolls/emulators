@@ -3,7 +3,6 @@
 #include "defines.h"
 
 #include "gameboy\memory_module.h"
-#include "gameboy\interrupts.h"
 
 //Opcode  Z80				GMB
 //---------------------------------------------
@@ -41,6 +40,10 @@ namespace gameboy
 	{
 		bool running = true;
 		bool halt = false;
+
+		bool interrupt_master;
+		u8* interrupt_enable_flag;
+		u8* interrupt_request_flag;
 
 		// main memory module pointer
 		gameboy::memory_module* memory_module;
@@ -106,6 +109,17 @@ namespace gameboy
 		u16* register_pairs2[] = { &R.bc, &R.de, &R.hl, &R.af };
 		u8* register_single[] = { &R.b, &R.c, &R.d, &R.e, &R.h, &R.l, /*memory_module->get_memory(R.hl)*/ 0, &R.a };
 		
+		// stack functions
+		inline void push_sp_to_stack(u16 addr)
+		{
+			u8 low = (addr & 0x00FF);
+			u8 high = (addr >> 8);
+
+			R.sp -= 2;
+			memory_module->write_memory(R.sp, &low, 1);
+			memory_module->write_memory(R.sp + 1, &high, 1);
+		}
+
 		// set and get flag helpers
 		inline void set_flag(u8 flag)
 		{
@@ -486,6 +500,120 @@ namespace gameboy
 			return val;
 		}
 
+		// interrupt functionality
+		enum INTERRUPT_FLAG
+		{
+			INTERRUPT_VBLANK = 0,
+			INTERRUPT_LCD,
+			INTERRUPT_TIMER,
+			INTERRUPT_JOYPAD,
+		};
+
+		inline void disable_interrupts()
+		{
+			interrupt_master = false;
+		}
+
+		inline void enable_interrupts()
+		{
+			interrupt_master = true;
+		}
+
+		inline void set_request_interrupt_flag(u8 flag)
+		{
+			flag = (1 << flag);
+			*interrupt_request_flag |= flag;
+		}
+
+		inline void clear_request_interrupt_flag(u8 flag)
+		{
+			flag = (1 << flag);
+			*interrupt_request_flag &= ~flag; // clear the bit
+		}
+
+		inline u8 get_request_interrupt_flag(u8 flag)
+		{
+			return ((*interrupt_request_flag & (1 << flag)) >> flag);
+		}
+
+		inline void clear_all_request_interrupt_flags()
+		{
+			*interrupt_request_flag = 0x0;
+		}
+
+		// interrupt enable function
+		inline void set_enabled_interrupt_flag(u8 flag)
+		{
+			flag = (1 << flag);
+			*interrupt_enable_flag |= flag;
+		}
+
+		inline void clear_enabled_interrupt_flag(u8 flag)
+		{
+			flag = (1 << flag);
+			*interrupt_enable_flag &= ~flag; // clear the bit
+		}
+
+		inline u8 get_enabled_interrupt_flag(u8 flag)
+		{
+			return ((*interrupt_enable_flag & (1 << flag)) >> flag);
+		}
+
+		inline void clear_all_enabled_interrupt_flags()
+		{
+			*interrupt_enable_flag = 0x0;
+		}
+
+		void service_interrupt(u8 interrupt)
+		{
+			interrupt_master = false;
+			clear_request_interrupt_flag(interrupt);
+
+			push_sp_to_stack(R.pc);
+
+			u16 addr = 0;
+			switch (interrupt)
+			{
+			case INTERRUPT_VBLANK:
+				addr = 0x40;
+				break;
+			case INTERRUPT_LCD:
+				addr = 0x48;
+				break;
+			case INTERRUPT_TIMER:
+				addr = 0x50;
+				break;
+			case INTERRUPT_JOYPAD:
+				addr = 0x60;
+				break;
+			default:
+				printf("Error - Trying to service an invalid interrupt: %d\n", interrupt);
+				assert(0);
+				break;
+			}
+
+			R.pc = addr;
+		}
+
+		int check_interrupts()
+		{
+			if (!interrupt_master)
+			{
+				return 0;
+			}
+
+			for (u8 i = 0; i <= INTERRUPT_JOYPAD; i++)
+			{
+				if (get_request_interrupt_flag(i) && get_enabled_interrupt_flag(i))
+				{
+					// service the intterupt
+					service_interrupt(i);
+				}
+			}
+
+			return 0;
+		}
+
 		int reset()
 		{
 			memset(&R, 0x0, sizeof(R)); // init registers to 0
@@ -499,6 +627,10 @@ namespace gameboy
 			R.sp = 0xFFFE;
 
 			memory_module->reset();
+
+			interrupt_master = true;
+			interrupt_enable_flag = memory_module->get_memory(0xFFFF);
+			interrupt_request_flag = memory_module->get_memory(0xFF0F);
 
 			return 0;
 		}
@@ -1142,12 +1274,8 @@ namespace gameboy
 						u16 val = readpc_u16();
 						if (condition_funct[y]())
 						{
-							u8 low = (R.pc & 0x00FF);
-							u8 high = (R.pc >> 8);
+							push_sp_to_stack(R.pc);
 
-							R.sp -= 2;
-							memory_module->write_memory(R.sp, &low, 1);
-							memory_module->write_memory(R.sp + 1, &high, 1);
 							R.pc = val;
 
 							cycles += 12;
@@ -1169,12 +1297,7 @@ namespace gameboy
 					if (q == 0)
 					{
 						// PUSH register_pairs2[p]
-						u8 low = (*register_pairs2[p] & 0x00FF);
-						u8 high = (*register_pairs2[p] >> 8);
-
-						R.sp -= 2;
-						memory_module->write_memory(R.sp, &low, 1);
-						memory_module->write_memory(R.sp + 1, &high, 1);
+						push_sp_to_stack(*register_pairs2[p]);
 
 						cycles = 16;
 					}
@@ -1184,12 +1307,7 @@ namespace gameboy
 						{
 							// CALL nn
 							u16 val = readpc_u16();
-							u8 low = (R.pc & 0x00FF);
-							u8 high = (R.pc >> 8);
-
-							R.sp -= 2;
-							memory_module->write_memory(R.sp, &low, 1);
-							memory_module->write_memory(R.sp + 1, &high, 1);
+							push_sp_to_stack(R.pc);
 							R.pc = val;
 
 							cycles = 24;
@@ -1213,14 +1331,7 @@ namespace gameboy
 				case 0x7: // z = 7
 				{
 					// RST at pc 7 * 8. basically a CALL
-					u8 low = (R.pc & 0x00FF);
-					u8 high = (R.pc >> 8);
-
-					// save current PC to stack
-					R.sp -= 2;
-					memory_module->write_memory(R.sp, &low, 1);
-					memory_module->write_memory(R.sp + 1, &high, 1);
-
+					push_sp_to_stack(R.pc);
 					R.pc = y * 8;
 
 					cycles = 16;
