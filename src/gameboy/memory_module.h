@@ -93,6 +93,12 @@ namespace gameboy
 
 		void write_memory(const u16 addr, const u8* value, const u8 size)
 		{
+			if (addr == 0xFF44) // current scanline. if anyone tries to write to this value we reset to 0
+			{
+				memory_map[MEMORY_IO_REGISTERS].memory[addr - memory_map[MEMORY_IO_REGISTERS].addr_min] = 0x0;
+				return;
+			}
+
 			// loop though memory map
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
 			{

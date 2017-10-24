@@ -23,7 +23,10 @@ namespace gameboy
 		const s32 horz_cycles = 456; // cycles per horz scanline
 		s32 horz_cycle_count = horz_cycles;
 
-		// set and get flcd control flag helpers
+		const u32 horz_mode_searchspriteattr = horz_cycles - 80;
+		const u32 horz_mode_transfer = horz_mode_searchspriteattr - 172;
+
+		// set and get lcd control flag helpers
 		inline void set_lcd_control_flag(u8 flag)
 		{
 			flag = (1 << flag);
@@ -67,6 +70,58 @@ namespace gameboy
 			FLAG_LCD_DISPLAY_ENABLED,
 		};
 
+		// set and get lcd status mode
+		inline void set_lcd_status_mode(u8 mode)
+		{
+			mode &= 0x3; // just incase
+			*lcd_status &= 0xFC; // clear old mode bits
+			*lcd_status |= mode;
+		}
+
+		inline u8 get_lcd_status_mode()
+		{
+			return *lcd_status &= 0x3;
+		}
+		
+		enum LCD_STATUS_MODES
+		{
+			MODE_HBLANK = 0,
+			MODE_VBLANK,
+			MODE_SEARCHING_SPRITE_ATTR,
+			MODE_TRANSFER_TO_LCD,
+		};
+
+		// lcd status interrupt flags
+		inline void set_lcd_interrupt_flag(u8 flag)
+		{
+			flag = (1 << flag);
+			*lcd_status |= flag;
+		}
+
+		inline void clear_lcd_interrupt_flag(u8 flag)
+		{
+			flag = (1 << flag);
+			*lcd_status &= ~flag; // clear the bit
+		}
+
+		inline u8 get_lcd_interrupt_flag(u8 flag)
+		{
+			return ((*lcd_status & (1 << flag)) >> flag);
+		}
+
+		inline void clear_all_lcd_interrupt_flags()
+		{
+			*lcd_status &= ~0x78; // take all but bits 3, 4, 5, 6
+		}
+
+		enum LCD_INTERRUPT_FLAGS
+		{
+			FLAG_HBLANK = 3,
+			FLAG_VBLANK,
+			FLAG_SEARCHING_SPRITE_ATTR,
+			FLAG_COINCIDENCE
+		};
+
 		int reset()
 		{
 			horz_cycle_count = horz_cycles;
@@ -95,11 +150,6 @@ namespace gameboy
 
 		int draw_scanline()
 		{
-			if (get_lcd_control_flag(FLAG_WINDOW_DISPLAY_ENABLED) == 0)
-			{
-				return 0;
-			}
-
 			// only doing background. but will need to merge this with window
 			if (get_lcd_control_flag(FLAG_BG_DISPLAY_ENABLED))
 			{
@@ -135,9 +185,77 @@ namespace gameboy
 			return 0;
 		}
 
-		int update(u8 cycles)
+		int update_lcd_status()
 		{
-			horz_cycle_count -= cycles;
+			// handle the new lcd status mode
+			u8 new_lcd_mode = get_lcd_status_mode();
+			bool req_lcd_interrupt = false;
+
+			if (*scanline >= 144) // vblank mode
+			{
+				new_lcd_mode = MODE_VBLANK;
+
+				if (get_lcd_interrupt_flag(FLAG_VBLANK))
+				{
+					req_lcd_interrupt = true;
+				}
+			}
+			else if (horz_cycle_count >= horz_mode_searchspriteattr) // mode 2 - searching sprite attr is first 80 cycles
+			{
+				new_lcd_mode = MODE_SEARCHING_SPRITE_ATTR;
+
+				if (get_lcd_interrupt_flag(FLAG_SEARCHING_SPRITE_ATTR))
+				{
+					req_lcd_interrupt = true;
+				}
+			}
+			else if (horz_cycle_count >= horz_mode_transfer) // mode 3 - transfer data is next 172 cycles
+			{
+				new_lcd_mode = MODE_TRANSFER_TO_LCD;
+			}
+			else // mode 0 - hblank is the remaining cycles before new scanline
+			{
+				new_lcd_mode = MODE_HBLANK;
+
+				if (get_lcd_interrupt_flag(FLAG_HBLANK))
+				{
+					req_lcd_interrupt = true;
+				}
+			}
+
+			if (*lcd_status != new_lcd_mode)
+			{
+				if (req_lcd_interrupt)
+				{
+					// trigger an lcd interrupt
+					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
+				}
+
+				// set the new mode
+				*lcd_status = new_lcd_mode;
+			}
+
+			// check coincidence interrupt. scanline == coincidence scanline
+			if (*coincidence_scanline == *scanline)
+			{
+				*lcd_status |= (1 << 2); // set bit 2 for coincidence
+
+				if (get_lcd_interrupt_flag(FLAG_COINCIDENCE))
+				{
+					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
+				}
+			}
+			else
+			{
+				*lcd_status &= 0xFB; // take all but bit 2
+			}
+
+			return 0;
+		}
+
+		int update_scanline()
+		{
+			// handle the scanline update
 			if (horz_cycle_count <= 0)
 			{
 				// continue to next scanline
@@ -161,6 +279,25 @@ namespace gameboy
 					*scanline = 0;
 				}
 			}
+
+			return 0;
+		}
+
+		int update(u8 cycles)
+		{
+			if (get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED) == 0)
+			{
+				// lcd not enabled. reset scanline and horz cycle count. lcd mode set to 1 (VBlank)
+				*scanline = 0;
+				horz_cycle_count = 0;
+				set_lcd_status_mode(MODE_VBLANK);
+				return 0;
+			}
+
+			horz_cycle_count -= cycles; // dec the horz cycles
+
+			update_lcd_status();
+			update_scanline();
 
 			return 0;
 		}
