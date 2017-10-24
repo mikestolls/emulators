@@ -34,7 +34,8 @@ namespace gameboy
 	class memory_module
 	{
 	public:
-		// NOTE: eventually make memory one full buffer and map inside that.
+		warning("NOTE: eventually make memory one full buffer and map inside that");
+		warning("NOTE: lock memory access during lcd modes");
 		u8 working_ram[0xDFFF - 0xC000];
 		u8 io_registers[0xFF7F - 0xFF00];
 		u8 zero_page[0xFFFE - 0xFF80];
@@ -110,7 +111,7 @@ namespace gameboy
 						return;
 					}
 
-					// note: check if memory is writable
+					warning("NOTE: check if memory is writable");
 					memcpy(&memory_map[i].memory[addr - memory_map[i].addr_min], value, size);
 					return;
 				}

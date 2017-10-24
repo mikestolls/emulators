@@ -19,13 +19,15 @@ namespace gameboy
 		u8* scrollX = 0;
 		u8* windowX = 0;
 		u8* windowY = 0;
+
+		u8* framebuffer = 0;
 		
 		const s32 horz_cycles = 456; // cycles per horz scanline
 		s32 horz_cycle_count = horz_cycles;
 
 		const u32 horz_mode_searchspriteattr = horz_cycles - 80;
 		const u32 horz_mode_transfer = horz_mode_searchspriteattr - 172;
-
+		
 		// set and get lcd control flag helpers
 		inline void set_lcd_control_flag(u8 flag)
 		{
@@ -87,8 +89,8 @@ namespace gameboy
 		{
 			MODE_HBLANK = 0,
 			MODE_VBLANK,
-			MODE_SEARCHING_SPRITE_ATTR,
-			MODE_TRANSFER_TO_LCD,
+			MODE_OAM_ACCESS,
+			MODE_VRAM_ACCESS,
 		};
 
 		// lcd status interrupt flags
@@ -118,7 +120,7 @@ namespace gameboy
 		{
 			FLAG_HBLANK = 3,
 			FLAG_VBLANK,
-			FLAG_SEARCHING_SPRITE_ATTR,
+			FLAG_OAM_ACCESS,
 			FLAG_COINCIDENCE
 		};
 
@@ -129,10 +131,11 @@ namespace gameboy
 			return 0;
 		}
 
-		int initialize(gameboy::memory_module* memory)
+		int initialize(gameboy::memory_module* memory, u8* framebuffer_data)
 		{
 			memory_module = memory;
-			
+			framebuffer = framebuffer_data;
+
 			// setup memory ptrs
 			scanline = memory_module->get_memory(0xFF44);
 			coincidence_scanline = memory_module->get_memory(0xFF45);
@@ -153,32 +156,72 @@ namespace gameboy
 			// only doing background. but will need to merge this with window
 			if (get_lcd_control_flag(FLAG_BG_DISPLAY_ENABLED))
 			{
-				// draw the scanline tiles
-				u8* bgTilemapPtr = memory_module->get_memory(0x9800);
+				// tilemap starting location. tilemap is 32 x 32 bytes that map to a tile
+				u16 tilemapAddr = 0x9800;
 				if (get_lcd_control_flag(FLAG_BG_TILEMAP_DISPLAY_SELECT))
 				{
-					bgTilemapPtr = memory_module->get_memory(0x9C00);
+					tilemapAddr = 0x9C00;
 				}
 
-				u8* tilemapPtr = memory_module->get_memory(0x8800);
-				s32 tilemapOffset = 128;
-				s32 tileSize = 16;
+				s32 tilesetOffset = 128; // offset depending on tileset used
+				s32 tileSize = 16; // each tile is 16 bytes. 2 x 8 rows of a tile
+				u16 tilestAddr = 0x8800; // addr of tileset
 				if (get_lcd_control_flag(FLAG_BG_WINDOW_TILE_DISPLAY_SELECT))
 				{
-					tilemapPtr = memory_module->get_memory(0x8000);
-					tilemapOffset = 0;
+					tilestAddr = 0x8000;
+					tilesetOffset = 0;
 				}
 
 				u8 yPos = *scrollY + *scanline;
 				u8 tileY = (yPos / 8) * 32; // calc tile offset based on yPos
+				u8 tileYPixel = yPos % 8; // the row of the specific tile the scanline is on
 
 				// draw the 160 horz pixels
 				for (u32 pixel = 0; pixel < 160; pixel++)
 				{
 					u8 xPos = *scrollX + pixel;
 					u8 tileX = xPos / 8; // calc tile offset base on xPos
+					u8 tileXPixel = xPos % 8; // the column of the speific tile to draw
+					s16 tileId = 0;
+					
+					if (tilesetOffset != 0) // its a signed value
+					{
+						tileId = (s8)memory_module->read_memory(tilemapAddr + tileX + tileY);
+						tileId += tilesetOffset; // apply offset to the id
+					}
+					else
+					{
+						tileId = memory_module->read_memory(tilemapAddr + tileX + tileY);
+					}
 
-					u8* tileAddr = bgTilemapPtr + tileX + tileY;
+					// we have the tile id. lets draw pixel
+					u8 tileOffset = (tileId * tileSize) + (tileYPixel * 2); // get tile, then add offset to y pos of tile, each row is 2 bytes
+					u8 dataA = memory_module->read_memory(tilestAddr + tileOffset);
+					u8 dataB = memory_module->read_memory(tilestAddr + tileOffset + 1);
+					u8 bit = 7 - tileXPixel; // the bits and pixels are inversed
+					u8 color = (dataA & (1 << bit)) | ((dataB & (1 << bit)) << 1);
+
+					switch (color)
+					{
+					case 0x00: // white
+						color = 0xFF;
+						break;
+					case 0x01: // light grey
+						color = 0xCC;
+						break;
+					case 0x10: // dark grey
+						color = 0x77;
+						break;
+					case 0x11: // black
+						color = 0x0;
+						break;
+					}
+
+					u16 pixelPos = (*scanline * 160 + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
+					framebuffer[pixelPos++] = color;
+					framebuffer[pixelPos++] = color;
+					framebuffer[pixelPos++] = color;
+					framebuffer[pixelPos++] = 0xFF;
 				}
 			}
 
@@ -202,16 +245,16 @@ namespace gameboy
 			}
 			else if (horz_cycle_count >= horz_mode_searchspriteattr) // mode 2 - searching sprite attr is first 80 cycles
 			{
-				new_lcd_mode = MODE_SEARCHING_SPRITE_ATTR;
+				new_lcd_mode = MODE_OAM_ACCESS;
 
-				if (get_lcd_interrupt_flag(FLAG_SEARCHING_SPRITE_ATTR))
+				if (get_lcd_interrupt_flag(FLAG_OAM_ACCESS))
 				{
 					req_lcd_interrupt = true;
 				}
 			}
 			else if (horz_cycle_count >= horz_mode_transfer) // mode 3 - transfer data is next 172 cycles
 			{
-				new_lcd_mode = MODE_TRANSFER_TO_LCD;
+				new_lcd_mode = MODE_VRAM_ACCESS;
 			}
 			else // mode 0 - hblank is the remaining cycles before new scanline
 			{

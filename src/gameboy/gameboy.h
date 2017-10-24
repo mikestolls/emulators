@@ -8,6 +8,10 @@
 
 namespace gameboy
 {
+	const u8 pixelSize = 4;
+	const u8 width = 160;
+	const u8 height = 144;
+
 	int run_emulator(int argc, char** argv)
 	{
 		std::string filename = "";
@@ -39,16 +43,17 @@ namespace gameboy
 		gameboy::memory_module memory(&rom);
 
 		// init sfml
-		u8 pixelSize = 4;
-		u8 width = 160;
-		u8 height = 144;
+		u8 framebuffer_data[width * height * 4];
 		sf::RenderWindow window(sf::VideoMode(width * pixelSize, height * pixelSize), "Emulator");
-		sf::RectangleShape whiteRect(sf::Vector2f(pixelSize, pixelSize));
-		whiteRect.setFillColor(sf::Color::White);
+		sf::Texture framebuffer_texture;
+		sf::Sprite framebuffer_sprite;
+		framebuffer_texture.create(width, height);
+		framebuffer_sprite.setTexture(framebuffer_texture);
+		framebuffer_sprite.setScale(pixelSize, pixelSize);
 
 		// init cpu and load rom
 		cpu::initialize(&memory);
-		gpu::initialize(&memory);
+		gpu::initialize(&memory, framebuffer_data);
 
 		std::chrono::milliseconds curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 		std::chrono::milliseconds lastTime = curTime;
@@ -85,8 +90,14 @@ namespace gameboy
 			// once we have passed cycles per frame reset cycle count
 			cycle_count -= cycles_per_frame;
 
+			// update the framebuffer
+			framebuffer_texture.update(framebuffer_data, width, height, 0, 0);
+
 			// clear window
 			window.clear();
+
+			// draw framebuffer
+			window.draw(framebuffer_sprite);
 
 			// display on windows
 			window.display();
