@@ -219,7 +219,6 @@ namespace gameboy
 						break;
 					}
 
-					color = tileId % 0xFF;
 					u16 pixelPos = (*scanline * 160 + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
 					framebuffer[pixelPos++] = color;
 					framebuffer[pixelPos++] = color;

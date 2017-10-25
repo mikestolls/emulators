@@ -49,7 +49,8 @@ namespace gameboy
 		framebuffer_sprite.setTexture(framebuffer_texture);
 		framebuffer_sprite.setScale(pixelSize, pixelSize);
 
-		debugger::initialize();
+		debugger debug_window;
+		debug_window.initialize(&memory);
 
 		// init cpu and load rom
 		cpu::initialize(&memory);
@@ -75,8 +76,6 @@ namespace gameboy
 				}
 			}
 
-			debugger::update();
-
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
 			{
 				cpu::reset();
@@ -95,8 +94,7 @@ namespace gameboy
 			// once we have passed cycles per frame reset cycle count
 			cycle_count -= cycles_per_frame;
 
-			// clear window
-			window.clear();
+			debug_window.update();
 
 			// update the framebuffer
 			framebuffer_texture.update(gpu::framebuffer, gpu::width, gpu::height, 0, 0);
