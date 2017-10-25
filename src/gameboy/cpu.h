@@ -40,6 +40,8 @@ namespace gameboy
 	{
 		bool running = true;
 		bool halt = false;
+		bool debugging = false;
+		bool debugging_step = false;
 
 		bool interrupt_master;
 		u8* interrupt_enable_flag;
@@ -623,7 +625,7 @@ namespace gameboy
 			R.de = 0x00D8;
 			R.hl = 0x014D;
 
-			R.pc = 0x0; // starting entry point of the ROM
+			R.pc = 0x0100; // starting entry point of the ROM
 			R.sp = 0xFFFE;
 
 			memory_module->reset();

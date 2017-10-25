@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string>
+#include <sstream>
 #include <assert.h>
 #include <ctime>
 #include <chrono>

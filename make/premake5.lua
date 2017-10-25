@@ -56,6 +56,7 @@ solution "emulators"
         links {
             "opengl32.lib",
             "winmm.lib",
+			"freetype.lib",
         }
         defines {
             "SFML_STATIC",

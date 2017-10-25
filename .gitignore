@@ -288,3 +288,4 @@ __pycache__/
 *.xsd.cs
 prj/
 build/
+tools/visualboy_emulator/vba.ini

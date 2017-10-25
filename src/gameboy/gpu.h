@@ -19,6 +19,7 @@ namespace gameboy
 		u8* scrollX = 0;
 		u8* windowX = 0;
 		u8* windowY = 0;
+		u8* palette_bg = 0;
 
 		const u8 width = 160;
 		const u8 height = 144;
@@ -147,10 +148,35 @@ namespace gameboy
 			scrollX = memory_module->get_memory(0xFF43);
 			windowY = memory_module->get_memory(0xFF4A);
 			windowX = memory_module->get_memory(0xFF4B);
-
+			palette_bg = memory_module->get_memory(0xFF47);
 			reset();
 
 			return 0;
+		}
+
+		u8 get_palette_color(u8 color)
+		{
+			u8 palette = *palette_bg;
+			palette &= (0x3 << (color * 2)); // take two bits from palette depending on the passed in color id
+			palette >>= (color * 2); // shift palette color back down
+
+			switch (palette)
+			{
+			case 0x00: // white
+				color = 0xFF;
+				break;
+			case 0x1: // light grey
+				color = 0xCC;
+				break;
+			case 0x2: // dark grey
+				color = 0x77;
+				break;
+			case 0x3: // black
+				color = 0x0;
+				break;
+			}
+
+			return color;
 		}
 
 		int draw_scanline()
@@ -203,23 +229,9 @@ namespace gameboy
 					u8 bit = 7 - tileXPixel; // the bits and pixels are inversed
 					u8 color = ((dataA & (1 << bit)) >> bit)| (((dataB & (1 << bit)) >> bit) << 1);
 
-					switch (color)
-					{
-					case 0x00: // white
-						color = 0xFF;
-						break;
-					case 0x01: // light grey
-						color = 0xCC;
-						break;
-					case 0x10: // dark grey
-						color = 0x77;
-						break;
-					case 0x11: // black
-						color = 0x0;
-						break;
-					}
+					color = gpu::get_palette_color(color);
 
-					u16 pixelPos = (*scanline * 160 + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
+					u32 pixelPos = (*scanline * 160 + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
 					framebuffer[pixelPos++] = color;
 					framebuffer[pixelPos++] = color;
 					framebuffer[pixelPos++] = color;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gameboy\rom.h"
+#include "rom.h"
 
 namespace gameboy
 {
@@ -73,6 +73,19 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
+					u8 mode = memory_map[MEMORY_IO_REGISTERS].memory[0xFF41 - 0xFF00] &= 0x3; // lcd_status
+					if (i == MEMORY_VRAM && mode > 2)
+					{
+						printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
+						return 0xFF;
+					}
+
+					if (i == MEMORY_OAM && mode > 1)
+					{
+						printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
+						return 0xFF;
+					}
+
 					if ((memory_map[i].access & MEMORY_READABLE) == 0 || memory_map[i].memory == nullptr)
 					{
 						printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
@@ -105,6 +118,19 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
+					u8 mode = memory_map[MEMORY_IO_REGISTERS].memory[0xFF41 - 0xFF00] &= 0x3; // lcd_status
+					if (i == MEMORY_VRAM && mode > 2)
+					{
+						printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
+						return;
+					}
+
+					if (i == MEMORY_OAM && mode > 1)
+					{
+						printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
+						return;
+					}
+
 					if ((memory_map[i].access & MEMORY_WRITABLE) == 0 || memory_map[i].memory == nullptr)
 					{
 						printf("Error - writing to memory map that is not writable: 0x%X\n", addr);
@@ -138,6 +164,8 @@ namespace gameboy
 
 		int reset()
 		{
+			memset(vram, 0x0, sizeof(vram));
+
 			write_memory(0xFF05, 0x00); // TIMA
 			write_memory(0xFF06, 0x00); // TMA
 			write_memory(0xFF07, 0x00); // TAC
