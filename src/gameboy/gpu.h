@@ -20,7 +20,9 @@ namespace gameboy
 		u8* windowX = 0;
 		u8* windowY = 0;
 
-		u8* framebuffer = 0;
+		const u8 width = 160;
+		const u8 height = 144;
+		u8 framebuffer[width * height * 4];
 		
 		const s32 horz_cycles = 456; // cycles per horz scanline
 		s32 horz_cycle_count = horz_cycles;
@@ -127,14 +129,14 @@ namespace gameboy
 		int reset()
 		{
 			horz_cycle_count = horz_cycles;
+			memset(framebuffer, 0x0, sizeof(framebuffer));
 
 			return 0;
 		}
 
-		int initialize(gameboy::memory_module* memory, u8* framebuffer_data)
+		int initialize(gameboy::memory_module* memory)
 		{
 			memory_module = memory;
-			framebuffer = framebuffer_data;
 
 			// setup memory ptrs
 			scanline = memory_module->get_memory(0xFF44);
@@ -165,10 +167,10 @@ namespace gameboy
 
 				s32 tilesetOffset = 128; // offset depending on tileset used
 				s32 tileSize = 16; // each tile is 16 bytes. 2 x 8 rows of a tile
-				u16 tilestAddr = 0x8800; // addr of tileset
+				u16 tilesetAddr = 0x8800; // addr of tileset
 				if (get_lcd_control_flag(FLAG_BG_WINDOW_TILE_DISPLAY_SELECT))
 				{
-					tilestAddr = 0x8000;
+					tilesetAddr = 0x8000;
 					tilesetOffset = 0;
 				}
 
@@ -196,10 +198,10 @@ namespace gameboy
 
 					// we have the tile id. lets draw pixel
 					u8 tileOffset = (tileId * tileSize) + (tileYPixel * 2); // get tile, then add offset to y pos of tile, each row is 2 bytes
-					u8 dataA = memory_module->read_memory(tilestAddr + tileOffset);
-					u8 dataB = memory_module->read_memory(tilestAddr + tileOffset + 1);
+					u8 dataA = memory_module->read_memory(tilesetAddr + tileOffset);
+					u8 dataB = memory_module->read_memory(tilesetAddr + tileOffset + 1);
 					u8 bit = 7 - tileXPixel; // the bits and pixels are inversed
-					u8 color = (dataA & (1 << bit)) | ((dataB & (1 << bit)) << 1);
+					u8 color = ((dataA & (1 << bit)) >> bit)| (((dataB & (1 << bit)) >> bit) << 1);
 
 					switch (color)
 					{
@@ -217,6 +219,7 @@ namespace gameboy
 						break;
 					}
 
+					color = tileId % 0xFF;
 					u16 pixelPos = (*scanline * 160 + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
 					framebuffer[pixelPos++] = color;
 					framebuffer[pixelPos++] = color;

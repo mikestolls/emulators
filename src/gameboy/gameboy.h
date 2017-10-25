@@ -5,13 +5,12 @@
 #include "cpu.h"
 #include "gpu.h"
 #include "rom.h"
+#include "debugger.h"
 
 namespace gameboy
 {
-	const u8 pixelSize = 4;
-	const u8 width = 160;
-	const u8 height = 144;
-
+	const u8 pixelSize = 8;
+	
 	int run_emulator(int argc, char** argv)
 	{
 		std::string filename = "";
@@ -43,17 +42,18 @@ namespace gameboy
 		gameboy::memory_module memory(&rom);
 
 		// init sfml
-		u8 framebuffer_data[width * height * 4];
-		sf::RenderWindow window(sf::VideoMode(width * pixelSize, height * pixelSize), "Emulator");
+		sf::RenderWindow window(sf::VideoMode(gpu::width * pixelSize, gpu::height * pixelSize), "Emulator");
 		sf::Texture framebuffer_texture;
 		sf::Sprite framebuffer_sprite;
-		framebuffer_texture.create(width, height);
+		framebuffer_texture.create(gpu::width, gpu::height);
 		framebuffer_sprite.setTexture(framebuffer_texture);
 		framebuffer_sprite.setScale(pixelSize, pixelSize);
 
+		debugger::initialize();
+
 		// init cpu and load rom
 		cpu::initialize(&memory);
-		gpu::initialize(&memory, framebuffer_data);
+		gpu::initialize(&memory);
 
 		std::chrono::milliseconds curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 		std::chrono::milliseconds lastTime = curTime;
@@ -70,12 +70,17 @@ namespace gameboy
 			while (window.pollEvent(event))
 			{
 				if (event.type == sf::Event::Closed)
+				{
 					window.close();
+				}
 			}
+
+			debugger::update();
 
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
 			{
-				//cpu.reset();
+				cpu::reset();
+				gpu::reset();
 			}
 
 			while (cycle_count < cycles_per_frame)
@@ -90,12 +95,12 @@ namespace gameboy
 			// once we have passed cycles per frame reset cycle count
 			cycle_count -= cycles_per_frame;
 
-			// update the framebuffer
-			framebuffer_texture.update(framebuffer_data, width, height, 0, 0);
-
 			// clear window
 			window.clear();
 
+			// update the framebuffer
+			framebuffer_texture.update(gpu::framebuffer, gpu::width, gpu::height, 0, 0);
+			
 			// draw framebuffer
 			window.draw(framebuffer_sprite);
 
