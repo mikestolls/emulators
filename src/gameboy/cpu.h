@@ -122,6 +122,14 @@ namespace gameboy
 			memory_module->write_memory(R.sp + 1, &high, 1);
 		}
 
+		inline u16 pop_from_stack()
+		{
+			u8 low = memory_module->read_memory(R.sp++) & 0xFF;
+			u8 high = memory_module->read_memory(R.sp++) & 0xFF;
+
+			return (high << 8) | low;
+		}
+
 		// set and get flag helpers
 		inline void set_flag(u8 flag)
 		{
@@ -197,7 +205,7 @@ namespace gameboy
 			}
 
 			// check for the half carry
-			if ((R.a & 0x0F) + (*r & 0x0F) > 0x0F)
+			if ((R.a ^ *r ^ res) & 0x10)
 			{
 				set_flag(FLAG_HALFCARRY);
 			}
@@ -213,8 +221,9 @@ namespace gameboy
 
 		inline void alu_add_carry(u8* r)
 		{
-			u16 res = R.a + *r + get_flag(FLAG_CARRY);
-
+			u16 value = *r + get_flag(FLAG_CARRY);
+			u16 res = R.a + value;
+			
 			// set flags
 			clear_all_flags();
 
@@ -224,8 +233,8 @@ namespace gameboy
 				set_flag(FLAG_CARRY);
 			}
 
-			// check for the half carry. low byte + low byte greater than byte value
-			if ((R.a & 0x0F) + (*r & 0x0F) > 0x0F)
+			// check for the half carry
+			if ((R.a ^ *r ^ res) & 0x10)
 			{
 				set_flag(FLAG_HALFCARRY);
 			}
@@ -241,6 +250,8 @@ namespace gameboy
 
 		inline void alu_sub(u8* r)
 		{
+			u16 res = R.a - *r;
+
 			// set flags
 			clear_all_flags();
 			set_flag(FLAG_SUBTRACTION);
@@ -252,13 +263,13 @@ namespace gameboy
 			}
 
 			// check for the half carry
-			if ((*r & 0x0F) > (R.a & 0x0F))
+			if ((R.a ^ *r ^ res) & 0x10)
 			{
 				set_flag(FLAG_HALFCARRY);
 			}
 
 			// set new value
-			R.a -= *r;
+			R.a = (u8)(res & 0xFF);
 
 			if (R.a == 0)
 			{
@@ -268,26 +279,27 @@ namespace gameboy
 
 		inline void alu_sub_carry(u8* r)
 		{
-			u8 val = *r + get_flag(FLAG_CARRY);
+			u16 value = *r + get_flag(FLAG_CARRY);
+			u16 res = R.a - value;
 
 			// set flags
 			clear_all_flags();
 			set_flag(FLAG_SUBTRACTION);
 
 			// check for carry
-			if (val > R.a)
+			if (value > R.a)
 			{
 				set_flag(FLAG_CARRY);
 			}
 
 			// check for the half carry
-			if ((val & 0x0F) > (R.a & 0x0F))
+			if ((R.a ^ *r ^ res) & 0x10)
 			{
 				set_flag(FLAG_HALFCARRY);
 			}
 
 			// set new value
-			R.a -= val;
+			R.a = (u8)(res & 0xFF);
 
 			if (R.a == 0)
 			{
@@ -625,6 +637,11 @@ namespace gameboy
 			R.de = 0x00D8;
 			R.hl = 0x014D;
 
+			/*R.af = 0x1180;
+			R.bc = 0x0000;
+			R.de = 0xFF56;
+			R.hl = 0x000D;*/
+
 			R.pc = 0x0100; // starting entry point of the ROM
 			R.sp = 0xFFFE;
 
@@ -732,7 +749,7 @@ namespace gameboy
 						}
 
 						// check for the half carry.
-						if ((R.hl & 0x0F) + (*register_pairs[p] & 0x0F) > 0x0F)
+						if ((R.hl & 0xFFF) + (*register_pairs[p] & 0xFFF) > 0xFFF)
 						{
 							set_flag(FLAG_HALFCARRY);
 						}
@@ -835,7 +852,7 @@ namespace gameboy
 				case 0x4: // z = 4
 					// INC register_single[y]
 					// check for the half carry only
-					if (*register_single[y] == 0x0F)
+					if ((*register_single[y] & 0xF) == 0x0F)
 					{
 						set_flag(FLAG_HALFCARRY);
 					}
@@ -976,11 +993,63 @@ namespace gameboy
 						break;
 					}
 					case 0x4:
+					{
 						// DA A
-						warning_assert("DA A");
+						u8 result = R.a;
+						u8 incr = 0;
+						bool carry = get_flag(FLAG_CARRY) != 0;
+
+						if (get_flag(FLAG_HALFCARRY) || ((result & 0x0f) > 0x09))
+						{
+							incr |= 0x06;
+						}
+
+						if (carry || (result > 0x9f) || ((result > 0x8f) && ((result & 0x0f) > 0x09)))
+						{
+							incr |= 0x60;
+						}
+
+						if (result > 0x100)
+						{
+							carry = true;
+						}
+
+						bool subtract = get_flag(FLAG_SUBTRACTION) != 0;
+
+						// these will clear flags and set half carry, zero, and subtraction flags
+						if (subtract)
+						{
+							alu_sub(&incr);
+						}
+						else
+						{
+							alu_add(&incr);
+						}
+
+						// reset flags
+						if (carry)
+						{
+							set_flag(FLAG_CARRY);
+						}
+						else
+						{
+							clear_flag(FLAG_CARRY);
+						}
+
+						if (subtract)
+						{
+							set_flag(FLAG_SUBTRACTION);
+						}
+						else
+						{
+							clear_flag(FLAG_SUBTRACTION);
+						}
+
+						set_flag(FLAG_HALFCARRY);
 
 						cycles = 4;
 						break;
+					}
 					case 0x5:
 						// CPL
 						R.a = ~R.a;
@@ -1073,8 +1142,7 @@ namespace gameboy
 						cycles = 8;
 						if (condition_funct[y]())
 						{
-							R.pc = memory_module->read_memory(R.sp++);
-							R.pc |= (memory_module->read_memory(R.sp++) << 8);
+							R.pc = pop_from_stack();
 
 							cycles += 12;
 						}
@@ -1144,8 +1212,14 @@ namespace gameboy
 					if (q == 0)
 					{
 						// POP stack ptr to register_pairs2[p]
-						*register_pairs2[p] = memory_module->read_memory(R.sp++);
-						*register_pairs2[p] |= (memory_module->read_memory(R.sp++) << 8);
+						u16 addr = pop_from_stack();
+
+						if (p == 3) // R.af has special case. cant set lower 4 bits of f register
+						{
+							addr &= 0xFFF0;
+						}
+
+						*(register_pairs2[p]) = addr;
 						cycles = 12;
 					}
 					else
@@ -1154,15 +1228,13 @@ namespace gameboy
 						{
 						case 0x0:
 							// RET
-							R.pc = memory_module->read_memory(R.sp++);
-							R.pc |= (memory_module->read_memory(R.sp++) << 8);
+							R.pc = pop_from_stack();
 
 							cycles = 16;
 							break;
 						case 0x1:
 							// RETI
-							R.pc = memory_module->read_memory(R.sp++);
-							R.pc |= (memory_module->read_memory(R.sp++) << 8);
+							R.pc = pop_from_stack();
 							interrupt_master = true;
 
 							cycles = 16;
