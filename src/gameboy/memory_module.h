@@ -160,6 +160,8 @@ namespace gameboy
 			memory_map[MEMORY_IO_REGISTERS]				= { 0xFF00, 0xFF7F, io_registers, MEMORY_READABLE | MEMORY_WRITABLE };
 			memory_map[MEMORY_ZERO_PAGE]				= { 0xFF80, 0xFFFE, zero_page, MEMORY_READABLE | MEMORY_WRITABLE };
 			memory_map[MEMORY_INTERRUPT_FLAG]			= { 0xFFFF, 0xFFFF, interrupt_enabled, MEMORY_READABLE | MEMORY_WRITABLE };
+
+			reset();
 		}
 
 		int reset()

@@ -149,6 +149,7 @@ namespace gameboy
 			windowY = memory_module->get_memory(0xFF4A);
 			windowX = memory_module->get_memory(0xFF4B);
 			palette_bg = memory_module->get_memory(0xFF47);
+			
 			reset();
 
 			return 0;
@@ -182,7 +183,8 @@ namespace gameboy
 		int draw_scanline()
 		{
 			// only doing background. but will need to merge this with window
-			if (get_lcd_control_flag(FLAG_BG_DISPLAY_ENABLED))
+			warning("NOTE: add this once you've fixed some issues")
+			//if (get_lcd_control_flag(FLAG_BG_DISPLAY_ENABLED)) 
 			{
 				// tilemap starting location. tilemap is 32 x 32 bytes that map to a tile
 				u16 tilemapAddr = 0x9800;
@@ -199,16 +201,22 @@ namespace gameboy
 					tilesetAddr = 0x8000;
 					tilesetOffset = 0;
 				}
+				*scrollY = 0; warning("NOTE: remove this once you've fixed some issues")
+				// check if scanline is below scrollY
+				if (*scanline < *scrollY)
+				{
+					return 0;
+				}
 
-				u8 yPos = *scrollY + *scanline;
-				u8 tileY = (yPos / 8) * 32; // calc tile offset based on yPos
+				u32 yPos = *scrollY + *scanline;
+				u32 tileY = (yPos / 8) * 32; // calc tile offset based on yPos. map is 32 tiles wide
 				u8 tileYPixel = yPos % 8; // the row of the specific tile the scanline is on
 
 				// draw the 160 horz pixels
 				for (u32 pixel = 0; pixel < 160; pixel++)
 				{
-					u8 xPos = *scrollX + pixel;
-					u8 tileX = xPos / 8; // calc tile offset base on xPos
+					u32 xPos = *scrollX + pixel;
+					u32 tileX = xPos / 8; // calc tile offset base on xPos
 					u8 tileXPixel = xPos % 8; // the column of the speific tile to draw
 					s16 tileId = 0;
 					
@@ -223,15 +231,15 @@ namespace gameboy
 					}
 
 					// we have the tile id. lets draw pixel
-					u8 tileOffset = (tileId * tileSize) + (tileYPixel * 2); // get tile, then add offset to y pos of tile, each row is 2 bytes
-					u8 dataA = memory_module->read_memory(tilesetAddr + tileOffset);
-					u8 dataB = memory_module->read_memory(tilesetAddr + tileOffset + 1);
+					u8* tileset = memory_module->get_memory(tilesetAddr + (tileId * tileSize) + (tileYPixel * 2));
+					u8 dataA = tileset[0];
+					u8 dataB = tileset[1];
 					u8 bit = 7 - tileXPixel; // the bits and pixels are inversed
-					u8 color = ((dataA & (1 << bit)) >> bit)| (((dataB & (1 << bit)) >> bit) << 1);
+					u8 color = ((dataA & (1 << bit)) >> bit) | (((dataB & (1 << bit)) >> bit) << 1);
 
 					color = gpu::get_palette_color(color);
 
-					u32 pixelPos = (*scanline * 160 + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
+					u32 pixelPos = ((*scanline) * 160 + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
 					framebuffer[pixelPos++] = color;
 					framebuffer[pixelPos++] = color;
 					framebuffer[pixelPos++] = color;
@@ -318,8 +326,6 @@ namespace gameboy
 				// continue to next scanline
 				horz_cycle_count = horz_cycles;
 
-				(*scanline)++;
-
 				if (*scanline < 144)
 				{
 					// draw the scan line
@@ -330,7 +336,10 @@ namespace gameboy
 					// start of vblank
 					cpu::set_request_interrupt_flag(cpu::INTERRUPT_VBLANK);
 				}
-				else if (*scanline > 153)
+
+				(*scanline)++; // inc scanline
+
+				if (*scanline > 153)
 				{
 					// reset scanline to 0
 					*scanline = 0;
