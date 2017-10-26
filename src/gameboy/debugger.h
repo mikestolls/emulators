@@ -153,8 +153,6 @@ namespace gameboy
 
 					tileset += 2;
 				}
-
-				tilemap++;
 			}
 
 			tilemap_texture.update(tilemap_texture_data, 256, 256, 0, 0);

@@ -201,6 +201,7 @@ namespace gameboy
 			write_memory(0xFF4B, 0x00); // WX
 			write_memory(0xFFFF, 0x00); // IE
 
+			// NOTE: writing to 1 to 0xFF50 unmaps boot rom
 			return 0;
 		}
 	};
