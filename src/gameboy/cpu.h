@@ -1460,12 +1460,15 @@ namespace gameboy
 				break;
 			case 0x1:
 				// test bit y from register_single[z]
-				if (*register_single[z] | (1 << y))
+				if (*register_single[z] & (1 << y))
 				{
 					clear_flag(FLAG_ZERO);
 				}
+				else
+				{
+					set_flag(FLAG_ZERO);
+				}
 
-				set_flag(FLAG_ZERO);
 				set_flag(FLAG_HALFCARRY);
 				clear_flag(FLAG_SUBTRACTION);
 
