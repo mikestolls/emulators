@@ -991,75 +991,50 @@ namespace gameboy
 					}
 					case 0x4:
 					{
+						// DAA
+						u16 a = R.a;
 
-						/*void DAA(CPU* cpu)
+						if (get_flag(FLAG_SUBTRACTION) != 0)
 						{
-							byte a = cpu->registers.a;
-							if ((cpu->registers.f & 0x20) || ((cpu->registers.a & 15)>9))
-								cpu->registers.a += 6; 
-
-							cpu->registers.f &= 0xEF;
-
-							if ((cpu->registers.f & 0x20) || (a>0x99)) 
+							if (get_flag(FLAG_HALFCARRY) != 0)
 							{
-								cpu->registers.a += 0x60;
-								cpu->registers.f |= 0x10; 
-							} 
-							cpu->registers.m = 1; 
-						};*/
+								a = (a - 0x06) & 0xFF;
+							}
 
-						// DA A
-						u8 result = R.a;
-						u8 incr = 0;
-						bool carry = get_flag(FLAG_CARRY) != 0;
-
-						if (get_flag(FLAG_HALFCARRY) || ((result & 0x0f) > 0x09))
+							if (get_flag(FLAG_CARRY) != 0)
+							{
+								a -= 0x60;
+							}
+						}
+						else 
 						{
-							incr |= 0x06;
+							if (get_flag(FLAG_HALFCARRY) != 0 || (a & 0xF) > 9)
+							{
+								a += 0x06;
+							}
+
+							if (get_flag(FLAG_CARRY) != 0 || a > 0x9F)
+							{
+								a += 0x60;
+							}
 						}
 
-						if (carry || (result > 0x9f) || ((result > 0x8f) && ((result & 0x0f) > 0x09)))
-						{
-							incr |= 0x60;
-						}
+						R.a = (u8)(a & 0xFF);
+						clear_flag(FLAG_HALFCARRY);
 
-						if (result > 0x99)
+						if (R.a) 
 						{
-							carry = true;
-						}
-
-						bool subtract = get_flag(FLAG_SUBTRACTION) != 0;
-
-						// these will clear flags and set half carry, zero, and subtraction flags
-						if (subtract)
-						{
-							alu_sub(&incr);
+							clear_flag(FLAG_ZERO);
 						}
 						else
 						{
-							alu_add(&incr);
+							set_flag(FLAG_ZERO);
 						}
 
-						// reset flags
-						if (carry)
+						if (a >= 0x100)
 						{
 							set_flag(FLAG_CARRY);
 						}
-						else
-						{
-							clear_flag(FLAG_CARRY);
-						}
-
-						if (subtract)
-						{
-							set_flag(FLAG_SUBTRACTION);
-						}
-						else
-						{
-							clear_flag(FLAG_SUBTRACTION);
-						}
-
-						clear_flag(FLAG_HALFCARRY);
 
 						cycles = 4;
 						break;
@@ -1170,23 +1145,34 @@ namespace gameboy
 					{
 						// ADD SP with (signed)n
 						u8 val = readpc_u8();
-						u32 res = R.sp + val;
+						s32 result = R.sp + (s8)val;
+						u16 sp_low = R.sp & 0xFF;
+						u16 result_flag = sp_low + val;
 
-						// check for carry
-						clear_all_flags();
-						if (res & 0xFF00)
+						// half carry and carry flags are determined from (sp & 0xFF) + (u8)value
+						if (result_flag & 0xFF00)
 						{
 							set_flag(FLAG_CARRY);
 						}
+						else
+						{
+							clear_flag(FLAG_CARRY);
+						}
 
-						// check for the half carry.
-						if ((R.sp ^ val ^ res) & 0x10)
+						R.sp = result & 0xFFFF;
+
+						if ((sp_low ^ val ^ result_flag) & 0x10)
 						{
 							set_flag(FLAG_HALFCARRY);
 						}
+						else
+						{
+							clear_flag(FLAG_HALFCARRY);
+						}
 
-						R.sp += (s8)val;
-						
+						clear_flag(FLAG_ZERO);
+						clear_flag(FLAG_SUBTRACTION);
+												
 						cycles = 16;
 						break;
 					}
@@ -1198,23 +1184,34 @@ namespace gameboy
 					case 0x7:
 					{
 						// ADD (signed)n to SP then LD HL with SP
-						clear_all_flags();
-						u8 operand = readpc_u8();
-						u32 res = R.sp + (s8)operand;
+						u8 val = readpc_u8();
+						s32 result = R.sp + (s8)val;
+						u16 sp_low = R.sp & 0xFF;
+						u16 result_flag = sp_low + val;
 
-						// check for carry
-						if (res & 0xFFFF0000)
+						// half carry and carry flags are determined from (sp & 0xFF) + (u8)value
+						if (result_flag & 0xFF00)
 						{
 							set_flag(FLAG_CARRY);
 						}
+						else
+						{
+							clear_flag(FLAG_CARRY);
+						}
 
-						// check for the half carry.
-						if ((R.sp & 0x0F) + (operand & 0x0F) > 0x0F)
+						R.hl = result & 0xFFFF;
+
+						if ((sp_low ^ val ^ result_flag) & 0x10)
 						{
 							set_flag(FLAG_HALFCARRY);
 						}
+						else
+						{
+							clear_flag(FLAG_HALFCARRY);
+						}
 
-						R.hl = (u16)(res & 0xFFFF); 
+						clear_flag(FLAG_ZERO);
+						clear_flag(FLAG_SUBTRACTION);
 						cycles = 12;
 						break;
 					}
