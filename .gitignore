@@ -289,3 +289,4 @@ __pycache__/
 prj/
 build/
 tools/visualboy_emulator/vba.ini
+tools/bgb/bgb.ini

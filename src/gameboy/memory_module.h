@@ -167,6 +167,7 @@ namespace gameboy
 		int reset()
 		{
 			memset(vram, 0x0, sizeof(vram));
+			memset(working_ram, 0x0, sizeof(working_ram));
 
 			write_memory(0xFF05, 0x00); // TIMA
 			write_memory(0xFF06, 0x00); // TMA

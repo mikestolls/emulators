@@ -360,7 +360,7 @@ namespace gameboy
 		// rotation and shift operations
 		inline void rot_rlc(u8* r)
 		{
-			u8 carry = (*r & 0x80);
+			u8 carry = (*r & 0x80) >> 7;
 			*r = (*r << 1) | carry;
 
 			clear_all_flags();
@@ -369,8 +369,7 @@ namespace gameboy
 				set_flag(FLAG_CARRY);
 			}
 
-			// if not register a, we set zero flag
-			if (r != &R.a && *r == 0)
+			if (*r == 0)
 			{
 				set_flag(FLAG_ZERO);
 			}
@@ -387,8 +386,7 @@ namespace gameboy
 				set_flag(FLAG_CARRY);
 			}
 
-			// if not register a, we set zero flag
-			if (r != &R.a && *r == 0)
+			if (*r == 0)
 			{
 				set_flag(FLAG_ZERO);
 			}
@@ -406,8 +404,7 @@ namespace gameboy
 
 			*r = (*r << 1) | carry;
 
-			// if not register a, we set zero flag
-			if (r != &R.a && *r == 0)
+			if (*r == 0)
 			{
 				set_flag(FLAG_ZERO);
 			}
@@ -425,8 +422,7 @@ namespace gameboy
 
 			*r = (*r >> 1) | (carry << 7);
 
-			// if not register a, we set zero flag
-			if (r != &R.a && *r == 0)
+			if (*r == 0)
 			{
 				set_flag(FLAG_ZERO);
 			}
@@ -637,10 +633,11 @@ namespace gameboy
 			R.de = 0x00D8;
 			R.hl = 0x014D;
 
-			/*R.af = 0x1180;
+			// NOTE: these match the bgb init values
+			R.af = 0x1180;
 			R.bc = 0x0000;
 			R.de = 0xFF56;
-			R.hl = 0x000D;*/
+			R.hl = 0x000D;
 
 			R.pc = 0x0100; // starting entry point of the ROM
 			R.sp = 0xFFFE;
@@ -994,6 +991,23 @@ namespace gameboy
 					}
 					case 0x4:
 					{
+
+						/*void DAA(CPU* cpu)
+						{
+							byte a = cpu->registers.a;
+							if ((cpu->registers.f & 0x20) || ((cpu->registers.a & 15)>9))
+								cpu->registers.a += 6; 
+
+							cpu->registers.f &= 0xEF;
+
+							if ((cpu->registers.f & 0x20) || (a>0x99)) 
+							{
+								cpu->registers.a += 0x60;
+								cpu->registers.f |= 0x10; 
+							} 
+							cpu->registers.m = 1; 
+						};*/
+
 						// DA A
 						u8 result = R.a;
 						u8 incr = 0;
@@ -1009,7 +1023,7 @@ namespace gameboy
 							incr |= 0x60;
 						}
 
-						if (result > 0x100)
+						if (result > 0x99)
 						{
 							carry = true;
 						}
@@ -1045,7 +1059,7 @@ namespace gameboy
 							clear_flag(FLAG_SUBTRACTION);
 						}
 
-						set_flag(FLAG_HALFCARRY);
+						clear_flag(FLAG_HALFCARRY);
 
 						cycles = 4;
 						break;
@@ -1155,24 +1169,24 @@ namespace gameboy
 					case 0x5:
 					{
 						// ADD SP with (signed)n
-						s8 val = (s8)readpc_u8();
+						u8 val = readpc_u8();
 						u32 res = R.sp + val;
 
 						// check for carry
 						clear_all_flags();
-						if (res & 0xFFFF0000)
+						if (res & 0xFF00)
 						{
 							set_flag(FLAG_CARRY);
 						}
 
 						// check for the half carry.
-						if ((R.sp & 0x0F) + (val & 0x0F) > 0x0F)
+						if ((R.sp ^ val ^ res) & 0x10)
 						{
 							set_flag(FLAG_HALFCARRY);
 						}
 
-						R.sp = (u16)(res & 0xFFFF);
-
+						R.sp += (s8)val;
+						
 						cycles = 16;
 						break;
 					}
