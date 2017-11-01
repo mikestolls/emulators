@@ -38,6 +38,9 @@ namespace gameboy
 {
 	namespace cpu
 	{
+		const u32 cycles_per_sec = 4194304;
+		const u32 fps = 60;
+
 		bool running = true;
 		bool halt = false;
 		bool debugging = false;
@@ -46,6 +49,19 @@ namespace gameboy
 		bool interrupt_master;
 		u8* interrupt_enable_flag;
 		u8* interrupt_request_flag;
+
+		u8* timer_value;
+		u8* timer_controller;
+		u8* timer_modulator;
+		s32 timer_counter;
+
+		u8* divide_value;
+		s32 divide_counter;
+
+		// debugging timer
+		s32 timer_per_sec;
+		s32 timer_last_per_sec;
+		std::chrono::milliseconds timer_start;
 
 		// main memory module pointer
 		gameboy::memory_module* memory_module;
@@ -624,6 +640,93 @@ namespace gameboy
 			return 0;
 		}
 
+		// functions for the timer
+		bool timer_enabled()
+		{
+			return (*timer_controller & 0x4 ? true : false); // bit 2 is on/off flag
+		}
+
+		u32 get_timer_frequency()
+		{
+			if (true)
+			{
+				return 1024;
+			}
+
+			switch (*timer_controller & 0x3) // bit 0 and 1 are the frequency flags. cycles_per_sec / frequency
+			{
+			case 0x0: // 4096 hz
+				return 1024;
+			case 0x1: // 262144 hz
+				return 16;
+			case 0x2: // 65536 hz
+				return 64;
+			case 0x3: // 16384 hz
+				return 256;
+			}
+
+			return 0;
+		}
+
+		void reset_timer_counter()
+		{
+			timer_counter = get_timer_frequency();
+		}
+
+		int update_timer(u8 cycles)
+		{
+			// update divide register first
+			divide_counter += cycles;
+
+			if (divide_counter >= 255) // divide register is 16382 hz
+			{
+				(*divide_value)++;
+				divide_counter = 255;
+			}
+
+			if (!timer_enabled())
+			{
+				return 0;
+			}
+
+			timer_counter -= cycles;
+
+			if (timer_counter <= 0)
+			{
+				timer_per_sec++; // debugging timer
+
+				// check if overflow. set timer_counter to modulator. increase timer
+				if (*timer_value == 255)
+				{
+					*timer_value = *timer_modulator;
+
+					// interrupt
+					set_request_interrupt_flag(INTERRUPT_TIMER);
+				}
+				else
+				{
+					(*timer_value)++;
+				}
+
+				// set counter back to frequency
+				reset_timer_counter();
+			}
+
+			// debugging the timer
+			std::chrono::milliseconds timer_end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+			std::chrono::milliseconds delta = timer_end - timer_start;
+			std::chrono::duration<double, std::milli> time_compare(1000.0);
+
+			if (delta >= time_compare) // more than second
+			{
+				timer_last_per_sec = timer_per_sec;
+				timer_per_sec = 0;
+				timer_start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+			}
+
+			return 0;
+		}
+
 		int reset()
 		{
 			memset(&R, 0x0, sizeof(R)); // init registers to 0
@@ -634,10 +737,10 @@ namespace gameboy
 			R.hl = 0x014D;
 
 			// NOTE: these match the bgb init values
-			R.af = 0x1180;
-			R.bc = 0x0000;
-			R.de = 0xFF56;
-			R.hl = 0x000D;
+			//R.af = 0x1180;
+			//R.bc = 0x0000;
+			//R.de = 0xFF56;
+			//R.hl = 0x000D;
 
 			R.pc = 0x0100; // starting entry point of the ROM
 			R.sp = 0xFFFE;
@@ -647,6 +750,18 @@ namespace gameboy
 			interrupt_master = true;
 			interrupt_enable_flag = memory_module->get_memory(0xFFFF);
 			interrupt_request_flag = memory_module->get_memory(0xFF0F);
+			
+			timer_value = memory_module->get_memory(0xFF05);
+			timer_modulator = memory_module->get_memory(0xFF06);
+			timer_controller = memory_module->get_memory(0xFF07);
+			timer_counter = 0;
+
+			timer_per_sec = 0;
+			timer_last_per_sec = 0;
+			timer_start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+
+			divide_value = memory_module->get_memory(0xFF04);
+			divide_counter = 0;
 
 			return 0;
 		}
@@ -700,7 +815,7 @@ namespace gameboy
 					case 0x3:
 						// JR d
 						R.pc += (s8)readpc_u8(); // relative jump is singed offset
-						cycles = 12;
+						cycles = 8;
 						break;
 					case 0x4:
 					case 0x5:
@@ -715,7 +830,6 @@ namespace gameboy
 						if (condition_funct[y - 4]())
 						{
 							R.pc += val; // relative jump is singed offset
-							cycles += 4;
 						}
 						break;
 					}
@@ -1089,7 +1203,7 @@ namespace gameboy
 					// LD register_single[y] with register_single[z]
 					*register_single[y] = *register_single[z];
 
-					if (y == 6 || z == 6) // register is (HL)
+					if (y == 6 || z == 6) // LD (HL), A,B,C,F,E,F,H,L or LD A,B,C,F,E,H,L, (HL)
 					{
 						cycles = 8;
 					}
@@ -1132,8 +1246,6 @@ namespace gameboy
 						if (condition_funct[y]())
 						{
 							R.pc = pop_from_stack();
-
-							cycles += 12;
 						}
 						break;
 					case 0x4:
@@ -1241,14 +1353,14 @@ namespace gameboy
 							// RET
 							R.pc = pop_from_stack();
 
-							cycles = 16;
+							cycles = 8;
 							break;
 						case 0x1:
 							// RETI
 							R.pc = pop_from_stack();
 							interrupt_master = true;
 
-							cycles = 16;
+							cycles = 8;
 							break;
 						case 0x2:
 							// JP (HL)
@@ -1281,8 +1393,6 @@ namespace gameboy
 						if (condition_funct[y]())
 						{
 							R.pc = val;
-
-							cycles += 4;
 						}
 						break;
 					}
@@ -1317,7 +1427,7 @@ namespace gameboy
 						// JP nn
 						R.pc = readpc_u16();
 
-						cycles = 16;
+						cycles = 12;
 						break;
 					case 0x1:
 						// CB prefix
@@ -1362,8 +1472,6 @@ namespace gameboy
 							push_sp_to_stack(R.pc);
 
 							R.pc = val;
-
-							cycles += 12;
 						}
 						break;
 					}
@@ -1395,7 +1503,7 @@ namespace gameboy
 							push_sp_to_stack(R.pc);
 							R.pc = val;
 
-							cycles = 24;
+							cycles = 12;
 						}
 						else
 						{
@@ -1419,7 +1527,7 @@ namespace gameboy
 					push_sp_to_stack(R.pc);
 					R.pc = y * 8;
 
-					cycles = 16;
+					cycles = 32;
 					break;
 				}
 				}
@@ -1471,7 +1579,7 @@ namespace gameboy
 
 				if (z == 6) // (HL) register
 				{
-					cycles = 12;
+					cycles = 16;
 				}
 				else
 				{

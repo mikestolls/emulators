@@ -184,7 +184,7 @@ namespace gameboy
 		{
 			// only doing background. but will need to merge this with window
 			warning("NOTE: add this once you've fixed some issues")
-			//if (get_lcd_control_flag(FLAG_BG_DISPLAY_ENABLED)) 
+			if (get_lcd_control_flag(FLAG_BG_DISPLAY_ENABLED)) 
 			{
 				// tilemap starting location. tilemap is 32 x 32 bytes that map to a tile
 				u16 tilemapAddr = 0x9800;

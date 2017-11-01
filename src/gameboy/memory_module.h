@@ -4,6 +4,11 @@
 
 namespace gameboy
 {
+	namespace cpu
+	{
+		extern void reset_timer_counter();
+	}
+
 	enum MEMORY_TYPE
 	{
 		MEMORY_CATRIDGE_ROM = 0,
@@ -112,6 +117,24 @@ namespace gameboy
 				memory_map[MEMORY_IO_REGISTERS].memory[addr - memory_map[MEMORY_IO_REGISTERS].addr_min] = 0x0;
 				return;
 			}
+			else if (addr == 0xFF04) // divide register is reset if someone tries to write to it
+			{
+				memory_map[MEMORY_IO_REGISTERS].memory[addr - memory_map[MEMORY_IO_REGISTERS].addr_min] = 0x0;
+				return;
+			}
+			else if (addr == 0xFF07) // timer controller. check if frequency has changed and reset timer if so
+			{
+				u8 timer_controller = memory_map[MEMORY_IO_REGISTERS].memory[addr - memory_map[MEMORY_IO_REGISTERS].addr_min];
+
+				if ((timer_controller & 0x3) != (*value & 0x3)) // not equal
+				{
+					memory_map[MEMORY_IO_REGISTERS].memory[0xFF05 - memory_map[MEMORY_IO_REGISTERS].addr_min] = 0x0; // reset timer
+					cpu::reset_timer_counter();
+				}
+
+				memcpy(&memory_map[MEMORY_IO_REGISTERS].memory[addr - memory_map[MEMORY_IO_REGISTERS].addr_min], value, size);
+				return;
+			}
 
 			// loop though memory map
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
@@ -171,7 +194,7 @@ namespace gameboy
 
 			write_memory(0xFF05, 0x00); // TIMA
 			write_memory(0xFF06, 0x00); // TMA
-			write_memory(0xFF07, 0x00); // TAC
+			write_memory(0xFF07, 0x00); // TMC
 			write_memory(0xFF10, 0x80); // NR10
 			write_memory(0xFF11, 0xBF); // NR11
 			write_memory(0xFF12, 0xF3); // NR12

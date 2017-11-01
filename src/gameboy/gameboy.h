@@ -56,12 +56,10 @@ namespace gameboy
 		cpu::initialize(&memory);
 		gpu::initialize(&memory);
 
-		std::chrono::milliseconds curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-		std::chrono::milliseconds lastTime = curTime;
+		std::chrono::milliseconds cur_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+		std::chrono::milliseconds last_time = cur_time;
 
-		const u32 cycles_per_sec = 4194304;
-		const u32 fps = 60;
-		const u32 cycles_per_frame = cycles_per_sec / fps;
+		const u32 cycles_per_frame = cpu::cycles_per_sec / cpu::fps;
 		u32 cycle_count = 0;
 
 		while (window.isOpen())
@@ -101,6 +99,7 @@ namespace gameboy
 			if (cpu::debugging && cpu::debugging_step)
 			{
 				u8 cpu_cycles = cpu::execute_opcode();
+				cpu::update_timer(cpu_cycles);
 				cycle_count += cpu_cycles;
 				cpu::check_interrupts();
 				gpu::update(cpu_cycles);
@@ -113,6 +112,7 @@ namespace gameboy
 				{
 					// update the cpu emulation
 					u8 cpu_cycles = cpu::execute_opcode();
+					cpu::update_timer(cpu_cycles);
 					cycle_count += cpu_cycles;
 					cpu::check_interrupts();
 					gpu::update(cpu_cycles);
@@ -142,16 +142,16 @@ namespace gameboy
 			window.display();
 
 			// limit fps
-			curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-			std::chrono::milliseconds delta = curTime - lastTime;
+			cur_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+			std::chrono::milliseconds delta = cur_time - last_time;
 
-			std::chrono::duration<double, std::milli> minFrameTime(1000.0 / (float)fps);
-			if (delta < minFrameTime)
+			std::chrono::duration<double, std::milli> min_frame_time(1000.0 / (float)cpu::fps);
+			if (delta < min_frame_time)
 			{
-				std::this_thread::sleep_for(minFrameTime - delta);
+				std::this_thread::sleep_for(min_frame_time - delta);
 			}
 
-			lastTime = curTime;
+			last_time = cur_time;
 		}
 
 		return 0;

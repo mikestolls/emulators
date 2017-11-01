@@ -29,6 +29,9 @@ namespace gameboy
 		// draw disassembly
 		sf::Text disassembly_text;
 
+		// draw timer info
+		sf::Text timer_text;
+
 		int initialize(gameboy::memory_module* memory)
 		{
 			memory_module = memory;
@@ -54,6 +57,11 @@ namespace gameboy
 			disassembly_text.setFont(font);
 			disassembly_text.setCharacterSize(24);
 			disassembly_text.setPosition(512, 0);
+
+			timer_text.setString("");
+			timer_text.setFont(font);
+			timer_text.setCharacterSize(24);
+			timer_text.setPosition(512, 512);
 
 			return 0;
 		}
@@ -184,6 +192,19 @@ namespace gameboy
 			return 0;
 		}
 
+		int update_timer()
+		{
+			std::stringstream stream;
+			stream << "Timer Enabled: " << (*cpu::timer_enabled ? "True" : "False") << std::endl;
+			stream << "Timer Frequency: " << (cpu::cycles_per_sec / cpu::get_timer_frequency()) << " Hz" << std::endl;
+			stream << "Timer Modulator: " << (int)(*cpu::timer_modulator) << std::endl;
+			stream << "Timer Last Per Sec: " << cpu::timer_last_per_sec << std::endl;
+
+			timer_text.setString(stream.str());
+
+			return 0;
+		}
+
 		int update()
 		{
 			sf::Event event;
@@ -219,6 +240,7 @@ namespace gameboy
 			update_tileset();
 			update_tilemap();
 			update_disassembly();
+			update_timer();
 
 			window.clear();
 
@@ -226,6 +248,7 @@ namespace gameboy
 			window.draw(tileset_sprite);
 			window.draw(tilemap_sprite);
 			window.draw(disassembly_text);
+			window.draw(timer_text);
 
 			window.display();
 
