@@ -6,6 +6,7 @@
 #include "gpu.h"
 #include "rom.h"
 #include "debugger.h"
+#include "disassembler.h"
 
 namespace gameboy
 {
@@ -29,7 +30,7 @@ namespace gameboy
 			filename = argv[2];
 			if (strcmp("-d", argv[1]) == 0)
 			{
-				return -1;
+				return gameboy::disassemble(filename.c_str());
 			}
 			else if (strcmp("-a", argv[1]) == 0)
 			{
@@ -38,8 +39,7 @@ namespace gameboy
 		}
 
 		// load and run the rom
-		gameboy::rom rom(filename.c_str());
-		gameboy::memory_module memory(&rom);
+		rom rom(filename.c_str());
 
 		// init sfml
 		sf::RenderWindow window(sf::VideoMode(gpu::width * pixelSize, gpu::height * pixelSize), "Emulator");
@@ -50,11 +50,12 @@ namespace gameboy
 		framebuffer_sprite.setScale(pixelSize, pixelSize);
 
 		debugger debug_window;
-		debug_window.initialize(&memory);
+		debug_window.initialize();
 
 		// init cpu and load rom
-		cpu::initialize(&memory);
-		gpu::initialize(&memory);
+		memory_module::initialize(&rom);
+		cpu::initialize();
+		gpu::initialize();
 
 		std::chrono::milliseconds cur_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 		std::chrono::milliseconds last_time = cur_time;
@@ -101,7 +102,8 @@ namespace gameboy
 				u8 cpu_cycles = cpu::execute_opcode();
 				cpu::update_timer(cpu_cycles);
 				cycle_count += cpu_cycles;
-				cpu::check_interrupts();
+				cpu_cycles = cpu::check_interrupts();
+				cycle_count += cpu_cycles;
 				gpu::update(cpu_cycles);
 
 				cpu::debugging_step = false;
@@ -113,8 +115,8 @@ namespace gameboy
 					// update the cpu emulation
 					u8 cpu_cycles = cpu::execute_opcode();
 					cpu::update_timer(cpu_cycles);
+					cpu_cycles += cpu::check_interrupts();
 					cycle_count += cpu_cycles;
-					cpu::check_interrupts();
 					gpu::update(cpu_cycles);
 
 					if (cpu::debugging)

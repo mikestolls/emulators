@@ -54,18 +54,17 @@ namespace chip8
 		}
 		
 		// load and run the rom
-		chip8::cpu cpu;
 		chip8::rom rom(filename.c_str());
 
 		// init sfml
 		u8 pixelSize = 16;
-		sf::RenderWindow window(sf::VideoMode(cpu.width * pixelSize, cpu.height * pixelSize), "Emulator");
+		sf::RenderWindow window(sf::VideoMode(cpu::width * pixelSize, cpu::height * pixelSize), "Emulator");
 		sf::RectangleShape whiteRect(sf::Vector2f(pixelSize, pixelSize));
 		whiteRect.setFillColor(sf::Color::White);
 	
 		// init scpu and load rom
-		cpu.initialize();
-		cpu.load_rom(rom.romdata, rom.romsize & 0xFFFF);
+		cpu::initialize();
+		cpu::load_rom(rom.romdata, rom.romsize & 0xFFFF);
 
 		std::chrono::milliseconds curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 		std::chrono::milliseconds lastTime = curTime;
@@ -84,34 +83,34 @@ namespace chip8
 			{
 				if (sf::Keyboard::isKeyPressed(static_cast<sf::Keyboard::Key>(chip8::keyboard[i])))
 				{
-					cpu.set_keys(chip8::keyboard[i + 1], true);
+					cpu::set_keys(chip8::keyboard[i + 1], true);
 				}
 				else
 				{
-					cpu.set_keys(chip8::keyboard[i + 1], false);
+					cpu::set_keys(chip8::keyboard[i + 1], false);
 				}
 			}
 		
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
 			{
-				cpu.reset();
+				cpu::reset();
 			}
 
 			// update the cpu emulation
-			cpu.update_cycle();
+			cpu::update_cycle();
 
-			if (cpu.drawFlag)
+			if (cpu::drawFlag)
 			{
 				// clear window
 				window.clear();
 
 				// draw screen
 				u16 pixel = 0;
-				for (u8 y = 0; y < cpu.height; y++)
+				for (u8 y = 0; y < cpu::height; y++)
 				{
-					for (u8 x = 0; x < cpu.width; x++)
+					for (u8 x = 0; x < cpu::width; x++)
 					{
-						if (cpu.gfx[pixel++] != 0)
+						if (cpu::gfx[pixel++] != 0)
 						{
 							whiteRect.setPosition((float)(x * pixelSize), (float)(y * pixelSize));
 							window.draw(whiteRect);

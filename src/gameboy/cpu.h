@@ -2,7 +2,7 @@
 
 #include "defines.h"
 
-#include "gameboy\memory_module.h"
+#include "memory_module.h"
 
 //Opcode  Z80				GMB
 //---------------------------------------------
@@ -38,6 +38,7 @@ namespace gameboy
 {
 	namespace cpu
 	{
+		const u32 interrupt_master_max_enable_delay = 2;
 		const u32 cycles_per_sec = 4194304;
 		const u32 fps = 60;
 
@@ -47,6 +48,7 @@ namespace gameboy
 		bool debugging_step = false;
 
 		bool interrupt_master;
+		s8 interrupt_master_enable_delay; // delay used for EI delayed enable
 		u8* interrupt_enable_flag;
 		u8* interrupt_request_flag;
 
@@ -61,10 +63,7 @@ namespace gameboy
 		// debugging timer
 		s32 timer_per_sec;
 		s32 timer_last_per_sec;
-		std::chrono::milliseconds timer_start;
-
-		// main memory module pointer
-		gameboy::memory_module* memory_module;
+		s32 timer_cpu_cycles;
 
 		// cpus register structure
 		struct registers
@@ -125,7 +124,7 @@ namespace gameboy
 		// register pointers used by decoder
 		u16* register_pairs[] = { &R.bc, &R.de, &R.hl, &R.sp };
 		u16* register_pairs2[] = { &R.bc, &R.de, &R.hl, &R.af };
-		u8* register_single[] = { &R.b, &R.c, &R.d, &R.e, &R.h, &R.l, /*memory_module->get_memory(R.hl)*/ 0, &R.a };
+		u8* register_single[] = { &R.b, &R.c, &R.d, &R.e, &R.h, &R.l, /*memory_module::get_memory(R.hl)*/ 0, &R.a };
 		
 		// stack functions
 		inline void push_sp_to_stack(u16 addr)
@@ -134,14 +133,14 @@ namespace gameboy
 			u8 high = (addr >> 8);
 
 			R.sp -= 2;
-			memory_module->write_memory(R.sp, &low, 1);
-			memory_module->write_memory(R.sp + 1, &high, 1);
+			memory_module::write_memory(R.sp, &low, 1);
+			memory_module::write_memory(R.sp + 1, &high, 1);
 		}
 
 		inline u16 pop_from_stack()
 		{
-			u8 low = memory_module->read_memory(R.sp++) & 0xFF;
-			u8 high = memory_module->read_memory(R.sp++) & 0xFF;
+			u8 low = memory_module::read_memory(R.sp++) & 0xFF;
+			u8 high = memory_module::read_memory(R.sp++) & 0xFF;
 
 			return (high << 8) | low;
 		}
@@ -512,7 +511,7 @@ namespace gameboy
 		// read 8 and 16 bit at PC. increment PC
 		inline u8 readpc_u8()
 		{
-			u8 val = memory_module->read_memory(R.pc++);
+			u8 val = memory_module::read_memory(R.pc++);
 
 			return val;
 		}
@@ -520,8 +519,8 @@ namespace gameboy
 		inline u16 readpc_u16()
 		{
 			// lsb is first in memory
-			u16 val = memory_module->read_memory(R.pc++);
-			val |= (memory_module->read_memory(R.pc++) << 8);
+			u16 val = memory_module::read_memory(R.pc++);
+			val |= (memory_module::read_memory(R.pc++) << 8);
 
 			return val;
 		}
@@ -532,18 +531,9 @@ namespace gameboy
 			INTERRUPT_VBLANK = 0,
 			INTERRUPT_LCD,
 			INTERRUPT_TIMER,
+			INTERRUPT_SERIAL_IO_END,
 			INTERRUPT_JOYPAD,
 		};
-
-		inline void disable_interrupts()
-		{
-			interrupt_master = false;
-		}
-
-		inline void enable_interrupts()
-		{
-			interrupt_master = true;
-		}
 
 		inline void set_request_interrupt_flag(u8 flag)
 		{
@@ -609,6 +599,9 @@ namespace gameboy
 			case INTERRUPT_TIMER:
 				addr = 0x50;
 				break;
+			case INTERRUPT_SERIAL_IO_END:
+				addr = 0x58;
+				break;
 			case INTERRUPT_JOYPAD:
 				addr = 0x60;
 				break;
@@ -634,6 +627,8 @@ namespace gameboy
 				{
 					// service the intterupt
 					service_interrupt(i);
+					halt = false;
+					return 12;
 				}
 			}
 
@@ -648,11 +643,6 @@ namespace gameboy
 
 		u32 get_timer_frequency()
 		{
-			if (true)
-			{
-				return 1024;
-			}
-
 			switch (*timer_controller & 0x3) // bit 0 and 1 are the frequency flags. cycles_per_sec / frequency
 			{
 			case 0x0: // 4096 hz
@@ -671,17 +661,22 @@ namespace gameboy
 		void reset_timer_counter()
 		{
 			timer_counter = get_timer_frequency();
+			*timer_value = *timer_modulator;
+
+			timer_per_sec = 0;
+			timer_last_per_sec = 0;
+			timer_cpu_cycles = cycles_per_sec;
 		}
 
 		int update_timer(u8 cycles)
 		{
 			// update divide register first
-			divide_counter += cycles;
+			divide_counter -= cycles;
 
-			if (divide_counter >= 255) // divide register is 16382 hz
+			if (divide_counter <= 0) // divide register is 16382 hz
 			{
 				(*divide_value)++;
-				divide_counter = 255;
+				divide_counter = 256;
 			}
 
 			if (!timer_enabled())
@@ -709,19 +704,16 @@ namespace gameboy
 				}
 
 				// set counter back to frequency
-				reset_timer_counter();
+				timer_counter = get_timer_frequency();
 			}
 
 			// debugging the timer
-			std::chrono::milliseconds timer_end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-			std::chrono::milliseconds delta = timer_end - timer_start;
-			std::chrono::duration<double, std::milli> time_compare(1000.0);
-
-			if (delta >= time_compare) // more than second
+			timer_cpu_cycles -= cycles;
+			if (timer_cpu_cycles <= 0) // more than second
 			{
 				timer_last_per_sec = timer_per_sec;
 				timer_per_sec = 0;
-				timer_start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+				timer_cpu_cycles += cycles_per_sec;
 			}
 
 			return 0;
@@ -745,31 +737,30 @@ namespace gameboy
 			R.pc = 0x0100; // starting entry point of the ROM
 			R.sp = 0xFFFE;
 
-			memory_module->reset();
+			memory_module::reset();
 
-			interrupt_master = true;
-			interrupt_enable_flag = memory_module->get_memory(0xFFFF);
-			interrupt_request_flag = memory_module->get_memory(0xFF0F);
+			interrupt_master = false;
+			interrupt_master_enable_delay = 0;
+			interrupt_enable_flag = memory_module::get_memory(0xFFFF);
+			interrupt_request_flag = memory_module::get_memory(0xFF0F);
 			
-			timer_value = memory_module->get_memory(0xFF05);
-			timer_modulator = memory_module->get_memory(0xFF06);
-			timer_controller = memory_module->get_memory(0xFF07);
+			timer_value = memory_module::get_memory(0xFF05);
+			timer_modulator = memory_module::get_memory(0xFF06);
+			timer_controller = memory_module::get_memory(0xFF07);
 			timer_counter = 0;
 
 			timer_per_sec = 0;
 			timer_last_per_sec = 0;
-			timer_start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+			timer_cpu_cycles = cycles_per_sec;
 
-			divide_value = memory_module->get_memory(0xFF04);
+			divide_value = memory_module::get_memory(0xFF04);
 			divide_counter = 0;
 
 			return 0;
 		}
 
-		int initialize(gameboy::memory_module* memory)
-		{
-			memory_module = memory;
-			
+		int initialize()
+		{			
 			reset();
 
 			return 0;
@@ -803,7 +794,7 @@ namespace gameboy
 					{
 						// LD mem NN with SP
 						u16 addr = readpc_u16();
-						memory_module->write_memory(addr, (const u8*)&R.sp, 2);
+						memory_module::write_memory(addr, (const u8*)&R.sp, 2);
 						cycles = 20;
 						break;
 					}
@@ -888,23 +879,23 @@ namespace gameboy
 						{
 						case 0x0:
 							// LD (BC) with A
-							memory_module->write_memory(R.bc, &R.a, 1);
+							memory_module::write_memory(R.bc, &R.a, 1);
 							cycles = 8;
 							break;
 						case 0x1:
 							// LD (DE) with A
-							memory_module->write_memory(R.de, &R.a, 1);
+							memory_module::write_memory(R.de, &R.a, 1);
 							cycles = 8;
 							break;
 						case 0x2:
 							// LDI (HL) with A. inc HL
-							memory_module->write_memory(R.hl, &R.a, 1);
+							memory_module::write_memory(R.hl, &R.a, 1);
 							R.hl++;
 							cycles = 8;
 							break;
 						case 0x3:
 							// LDD (HL) with A. decr HL
-							memory_module->write_memory(R.hl, &R.a, 1);
+							memory_module::write_memory(R.hl, &R.a, 1);
 							R.hl--;
 							cycles = 8;
 							break;
@@ -917,23 +908,23 @@ namespace gameboy
 						{
 						case 0x0:
 							// LD A with (BC)
-							R.a = memory_module->read_memory(R.bc);
+							R.a = memory_module::read_memory(R.bc);
 							cycles = 8;
 							break;
 						case 0x1:
 							// LD A with (DE)
-							R.a = memory_module->read_memory(R.de);
+							R.a = memory_module::read_memory(R.de);
 							cycles = 8;
 							break;
 						case 0x2:
 							// LDI A with (HL). inc HL
-							R.a = memory_module->read_memory(R.hl);
+							R.a = memory_module::read_memory(R.hl);
 							R.hl++;
 							cycles = 8;
 							break;
 						case 0x3:
 							// LDD A with (HL). decr HL
-							R.a = memory_module->read_memory(R.hl);
+							R.a = memory_module::read_memory(R.hl);
 							R.hl--;
 							cycles = 8;
 							break;
@@ -1250,7 +1241,7 @@ namespace gameboy
 						break;
 					case 0x4:
 						// LD mem(FF00 + n) with A
-						memory_module->write_memory(0xFF00 + readpc_u8(), &R.a, 1);
+						memory_module::write_memory(0xFF00 + readpc_u8(), &R.a, 1);
 						cycles = 12;
 						break;
 					case 0x5:
@@ -1290,7 +1281,7 @@ namespace gameboy
 					}
 					case 0x6:
 						// LD A with mem(FF00 + n)
-						R.a = memory_module->read_memory(0xFF00 + readpc_u8());
+						R.a = memory_module::read_memory(0xFF00 + readpc_u8());
 						cycles = 12;
 						break;
 					case 0x7:
@@ -1358,7 +1349,7 @@ namespace gameboy
 						case 0x1:
 							// RETI
 							R.pc = pop_from_stack();
-							interrupt_master = true;
+							interrupt_master_enable_delay = interrupt_master_max_enable_delay;
 
 							cycles = 8;
 							break;
@@ -1398,22 +1389,22 @@ namespace gameboy
 					}
 					case 0x4:
 						// LD mem(FF00 + C) with A
-						memory_module->write_memory(0xFF00 + R.c, &R.a, 1);
+						memory_module::write_memory(0xFF00 + R.c, &R.a, 1);
 						cycles = 8;
 						break;
 					case 0x5:
 						// LD mem(nn) with A
-						memory_module->write_memory(readpc_u16(), &R.a, 1);
+						memory_module::write_memory(readpc_u16(), &R.a, 1);
 						cycles = 16;
 						break;
 					case 0x6:
 						// LD A with mem(FF00 + C)
-						R.a = memory_module->read_memory(0xFF00 + R.c);
+						R.a = memory_module::read_memory(0xFF00 + R.c);
 						cycles = 8;
 						break;
 					case 0x7:
 						// LD A with mem(nn)
-						R.a = memory_module->read_memory(readpc_u16());
+						R.a = memory_module::read_memory(readpc_u16());
 						cycles = 16;
 						break;
 					}
@@ -1443,12 +1434,12 @@ namespace gameboy
 						break;
 					case 0x6:
 						// DI - disable interupts
-						disable_interrupts();
+						interrupt_master = false;
 						cycles = 4;
 						break;
 					case 0x7:
 						// EI - enable interupts
-						enable_interrupts();
+						interrupt_master_enable_delay = interrupt_master_max_enable_delay;
 						cycles = 4;
 						break;
 					}
@@ -1626,7 +1617,7 @@ namespace gameboy
 			}
 
 			// need to point this to mem. small hack for the (HL) register instructons
-			register_single[6] = memory_module->get_memory(R.hl); 
+			register_single[6] = memory_module::get_memory(R.hl); 
 
 			u8 cycles = 0;
 
@@ -1642,6 +1633,16 @@ namespace gameboy
 			else
 			{
 				cycles = decode_nonprefixed(opcode);
+			}
+
+			if (interrupt_master_enable_delay > 0)
+			{
+				interrupt_master_enable_delay--;
+
+				if (interrupt_master_enable_delay <= 0)
+				{
+					interrupt_master = true;
+				}
 			}
 
 			if (cycles == 0)

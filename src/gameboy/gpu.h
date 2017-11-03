@@ -8,9 +8,6 @@ namespace gameboy
 {
 	namespace gpu
 	{
-		// main memory module pointer
-		gameboy::memory_module* memory_module;
-
 		u8* scanline = 0;
 		u8* coincidence_scanline = 0;
 		u8* lcd_control = 0;
@@ -135,20 +132,18 @@ namespace gameboy
 			return 0;
 		}
 
-		int initialize(gameboy::memory_module* memory)
+		int initialize()
 		{
-			memory_module = memory;
-
 			// setup memory ptrs
-			scanline = memory_module->get_memory(0xFF44);
-			coincidence_scanline = memory_module->get_memory(0xFF45);
-			lcd_control = memory_module->get_memory(0xFF40);
-			lcd_status = memory_module->get_memory(0xFF41);
-			scrollY = memory_module->get_memory(0xFF42);
-			scrollX = memory_module->get_memory(0xFF43);
-			windowY = memory_module->get_memory(0xFF4A);
-			windowX = memory_module->get_memory(0xFF4B);
-			palette_bg = memory_module->get_memory(0xFF47);
+			scanline = memory_module::get_memory(0xFF44);
+			coincidence_scanline = memory_module::get_memory(0xFF45);
+			lcd_control = memory_module::get_memory(0xFF40);
+			lcd_status = memory_module::get_memory(0xFF41);
+			scrollY = memory_module::get_memory(0xFF42);
+			scrollX = memory_module::get_memory(0xFF43);
+			windowY = memory_module::get_memory(0xFF4A);
+			windowX = memory_module::get_memory(0xFF4B);
+			palette_bg = memory_module::get_memory(0xFF47);
 			
 			reset();
 
@@ -183,7 +178,6 @@ namespace gameboy
 		int draw_scanline()
 		{
 			// only doing background. but will need to merge this with window
-			warning("NOTE: add this once you've fixed some issues")
 			if (get_lcd_control_flag(FLAG_BG_DISPLAY_ENABLED)) 
 			{
 				// tilemap starting location. tilemap is 32 x 32 bytes that map to a tile
@@ -222,16 +216,16 @@ namespace gameboy
 					
 					if (tilesetOffset != 0) // its a signed value
 					{
-						tileId = (s8)memory_module->read_memory(tilemapAddr + tileX + tileY);
+						tileId = (s8)memory_module::read_memory(tilemapAddr + tileX + tileY);
 						tileId += tilesetOffset; // apply offset to the id
 					}
 					else
 					{
-						tileId = memory_module->read_memory(tilemapAddr + tileX + tileY);
+						tileId = memory_module::read_memory(tilemapAddr + tileX + tileY);
 					}
 
 					// we have the tile id. lets draw pixel
-					u8* tileset = memory_module->get_memory(tilesetAddr + (tileId * tileSize) + (tileYPixel * 2));
+					u8* tileset = memory_module::get_memory(tilesetAddr + (tileId * tileSize) + (tileYPixel * 2));
 					u8 dataA = tileset[0];
 					u8 dataB = tileset[1];
 					u8 bit = 7 - tileXPixel; // the bits and pixels are inversed

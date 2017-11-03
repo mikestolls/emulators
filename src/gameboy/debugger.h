@@ -3,14 +3,15 @@
 #include <SFML/Graphics.hpp>
 
 #include "memory_module.h"
+#include "gpu.h"
+
+using namespace gameboy;
 
 namespace gameboy
 {
 	class debugger
 	{
 	public:
-		gameboy::memory_module* memory_module;
-
 		// debugger sprites and textures
 		sf::RenderWindow window;
 
@@ -32,10 +33,8 @@ namespace gameboy
 		// draw timer info
 		sf::Text timer_text;
 
-		int initialize(gameboy::memory_module* memory)
+		int initialize()
 		{
-			memory_module = memory;
-
 			// debugger
 			window.create(sf::VideoMode(1024, 1024), "Debugger");
 
@@ -76,7 +75,7 @@ namespace gameboy
 		int update_tileset()
 		{
 			// render out tileset
-			u8* tileset = memory_module->get_memory(0x8000);
+			u8* tileset = memory_module::get_memory(0x8000);
 
 			// render all 256 tiles
 			for (u16 i = 0; i < 256; i++)
@@ -129,13 +128,13 @@ namespace gameboy
 		int update_tilemap()
 		{
 			// render out tileset
-			u8* tilemap = memory_module->get_memory(0x9800);
+			u8* tilemap = memory_module::get_memory(0x9800);
 
 			// render 32 x 32 tilemap
 			for (int i = 0; i < 1024; i++)
 			{
 				// get tile id
-				u8* tileset = memory_module->get_memory(0x8000 + (tilemap[i] * 16));
+				u8* tileset = memory_module::get_memory(0x8000 + (tilemap[i] * 16));
 
 				for (int y = 0; y < 8; y++)
 				{
@@ -198,7 +197,7 @@ namespace gameboy
 			stream << "Timer Enabled: " << (*cpu::timer_enabled ? "True" : "False") << std::endl;
 			stream << "Timer Frequency: " << (cpu::cycles_per_sec / cpu::get_timer_frequency()) << " Hz" << std::endl;
 			stream << "Timer Modulator: " << (int)(*cpu::timer_modulator) << std::endl;
-			stream << "Timer Last Per Sec: " << cpu::timer_last_per_sec << std::endl;
+			stream << "Timer Last Per Sec: " << cpu::timer_last_per_sec << " Hz" << std::endl;
 
 			timer_text.setString(stream.str());
 

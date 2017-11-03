@@ -9,3 +9,6 @@
 09 - passed
 10 - passed
 11 - passed
+cpu_instrs - failed
+instr_timing - failed
+mem_timing - failed

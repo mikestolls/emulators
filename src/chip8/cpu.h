@@ -24,9 +24,8 @@ namespace chip8
 		0xF0, 0x80, 0xF0, 0x80, 0x80  //F
 	};
 
-	class cpu
+	namespace cpu
 	{
-	public:
 		u16 opcode; // current opcode
 		u8 memory[4096]; // 4k of memory: 0x000 - 0x1FF - chip8 interpreter, 0x050 - 0x0A - used for font set, 0x200 - 0xFFF - program rom and working RAM
 
@@ -49,20 +48,6 @@ namespace chip8
 
 		bool drawFlag;
 
-		int initialize()
-		{
-			// initialize the registers and memory
-			opcode = 0;
-			memset(memory, 0x0, sizeof(memory));
-
-			// add in the font set at begining of memory
-			memcpy(memory, chip8_fontset, sizeof(chip8_fontset));
-
-			reset();
-
-			return 0;
-		}
-
 		int reset()
 		{
 			memset(V, 0x0, sizeof(V));
@@ -82,6 +67,20 @@ namespace chip8
 			srand((unsigned int)time(0));
 
 			drawFlag = false;
+
+			return 0;
+		}
+
+		int initialize()
+		{
+			// initialize the registers and memory
+			opcode = 0;
+			memset(memory, 0x0, sizeof(memory));
+
+			// add in the font set at begining of memory
+			memcpy(memory, chip8_fontset, sizeof(chip8_fontset));
+
+			reset();
 
 			return 0;
 		}
@@ -393,5 +392,5 @@ namespace chip8
 
 			return 0;
 		}
-	};
+	}
 }
