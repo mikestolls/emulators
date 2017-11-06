@@ -10,9 +10,20 @@ namespace gameboy
 	{
 		struct symbol
 		{
+			symbol()
+			{
+				addr = 0x0;
+				mnemonic = "";
+				operands = "";
+				opcode = 0x0;
+				cb_opcode = 0x0;
+			}
+
 			u16 addr;
 			std::string mnemonic;
 			std::string operands;
+			u8 opcode;
+			u8 cb_opcode;
 		};
 
 		gameboy::rom rom;
@@ -486,7 +497,7 @@ namespace gameboy
 					{
 						// PUSH register_pairs2[p]
 						sym.mnemonic = "PUSH";
-						operand_stream << register_pairs2_str[y];
+						operand_stream << register_pairs2_str[p];
 						sym.operands = operand_stream.str();
 					}
 					else
@@ -578,7 +589,7 @@ namespace gameboy
 
 		int disassemble(const char* filename)
 		{
-			rom = gameboy::rom(filename);
+			rom.open(filename);
 
 			// create a texst file with asa extension
 			std::string outfilename = rom.filename.substr(0, rom.filename.rfind("."));
@@ -588,21 +599,20 @@ namespace gameboy
 
 			// disasseble the rom data
 			PC = 0x0;
+			symbol sym;
 			while (PC < rom.romsize - 1)
 			{
-				symbol sym;
-				sym.addr = PC - 1;
+				sym.addr = PC;
+				sym.opcode = readpc_u8();
 
-				u8 opcode = readpc_u8();
-
-				if (opcode == 0xCB)
+				if (sym.opcode == 0xCB)
 				{
-					opcode = readpc_u8();
-					disassemble_prefixed_cb(opcode, sym);
+					sym.cb_opcode = readpc_u8();
+					disassemble_prefixed_cb(sym.opcode, sym);
 				}
 				else
 				{
-					disassemble_nonprefixed(opcode, sym);
+					disassemble_nonprefixed(sym.opcode, sym);
 				}
 
 				disassembled_program.push_back(sym);

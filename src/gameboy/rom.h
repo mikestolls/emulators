@@ -54,15 +54,7 @@ namespace gameboy
 		std::string filename;
 		rom_header romheader;
 
-		rom()
-		{
-			filename = "";
-			romsize = 0x0;
-			romdata = nullptr;
-			memset(&romheader, 0x0, sizeof(rom_header));
-		}
-
-		rom(const char* path)
+		void open(const char* path)
 		{
 			filename = path;
 
@@ -76,7 +68,9 @@ namespace gameboy
 
 			// read header
 			romdata = new u8[romsize];
-			fread(romdata, 1, romsize, file);
+			size_t size = fread(romdata, 1, romsize, file);
+
+			assert(size == romsize);
 
 			fclose(file);
 
@@ -94,9 +88,25 @@ namespace gameboy
 			memcpy(romheader.checksum, &romdata[0x14D], sizeof(romheader.checksum));
 		}
 
+		rom()
+		{
+			filename = "";
+			romsize = 0x0;
+			romdata = nullptr;
+			memset(&romheader, 0x0, sizeof(rom_header));
+		}
+
+		rom(const char* path)
+		{
+			open(path);
+		}
+
 		~rom()
 		{
-			delete[] romdata;
+			if (romdata)
+			{
+				delete[] romdata;
+			}
 		}
 	};
 }
