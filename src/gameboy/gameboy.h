@@ -30,7 +30,7 @@ namespace gameboy
 			filename = argv[2];
 			if (strcmp("-d", argv[1]) == 0)
 			{
-				return gameboy::disassemble(filename.c_str());
+				return gameboy::disassembler::disassemble(filename.c_str());
 			}
 			else if (strcmp("-a", argv[1]) == 0)
 			{

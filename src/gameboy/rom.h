@@ -54,6 +54,14 @@ namespace gameboy
 		std::string filename;
 		rom_header romheader;
 
+		rom()
+		{
+			filename = "";
+			romsize = 0x0;
+			romdata = nullptr;
+			memset(&romheader, 0x0, sizeof(rom_header));
+		}
+
 		rom(const char* path)
 		{
 			filename = path;
