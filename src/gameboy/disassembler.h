@@ -8,6 +8,9 @@ namespace gameboy
 {
 	namespace disassembler
 	{
+		#define WRITE_HEX_16(x) "0x" << std::setfill('0') << std::setw(4) << std::uppercase << std::hex << x
+		#define WRITE_HEX_8(x) "0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << x
+
 		struct symbol
 		{
 			symbol()
@@ -17,6 +20,7 @@ namespace gameboy
 				operands = "";
 				opcode = 0x0;
 				cb_opcode = 0x0;
+				comment = "";
 			}
 
 			u16 addr;
@@ -24,9 +28,10 @@ namespace gameboy
 			std::string operands;
 			u8 opcode;
 			u8 cb_opcode;
+			std::string comment;
 		};
 
-		gameboy::rom rom;
+		rom* loaded_rom;
 		u16 PC;
 
 		std::vector<symbol> disassembled_program;
@@ -41,7 +46,7 @@ namespace gameboy
 		// read 8 and 16 bit at PC. increment PC
 		inline u8 readpc_u8()
 		{
-			u8 val = rom.romdata[PC++];
+			u8 val = loaded_rom->romdata[PC++];
 
 			return val;
 		}
@@ -49,8 +54,8 @@ namespace gameboy
 		inline u16 readpc_u16()
 		{
 			// lsb is first in memory
-			u16 val = rom.romdata[PC++];
-			val |= (rom.romdata[PC++] << 8);
+			u16 val = loaded_rom->romdata[PC++];
+			val |= (loaded_rom->romdata[PC++] << 8);
 
 			return val;
 		}
@@ -87,7 +92,7 @@ namespace gameboy
 						u16 addr = readpc_u16();
 
 						sym.mnemonic = "LD";
-						operand_stream << "(" << addr << "), SP";
+						operand_stream << "(0x" << WRITE_HEX_16(addr) << "), SP";
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -98,7 +103,7 @@ namespace gameboy
 					case 0x3:
 						// JR d
 						sym.mnemonic = "JR";
-						operand_stream << (s8)readpc_u8();
+						operand_stream << (s32)readpc_u8();
 						sym.operands = operand_stream.str();
 						break;
 					case 0x4:
@@ -107,7 +112,7 @@ namespace gameboy
 					case 0x7:
 						// JR conditions[y - 4], d - relative jump
 						sym.mnemonic = "JR";
-						operand_stream << condition_function_str[y - 4] << ", " << (s8)readpc_u8();
+						operand_stream << condition_function_str[y - 4] << ", " << (s32)readpc_u8();
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -227,7 +232,7 @@ namespace gameboy
 				case 0x6: // z = 6
 					// LD register_single[y] with n
 					sym.mnemonic = "LD";
-					operand_stream << register_single_str[y] << ", " << readpc_u8();
+					operand_stream << register_single_str[y] << ", " << (u32)readpc_u8();
 					sym.operands = operand_stream.str();
 					break;
 				case 0x7: // z = 7
@@ -331,28 +336,28 @@ namespace gameboy
 					case 0x4:
 						// LD mem(FF00 + n) with A
 						sym.mnemonic = "LDH";
-						operand_stream << "(" << readpc_u8() << "), A";
+						operand_stream << "(" << WRITE_HEX_16(0xFF00 + (u32)readpc_u8()) << "), A";
 						sym.operands = operand_stream.str();
 						break;
 					case 0x5:
 					{
 						// ADD SP with (signed)n
 						sym.mnemonic = "ADD";
-						operand_stream << "SP, " << (s8)readpc_u8();
+						operand_stream << "SP, " << (s32)readpc_u8();
 						sym.operands = operand_stream.str();
 						break;
 					}
 					case 0x6:
 						// LD A with mem(FF00 + n)
 						sym.mnemonic = "LDH";
-						operand_stream << "A, " << readpc_u8();
+						operand_stream << "A, " << WRITE_HEX_16(0xFF00 + (u32)readpc_u8());
 						sym.operands = operand_stream.str();
 						break;
 					case 0x7:
 					{
 						// ADD (signed)n to SP then LD HL with SP
 						sym.mnemonic = "LDHL";
-						operand_stream << "SP, " << (s8)readpc_u8();
+						operand_stream << "SP, " << (s32)readpc_u8();
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -417,7 +422,7 @@ namespace gameboy
 					case 0x5:
 						// LD mem(nn) with A
 						sym.mnemonic = "LD";
-						operand_stream << "(0x" << std::hex << readpc_u16() << "), A";
+						operand_stream << WRITE_HEX_16(readpc_u16()) << "), A";
 						sym.operands = operand_stream.str();
 						break;
 					case 0x6:
@@ -428,7 +433,7 @@ namespace gameboy
 					case 0x7:
 						// LD A with mem(nn)
 						sym.mnemonic = "LD";
-						operand_stream << "A, (0x" << std::hex << readpc_u16() << ")";
+						operand_stream << "A, (" << WRITE_HEX_16(readpc_u16()) << ")";
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -441,7 +446,7 @@ namespace gameboy
 					case 0x0:
 						// JP nn
 						sym.mnemonic = "JP";
-						operand_stream << readpc_u16();
+						operand_stream << WRITE_HEX_16(readpc_u16());
 						sym.operands = operand_stream.str();
 						break;
 					case 0x1:
@@ -453,7 +458,8 @@ namespace gameboy
 					case 0x4:
 					case 0x5:
 						// unsupported by gameboy
-						sym.mnemonic = "UNSUPPPORTED";
+						sym.mnemonic = "NOP";
+						sym.comment = "Unsupported opcode";
 						break;
 					case 0x6:
 						// DI - disable interupts
@@ -478,15 +484,17 @@ namespace gameboy
 					{
 						// CALL nn if condition_funct[y]
 						sym.mnemonic = "CALL";
-						operand_stream << condition_function_str[y] << ", 0x" << std::hex << readpc_u16();
+						operand_stream << condition_function_str[y] << ", " << WRITE_HEX_16(readpc_u16());
 						sym.operands = operand_stream.str();
+						break;
 					}
 					case 0x4:
 					case 0x5:
 					case 0x6:
 					case 0x7:
 						// unsupported by gameboy
-						sym.mnemonic = "UNSUPPPORTED";
+						sym.mnemonic = "NOP";
+						sym.comment = "Unsupported opcode";
 						break;
 					}
 					break;
@@ -506,13 +514,14 @@ namespace gameboy
 						{
 							// CALL nn
 							sym.mnemonic = "CALL";
-							operand_stream << "0x" << std::hex << readpc_u16();
+							operand_stream << WRITE_HEX_16(readpc_u16());
 							sym.operands = operand_stream.str();
 						}
 						else
 						{
 							// unsupported by gameboy
-							sym.mnemonic = "UNSUPPPORTED";
+							sym.mnemonic = "NOP";
+							sym.comment = "Unsupported opcode";
 						}
 					}
 					break;
@@ -522,7 +531,7 @@ namespace gameboy
 					// alu[y] with n
 					mnemonic_stream << alu_function_str[y];
 					sym.mnemonic = mnemonic_stream.str();
-					operand_stream << "A, " << readpc_u8();
+					operand_stream << "A, " << (u32)readpc_u8();
 					sym.operands = operand_stream.str();
 					break;
 				}
@@ -567,19 +576,19 @@ namespace gameboy
 			case 0x1:
 				// test bit y from register_single[z]
 				sym.mnemonic = "BIT";
-				operand_stream << y << ", " << register_single_str[z];
+				operand_stream << (u32)y << ", " << register_single_str[z];
 				sym.operands = operand_stream.str();
 				break;
 			case 0x2:
 				// reset bit y from register_single[z]
 				sym.mnemonic = "RES";
-				operand_stream << y << ", " << register_single_str[z];
+				operand_stream << (u32)y << ", " << register_single_str[z];
 				sym.operands = operand_stream.str();
 				break;
 			case 0x3:
 				// set bit y from register_single[z]
 				sym.mnemonic = "SET";
-				operand_stream << y << ", " << register_single_str[z];
+				operand_stream << (u32)y << ", " << register_single_str[z];
 				sym.operands = operand_stream.str();
 				break;
 			}
@@ -587,21 +596,15 @@ namespace gameboy
 			return cycles;
 		}
 
-		int disassemble(const char* filename)
+		int disassemble(rom* rom)
 		{
-			rom.open(filename);
-
-			// create a texst file with asa extension
-			std::string outfilename = rom.filename.substr(0, rom.filename.rfind("."));
-			outfilename.append(".gbasm");
-
-			FILE* file = fopen(outfilename.c_str(), "w");
-
+			loaded_rom = rom;
+			
 			// disasseble the rom data
 			PC = 0x0;
-			symbol sym;
-			while (PC < rom.romsize - 1)
+			while (PC < loaded_rom->romsize - 1)
 			{
+				symbol sym;
 				sym.addr = PC;
 				sym.opcode = readpc_u8();
 
@@ -618,6 +621,58 @@ namespace gameboy
 				disassembled_program.push_back(sym);
 			}
 
+			return 0;
+		}
+
+		int write_instruction(FILE * file, u16 addr, u8 opcode, u8 cb_opcode, const char* mnemonic, const char* operands, const char* comment)
+		{
+			static char writebuffer[256];
+			std::string line = "";
+
+			sprintf_s(writebuffer, 256, "0x%.4X", addr); // write addr
+			line.append(writebuffer);
+			line.append(std::string((8 - strlen(writebuffer)), ' '));
+			
+			if (opcode == 0xCB)
+			{
+				sprintf_s(writebuffer, 256, "0x%.2X 0x%.2X", opcode, cb_opcode); // write opcode + cb_opcode
+				line.append(writebuffer);
+				line.append(std::string((16 - strlen(writebuffer)), ' '));
+			}
+			else
+			{
+				sprintf_s(writebuffer, 256, "0x%.2X", opcode); // write opcode
+				line.append(writebuffer);
+				line.append(std::string((16 - strlen(writebuffer)), ' '));
+			}
+
+			sprintf_s(writebuffer, 256, "%s", mnemonic); // write mnemonic
+			line.append(writebuffer);
+			line.append(std::string((8 - strlen(writebuffer)), ' '));
+
+			sprintf_s(writebuffer, 256, "%s", operands); // write operands
+			line.append(writebuffer);
+			line.append(std::string((16 - strlen(writebuffer)), ' '));
+
+			sprintf_s(writebuffer, 256, "%s", comment); // write comment
+			line.append(writebuffer);
+
+			fprintf(file, line.c_str());
+
+			return 0;
+		}
+
+		int save_to_file(const char* filename)
+		{
+			FILE* file = fopen(filename, "w");
+
+			for (auto itr = disassembled_program.begin(); itr != disassembled_program.end(); itr++)
+			{
+				write_instruction(file, (*itr).addr, (*itr).opcode, (*itr).cb_opcode, (*itr).mnemonic.c_str(), (*itr).operands.c_str(), (*itr).comment.c_str());
+
+				// start a newline
+				fprintf(file, "\n");
+			}
 			fclose(file);
 
 			return 0;

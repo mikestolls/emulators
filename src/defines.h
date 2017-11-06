@@ -14,6 +14,8 @@
 #include <map>
 #include <cctype>
 #include <functional>
+#include <iostream>
+#include <iomanip>
 
 typedef unsigned char u8;
 typedef unsigned short u16;
