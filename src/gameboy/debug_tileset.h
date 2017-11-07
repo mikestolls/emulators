@@ -34,7 +34,13 @@ namespace gameboy
 		void update()
 		{
 			// render out tileset
-			u8* tileset = memory_module::get_memory(0x8000);
+			u16 addr = 0x8000;
+			if (tileset_index != 0)
+			{
+				addr = 0x8800;
+			}
+
+			u8* tileset = memory_module::get_memory(addr);
 
 			// render all 256 tiles
 			for (u16 i = 0; i < 256; i++)

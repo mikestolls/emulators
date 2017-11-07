@@ -37,13 +37,13 @@ namespace gameboy
 
 		void update()
 		{
+			// render out tileset
 			u16 addr = 0x9800;
 			if (tilemap_index != 0)
 			{
 				addr = 0x9C00;
 			}
 
-			// render out tileset
 			u8* tilemap = memory_module::get_memory(addr);
 
 			// render 32 x 32 tilemap
