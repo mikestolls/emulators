@@ -5,7 +5,7 @@
 #include <SFML/Graphics.hpp>
 
 #define BORDER_SIZE					2
-#define TITLEBAR_SIZE				15
+#define TITLEBAR_SIZE				18
 
 namespace gameboy
 {
@@ -35,7 +35,7 @@ namespace gameboy
 			title_text.setString("");
 			title_text.setFillColor(sf::Color(0, 0, 0, 255));
 			title_text.setFont(font);
-			title_text.setCharacterSize(14);
+			title_text.setCharacterSize(16);
 			title_text.setPosition(0, 0);
 		}
 

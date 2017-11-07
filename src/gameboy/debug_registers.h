@@ -9,6 +9,9 @@ namespace gameboy
 {
 	struct debug_registers : public debug_window
 	{
+		#define WRITE_HEX_16(x) "0x" << std::setfill('0') << std::setw(4) << std::uppercase << std::hex << x
+		#define WRITE_HEX_8(x) "0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << x
+
 		sf::Font font;
 		sf::Text registers_text;
 
@@ -33,20 +36,20 @@ namespace gameboy
 		void update()
 		{
 			std::stringstream stream;
-			stream << "R.pc: 0x" << std::hex << cpu::R.pc << std::endl;
-			stream << "R.a: 0x" << std::hex << (int)cpu::R.a << std::endl;
-			stream << "R.f: 0x" << std::hex << (int)cpu::R.f << std::endl;
-			stream << "R.b: 0x" << std::hex << (int)cpu::R.b << std::endl;
-			stream << "R.c: 0x" << std::hex << (int)cpu::R.c << std::endl;
-			stream << "R.d: 0x" << std::hex << (int)cpu::R.d << std::endl;
-			stream << "R.e: 0x" << std::hex << (int)cpu::R.e << std::endl;
-			stream << "R.h: 0x" << std::hex << (int)cpu::R.h << std::endl;
-			stream << "R.l: 0x" << std::hex << (int)cpu::R.l << std::endl;
-			stream << "R.af: 0x" << std::hex << cpu::R.af << std::endl;
-			stream << "R.bc: 0x" << std::hex << cpu::R.bc << std::endl;
-			stream << "R.de: 0x" << std::hex << cpu::R.de << std::endl;
-			stream << "R.hl: 0x" << std::hex << cpu::R.hl << std::endl;
-			stream << "R.sp: 0x" << std::hex << cpu::R.sp << std::endl;
+			stream << "R.pc: " << WRITE_HEX_16(cpu::R.pc) << std::endl;
+			stream << "R.a: " << WRITE_HEX_8((int)cpu::R.a) << std::endl;
+			stream << "R.f: " << WRITE_HEX_8((int)cpu::R.f) << std::endl;
+			stream << "R.b: " << WRITE_HEX_8((int)cpu::R.b) << std::endl;
+			stream << "R.c: " << WRITE_HEX_8((int)cpu::R.c) << std::endl;
+			stream << "R.d: " << WRITE_HEX_8((int)cpu::R.d) << std::endl;
+			stream << "R.e: " << WRITE_HEX_8((int)cpu::R.e) << std::endl;
+			stream << "R.h: " << WRITE_HEX_8((int)cpu::R.h) << std::endl;
+			stream << "R.l: " << WRITE_HEX_8((int)cpu::R.l) << std::endl;
+			stream << "R.af: " << WRITE_HEX_16(cpu::R.af) << std::endl;
+			stream << "R.bc: " << WRITE_HEX_16(cpu::R.bc) << std::endl;
+			stream << "R.de: " << WRITE_HEX_16(cpu::R.de) << std::endl;
+			stream << "R.hl: " << WRITE_HEX_16(cpu::R.hl) << std::endl;
+			stream << "R.sp: " << WRITE_HEX_16(cpu::R.sp) << std::endl;
 
 			registers_text.setString(stream.str());
 
