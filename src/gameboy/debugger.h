@@ -5,6 +5,9 @@
 #include "memory_module.h"
 #include "gpu.h"
 
+#include "debug_tileset.h"
+#include "debug_tilemap.h"
+
 using namespace gameboy;
 
 namespace gameboy
@@ -15,18 +18,12 @@ namespace gameboy
 		// debugger sprites and textures
 		sf::RenderWindow window;
 
+		// debug windows
+		debug_tileset tileset_window;
+		debug_tilemap tilemap_window;
+
 		sf::Font font;
-
-		// tileset sprite
-		sf::Texture tileset_texture;
-		sf::Sprite tileset_sprite;
-		u8 tileset_texture_data[128 * 128 * 4]; // texture will 128 x 128 with 4 bpp
-
-		// tilemap sprite
-		sf::Texture tilemap_texture;
-		sf::Sprite tilemap_sprite;
-		u8 tilemap_texture_data[256 * 256 * 4]; // texture will 128 x 128 with 4 bpp
-
+		
 		// draw disassembly
 		sf::Text disassembly_text;
 
@@ -39,16 +36,13 @@ namespace gameboy
 			window.create(sf::VideoMode(1024, 1024), "Debugger");
 
 			// create tileset sprite
-			tileset_texture.create(128, 128);
-			tileset_sprite.setTexture(tileset_texture);
-			tileset_sprite.setScale(4, 4);
+			tileset_window.set_position(16, 16);
+			tileset_window.set_scale(1);
 
 			// create tilemap
-			tilemap_texture.create(256, 256);
-			tilemap_sprite.setTexture(tilemap_texture);
-			tilemap_sprite.setScale(2, 2);
-			tilemap_sprite.setPosition(0, 512);
-
+			tilemap_window.set_position(16, 300);
+			tilemap_window.set_scale(1);
+			
 			// disassembly
 			font.loadFromFile("arial.ttf");
 
@@ -68,102 +62,6 @@ namespace gameboy
 		int close()
 		{
 			window.close();
-
-			return 0;
-		}
-
-		int update_tileset()
-		{
-			// render out tileset
-			u8* tileset = memory_module::get_memory(0x8000);
-
-			// render all 256 tiles
-			for (u16 i = 0; i < 256; i++)
-			{
-				for (u16 y = 0; y < 8; y++)
-				{
-					// render the 8 x 8 tile
-					u8 dataA = tileset[0];
-					u8 dataB = tileset[1];
-
-					for (u16 x = 0; x < 8; x++)
-					{
-						u8 bit = 7 - x; // the bits and pixels are inversed
-						u8 color = ((dataA & (1 << bit)) >> bit) | (((dataB & (1 << bit)) >> bit) << 1);
-
-						switch (color)
-						{
-						case 0x00: // white
-							color = 0xFF;
-							break;
-						case 0x01: // light grey
-							color = 0xCC;
-							break;
-						case 0x10: // dark grey
-							color = 0x77;
-							break;
-						case 0x11: // black
-							color = 0x0;
-							break;
-						}
-
-						u16 xPos = (i % 16) * 8 + x;
-						u16 yPos = (i / 16) * 8 + y;
-						u16 pixelPos = (yPos * 128 + xPos) * 4; // the pixel we are drawing * 4 bytes per pixel
-						tileset_texture_data[pixelPos++] = color;
-						tileset_texture_data[pixelPos++] = color;
-						tileset_texture_data[pixelPos++] = color;
-						tileset_texture_data[pixelPos++] = 0xFF;
-					}
-
-					tileset += 2;
-				}
-			}
-
-			tileset_texture.update(tileset_texture_data, 128, 128, 0, 0);
-
-			return 0;
-		}
-
-		int update_tilemap()
-		{
-			// render out tileset
-			u8* tilemap = memory_module::get_memory(0x9800);
-
-			// render 32 x 32 tilemap
-			for (int i = 0; i < 1024; i++)
-			{
-				// get tile id
-				u8* tileset = memory_module::get_memory(0x8000 + (tilemap[i] * 16));
-
-				for (int y = 0; y < 8; y++)
-				{
-					// render the 8 x 8 tile
-					u8 dataA = tileset[0];
-					u8 dataB = tileset[1];
-
-					for (int x = 0; x < 8; x++)
-					{
-						u8 bit = 7 - x; // the bits and pixels are inversed
-						u8 color = ((dataA & (1 << bit)) >> bit) | (((dataB & (1 << bit)) >> bit) << 1);
-
-						color = gpu::get_palette_color(color);
-
-						u16 xPos = (i % 32) * 8 + x;
-						u16 yPos = (i / 32) * 8 + y;
-						u32 pixelPos = (yPos * 256 + xPos) * 4; // the pixel we are drawing * 4 bytes per pixel
-						tilemap_texture_data[pixelPos++] = color;
-						tilemap_texture_data[pixelPos++] = color;
-						tilemap_texture_data[pixelPos++] = color;
-						tilemap_texture_data[pixelPos++] = 0xFF;
-					}
-
-					tileset += 2;
-				}
-			}
-
-			tilemap_texture.update(tilemap_texture_data, 256, 256, 0, 0);
-
 
 			return 0;
 		}
@@ -235,20 +133,25 @@ namespace gameboy
 				}
 			}
 
+			tileset_window.update();
+			tilemap_window.update();
+
 			// update debugging data
-			update_tileset();
-			update_tilemap();
 			update_disassembly();
 			update_timer();
 
 			window.clear();
 
 			// render the display
-			window.draw(tileset_sprite);
-			window.draw(tilemap_sprite);
-			window.draw(disassembly_text);
-			window.draw(timer_text);
+			//window.draw(tilemap_sprite);
+			//window.draw(disassembly_text);
+			//window.draw(timer_text);
+			
+			// render debugger windows
+			window.draw(tileset_window.window_sprite);
+			window.draw(tilemap_window.window_sprite);
 
+			// display debugger window
 			window.display();
 
 			return 0;
