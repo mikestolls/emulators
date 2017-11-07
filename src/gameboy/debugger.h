@@ -7,8 +7,7 @@
 
 #include "debug_tileset.h"
 #include "debug_tilemap.h"
-
-using namespace gameboy;
+#include "debug_registers.h"
 
 namespace gameboy
 {
@@ -21,15 +20,8 @@ namespace gameboy
 		// debug windows
 		debug_tileset tileset_window;
 		debug_tilemap tilemap_window;
-
-		sf::Font font;
+		debug_registers registers_window;
 		
-		// draw disassembly
-		sf::Text disassembly_text;
-
-		// draw timer info
-		sf::Text timer_text;
-
 		int initialize()
 		{
 			// debugger
@@ -37,67 +29,15 @@ namespace gameboy
 
 			// create tileset sprite
 			tileset_window.set_position(16, 16);
-			tileset_window.set_scale(1);
-
-			// create tilemap
 			tilemap_window.set_position(16, 300);
-			tilemap_window.set_scale(1);
+			registers_window.set_position(300, 16);
 			
-			// disassembly
-			font.loadFromFile("arial.ttf");
-
-			disassembly_text.setString("");
-			disassembly_text.setFont(font);
-			disassembly_text.setCharacterSize(24);
-			disassembly_text.setPosition(512, 0);
-
-			timer_text.setString("");
-			timer_text.setFont(font);
-			timer_text.setCharacterSize(24);
-			timer_text.setPosition(512, 512);
-
 			return 0;
 		}
 
 		int close()
 		{
 			window.close();
-
-			return 0;
-		}
-
-		int update_disassembly()
-		{
-			std::stringstream stream;
-			stream << "R.pc: 0x" << std::hex << cpu::R.pc << std::endl;
-			stream << "R.a: 0x" << std::hex << (int)cpu::R.a << std::endl;
-			stream << "R.f: 0x" << std::hex << (int)cpu::R.f << std::endl;
-			stream << "R.b: 0x" << std::hex << (int)cpu::R.b << std::endl;
-			stream << "R.c: 0x" << std::hex << (int)cpu::R.c << std::endl;
-			stream << "R.d: 0x" << std::hex << (int)cpu::R.d << std::endl;
-			stream << "R.e: 0x" << std::hex << (int)cpu::R.e << std::endl;
-			stream << "R.h: 0x" << std::hex << (int)cpu::R.h << std::endl;
-			stream << "R.l: 0x" << std::hex << (int)cpu::R.l << std::endl;
-			stream << "R.af: 0x" << std::hex << cpu::R.af << std::endl;
-			stream << "R.bc: 0x" << std::hex << cpu::R.bc << std::endl;
-			stream << "R.de: 0x" << std::hex << cpu::R.de << std::endl;
-			stream << "R.hl: 0x" << std::hex << cpu::R.hl << std::endl;
-			stream << "R.sp: 0x" << std::hex << cpu::R.sp << std::endl;
-
-			disassembly_text.setString(stream.str());
-
-			return 0;
-		}
-
-		int update_timer()
-		{
-			std::stringstream stream;
-			stream << "Timer Enabled: " << (*cpu::timer_enabled ? "True" : "False") << std::endl;
-			stream << "Timer Frequency: " << (cpu::cycles_per_sec / cpu::get_timer_frequency()) << " Hz" << std::endl;
-			stream << "Timer Modulator: " << (int)(*cpu::timer_modulator) << std::endl;
-			stream << "Timer Last Per Sec: " << cpu::timer_last_per_sec << " Hz" << std::endl;
-
-			timer_text.setString(stream.str());
 
 			return 0;
 		}
@@ -135,21 +75,14 @@ namespace gameboy
 
 			tileset_window.update();
 			tilemap_window.update();
-
-			// update debugging data
-			update_disassembly();
-			update_timer();
+			registers_window.update();
 
 			window.clear();
-
-			// render the display
-			//window.draw(tilemap_sprite);
-			//window.draw(disassembly_text);
-			//window.draw(timer_text);
-			
+						
 			// render debugger windows
 			window.draw(tileset_window.window_sprite);
 			window.draw(tilemap_window.window_sprite);
+			window.draw(registers_window.window_sprite);
 
 			// display debugger window
 			window.display();

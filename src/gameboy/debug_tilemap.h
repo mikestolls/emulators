@@ -9,43 +9,20 @@ namespace gameboy
 {
 	struct debug_tilemap : public debug_window
 	{
-		#define BORDER_SIZE					2
-		#define TITLEBAR_SIZE				15
-
 		#define TILEMAP_TEXTURE_SIZE		256
 		
 		sf::Texture tilemap_texture;
 		sf::Sprite tilemap_sprite;
 		u8 tilemap_texture_data[256 * 256 * 4]; // texture will 128 x 128 with 4 bpp
 
-		sf::RectangleShape outer_border;
-
-		sf::Font font;
-		sf::Text title_text;
-
-		debug_tilemap() : debug_window()
+		debug_tilemap() : debug_window(TILEMAP_TEXTURE_SIZE, TILEMAP_TEXTURE_SIZE)
 		{
-			// create window texture and sprite
-			window_texture.create(TILEMAP_TEXTURE_SIZE + BORDER_SIZE * 2, TILEMAP_TEXTURE_SIZE + BORDER_SIZE * 2 + TITLEBAR_SIZE);
-			window_sprite.setTexture(window_texture.getTexture());
-
-			// create window border
-			outer_border.setSize(sf::Vector2f(window_texture.getSize()));
-			outer_border.setFillColor(sf::Color(180, 180, 180, 255));
-
 			// create tilemap
 			tilemap_texture.create(256, 256);
 			tilemap_sprite.setTexture(tilemap_texture);
 			tilemap_sprite.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
 
-			// title text
-			font.loadFromFile("courbd.ttf");
-
-			title_text.setString("Tileset");
-			title_text.setFillColor(sf::Color(0, 0, 0, 255));
-			title_text.setFont(font);
-			title_text.setCharacterSize(14);
-			title_text.setPosition(0, 0);
+			title_text.setString("Tilemap");
 		}
 
 		void update()

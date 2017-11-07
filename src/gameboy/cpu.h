@@ -60,11 +60,6 @@ namespace gameboy
 		u8* divide_value;
 		s32 divide_counter;
 
-		// debugging timer
-		s32 timer_per_sec;
-		s32 timer_last_per_sec;
-		s32 timer_cpu_cycles;
-
 		// cpus register structure
 		struct registers
 		{
@@ -662,10 +657,6 @@ namespace gameboy
 		{
 			timer_counter = get_timer_frequency();
 			*timer_value = *timer_modulator;
-
-			timer_per_sec = 0;
-			timer_last_per_sec = 0;
-			timer_cpu_cycles = cycles_per_sec;
 		}
 
 		int update_timer(u8 cycles)
@@ -688,8 +679,6 @@ namespace gameboy
 
 			if (timer_counter <= 0)
 			{
-				timer_per_sec++; // debugging timer
-
 				// check if overflow. set timer_counter to modulator. increase timer
 				if (*timer_value == 255)
 				{
@@ -705,15 +694,6 @@ namespace gameboy
 
 				// set counter back to frequency
 				timer_counter = get_timer_frequency();
-			}
-
-			// debugging the timer
-			timer_cpu_cycles -= cycles;
-			if (timer_cpu_cycles <= 0) // more than second
-			{
-				timer_last_per_sec = timer_per_sec;
-				timer_per_sec = 0;
-				timer_cpu_cycles += cycles_per_sec;
 			}
 
 			return 0;
@@ -748,11 +728,7 @@ namespace gameboy
 			timer_modulator = memory_module::get_memory(0xFF06);
 			timer_controller = memory_module::get_memory(0xFF07);
 			timer_counter = 0;
-
-			timer_per_sec = 0;
-			timer_last_per_sec = 0;
-			timer_cpu_cycles = cycles_per_sec;
-
+			
 			divide_value = memory_module::get_memory(0xFF04);
 			divide_counter = 0;
 
