@@ -2,39 +2,64 @@
 
 #include "defines.h"
 #include "debug_window.h"
+#include "debug_tileset.h"
 
 #include <SFML/Graphics.hpp>
 
 namespace gameboy
 {
-	struct debug_tilemap : public debug_window
+	class debug_tilemap : public debug_window
 	{
+	public:
 		#define TILEMAP_TEXTURE_SIZE		256
 		
 		sf::Texture tilemap_texture;
 		sf::Sprite tilemap_sprite;
 		u8 tilemap_texture_data[256 * 256 * 4]; // texture will 128 x 128 with 4 bpp
 
-		debug_tilemap() : debug_window(TILEMAP_TEXTURE_SIZE, TILEMAP_TEXTURE_SIZE)
+		u8 tilemap_index;
+
+		debug_tileset* tileset_debug;
+
+		debug_tilemap(debug_tileset* tileset) : debug_window(TILEMAP_TEXTURE_SIZE, TILEMAP_TEXTURE_SIZE)
 		{
+			tileset_debug = tileset;
+
 			// create tilemap
 			tilemap_texture.create(256, 256);
 			tilemap_sprite.setTexture(tilemap_texture);
 			tilemap_sprite.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
 
 			title_text.setString("Tilemap");
+
+			tilemap_index = 0;
 		}
 
 		void update()
 		{
+			u16 addr = 0x9800;
+			if (tilemap_index != 0)
+			{
+				addr = 0x9C00;
+			}
+
 			// render out tileset
-			u8* tilemap = memory_module::get_memory(0x9800);
+			u8* tilemap = memory_module::get_memory(addr);
 
 			// render 32 x 32 tilemap
 			for (int i = 0; i < 1024; i++)
 			{
+				s32 tilesetOffset = 128; // offset depending on tileset used
+				u16 tilesetAddr = 0x8800; // addr of tileset
+				if (tileset_debug->tileset_index == 0)
+				{
+					tilesetAddr = 0x8000;
+					tilesetOffset = 0;
+				}
+
 				// get tile id
-				u8* tileset = memory_module::get_memory(0x8000 + (tilemap[i] * 16));
+				s32 tileId = tilemap[i] + tilesetOffset;
+				u8* tileset = memory_module::get_memory(tilesetAddr + (tileId * 16));
 
 				for (int y = 0; y < 8; y++)
 				{
@@ -70,6 +95,14 @@ namespace gameboy
 			window_texture.draw(title_text);
 
 			window_texture.display();
+		}
+
+		void on_keypressed(sf::Keyboard::Key key)
+		{
+			if (key == sf::Keyboard::Left || key == sf::Keyboard::Right)
+			{
+				tilemap_index ^= 1;
+			}
 		}
 	};
 }

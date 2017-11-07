@@ -9,8 +9,9 @@
 
 namespace gameboy
 {
-	struct debug_window
+	class debug_window
 	{
+	public:
 		sf::RenderTexture window_texture;
 		sf::Sprite window_sprite;
 
@@ -27,7 +28,6 @@ namespace gameboy
 
 			// create window border
 			outer_border.setSize(sf::Vector2f(window_texture.getSize()));
-			outer_border.setFillColor(sf::Color(180, 180, 180, 255));
 
 			// title text
 			font.loadFromFile("courbd.ttf");
@@ -37,6 +37,8 @@ namespace gameboy
 			title_text.setFont(font);
 			title_text.setCharacterSize(16);
 			title_text.setPosition(0, 0);
+
+			set_active(false);
 		}
 
 		virtual ~debug_window()
@@ -57,6 +59,23 @@ namespace gameboy
 		virtual void update()
 		{
 
+		}
+
+		virtual void on_keypressed(sf::Keyboard::Key key)
+		{
+
+		}
+
+		void set_active(bool active)
+		{
+			if (active)
+			{
+				outer_border.setFillColor(sf::Color(200, 200, 200, 255));
+			}
+			else
+			{
+				outer_border.setFillColor(sf::Color(80, 80, 80, 255));
+			}
 		}
 	};
 }

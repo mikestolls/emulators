@@ -7,8 +7,9 @@
 
 namespace gameboy
 {
-	struct debug_registers : public debug_window
+	class debug_registers : public debug_window
 	{
+	public:
 		#define WRITE_HEX_16(x) "0x" << std::setfill('0') << std::setw(4) << std::uppercase << std::hex << x
 		#define WRITE_HEX_8(x) "0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << x
 

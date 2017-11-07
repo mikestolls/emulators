@@ -7,14 +7,17 @@
 
 namespace gameboy
 {
-	struct debug_tileset : public debug_window
+	class debug_tileset : public debug_window
 	{
+	public:
 		#define TILESET_TEXTURE_SIZE		128
 		
 		sf::Texture tileset_texture;
 		sf::Sprite tileset_sprite;
 		u8 tileset_texture_data[TILESET_TEXTURE_SIZE * TILESET_TEXTURE_SIZE * 4]; // texture will 128 x 128 with 4 bpp
 				
+		u8 tileset_index;
+
 		debug_tileset() : debug_window((TILESET_TEXTURE_SIZE * 2), (TILESET_TEXTURE_SIZE * 2))
 		{
 			// tileset sprite
@@ -24,6 +27,8 @@ namespace gameboy
 			tileset_sprite.setScale(2, 2);
 			
 			title_text.setString("Tileset");
+
+			tileset_index = 0;
 		}
 
 		void update()
@@ -82,6 +87,14 @@ namespace gameboy
 			window_texture.draw(title_text);
 
 			window_texture.display();
+		}
+
+		void on_keypressed(sf::Keyboard::Key key)
+		{
+			if (key == sf::Keyboard::Left || key == sf::Keyboard::Right)
+			{
+				tileset_index ^= 1;
+			}
 		}
 	};
 }

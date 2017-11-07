@@ -86,8 +86,8 @@ namespace gameboy
 			{
 				if (event.type == sf::Event::Closed)
 				{
+					debug_window.destroy();
 					window.close();
-					debug_window.close();
 				}
 				else if (event.type == sf::Event::KeyPressed)
 				{

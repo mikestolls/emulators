@@ -18,25 +18,42 @@ namespace gameboy
 		sf::RenderWindow window;
 
 		// debug windows
-		debug_tileset tileset_window;
-		debug_tilemap tilemap_window;
-		debug_registers registers_window;
-		
+		std::vector<debug_window*> debug_windows;
+		u16 debug_window_index;
+				
 		int initialize()
 		{
 			// debugger
 			window.create(sf::VideoMode(1024, 1024), "Debugger");
-
-			// create tileset sprite
-			tileset_window.set_position(16, 16);
-			tilemap_window.set_position(16, 300);
-			registers_window.set_position(300, 16);
 			
+			// create debug windows
+			debug_window* window = new debug_tileset();
+			window->set_position(16, 16);
+			debug_windows.push_back(window);
+
+			window = new debug_tilemap((debug_tileset*)window);
+			window->set_position(16, 300);
+			debug_windows.push_back(window);
+
+			window = new debug_registers();
+			window->set_position(300, 16);
+			debug_windows.push_back(window);
+
+			debug_window_index = 0;
+			debug_windows[debug_window_index]->set_active(true);
+
 			return 0;
 		}
 
-		int close()
+		int destroy()
 		{
+			while (debug_windows.size() > 0)
+			{
+				debug_window* window = *(--debug_windows.end());
+				debug_windows.pop_back();
+				delete window;
+			}
+
 			window.close();
 
 			return 0;
@@ -70,20 +87,35 @@ namespace gameboy
 						cpu::debugging_step = true;
 						printf("Debugging Step\n");
 					}
+					else if (event.key.code == sf::Keyboard::Tab)
+					{
+						debug_windows[debug_window_index]->set_active(false);
+
+						debug_window_index++;
+						if (debug_window_index >= debug_windows.size())
+						{
+							debug_window_index = 0;
+						}
+
+						debug_windows[debug_window_index]->set_active(true);
+					}
+					else
+					{
+						// forward remaining to active debug window
+						debug_windows[debug_window_index]->on_keypressed(event.key.code);
+					}
 				}
 			}
 
-			tileset_window.update();
-			tilemap_window.update();
-			registers_window.update();
-
 			window.clear();
+			
+			// update and render the windows
+			for (auto itr = debug_windows.begin(); itr != debug_windows.end(); itr++)
+			{
+				(*itr)->update();
+				window.draw((*itr)->window_sprite);
+			}
 						
-			// render debugger windows
-			window.draw(tileset_window.window_sprite);
-			window.draw(tilemap_window.window_sprite);
-			window.draw(registers_window.window_sprite);
-
 			// display debugger window
 			window.display();
 
