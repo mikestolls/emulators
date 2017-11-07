@@ -8,6 +8,7 @@
 #include "debug_tileset.h"
 #include "debug_tilemap.h"
 #include "debug_registers.h"
+#include "debug_disassembler.h"
 
 namespace gameboy
 {
@@ -37,6 +38,10 @@ namespace gameboy
 
 			window = new debug_registers();
 			window->set_position(300, 16);
+			debug_windows.push_back(window);
+
+			window = new debug_disassembler();
+			window->set_position(16, 614);
 			debug_windows.push_back(window);
 
 			debug_window_index = 0;
