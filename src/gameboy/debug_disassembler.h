@@ -50,14 +50,18 @@ namespace gameboy
 			disassembler_text.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
 
 			u8 color = 30;
+			u16 pc = cpu::R.pc;
 			for (unsigned int i = 0; i < 16; i++)
 			{
+				disassembler::symbol sym;
+				pc = disassembler::disassemble_instr(pc, sym);
+
 				std::stringstream stream;
-		//		stream << WRITE_HEX_16(disassembler::disassembled_program[i].addr);
-		//		stream << "\t" << WRITE_HEX_16((int)disassembler::disassembled_program[i].opcode);
-		//		stream << "\t" << WRITE_HEX_16((int)disassembler::disassembled_program[i].cb_opcode);
-		//		stream << "\t" << disassembler::disassembled_program[i].mnemonic;
-		//		stream << "\t" << disassembler::disassembled_program[i].operands;
+				stream << WRITE_HEX_16(sym.addr);
+				stream << "\t" << WRITE_HEX_16((int)sym.opcode);
+				stream << "\t" << WRITE_HEX_16((int)sym.cb_opcode);
+				stream << "\t" << sym.mnemonic;
+				stream << "\t" << sym.operands;
 
 				disassembler_text.setString(stream.str());
 
