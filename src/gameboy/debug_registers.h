@@ -13,15 +13,12 @@ namespace gameboy
 		#define WRITE_HEX_16(x) "0x" << std::setfill('0') << std::setw(4) << std::uppercase << std::hex << x
 		#define WRITE_HEX_8(x) "0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << x
 
-		sf::Font font;
 		sf::Text registers_text;
 
 		sf::RectangleShape inner_border;
 
 		debug_registers() : debug_window(256, 256)
 		{
-			font.loadFromFile("arial.ttf");
-
 			registers_text.setString("");
 			registers_text.setFont(font);
 			registers_text.setCharacterSize(16);
