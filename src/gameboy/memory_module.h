@@ -35,30 +35,24 @@ namespace gameboy
 		{
 			u16 addr_min;
 			u16 addr_max;
-			u8* memory;
 			u8 access;
 		};
 
-		warning("NOTE: eventually make memory one full buffer and map inside that");
-		u8 working_ram[0xDFFF - 0xC000];
-		u8 io_registers[0xFF7F - 0xFF00];
-		u8 zero_page[0xFFFE - 0xFF80];
-		u8 interrupt_enabled[1];
-		u8 vram[0x9FFF - 0x8000];
-		u8 oam[0xFE9F - 0xFE00];
+		rom* rom_ptr;
+		u8 memory[0xFFFF];
 
 		memory_map_object memory_map[MEMORY_COUNT] = {
-			{ 0x0000, 0x3FFF, nullptr, MEMORY_READABLE },
-			{ 0x4000, 0x7FFF, nullptr, MEMORY_READABLE },
-			{ 0x8000, 0x9FFF, vram, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xA000, 0xBFFF, nullptr, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xC000, 0xDFFF, working_ram, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xE000, 0xFDFF, working_ram, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xFE00, 0xFE9F, oam, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xFEA0, 0xFEFF, nullptr, 0 },
-			{ 0xFF00, 0xFF7F, io_registers, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xFF80, 0xFFFE, zero_page, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xFFFF, 0xFFFF, interrupt_enabled, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ 0x0000, 0x3FFF, MEMORY_READABLE },
+			{ 0x4000, 0x7FFF, MEMORY_READABLE },
+			{ 0x8000, 0x9FFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ 0xA000, 0xBFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ 0xC000, 0xDFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ 0xE000, 0xFDFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ 0xFE00, 0xFE9F, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ 0xFEA0, 0xFEFF, 0 },
+			{ 0xFF00, 0xFF7F, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ 0xFF80, 0xFFFE, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ 0xFFFF, 0xFFFF, MEMORY_READABLE | MEMORY_WRITABLE },
 		};
 				
 		u8* get_memory(u16 addr)
@@ -68,13 +62,13 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
-					if ((memory_map[i].access & MEMORY_READABLE) == 0 || memory_map[i].memory == nullptr)
+					if ((memory_map[i].access & MEMORY_READABLE) == 0)
 					{
 						printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
 						return 0;
 					}
 
-					return &memory_map[i].memory[addr - memory_map[i].addr_min];
+					return &memory[addr];
 				}
 			}
 
@@ -89,7 +83,7 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
-					u8 mode = memory_map[MEMORY_IO_REGISTERS].memory[0xFF41 - 0xFF00] &= 0x3; // lcd_status
+					u8 mode = memory[0xFF41] &= 0x3; // lcd_status
 					if (i == MEMORY_VRAM && mode > 2)
 					{
 						printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
@@ -102,13 +96,13 @@ namespace gameboy
 						return 0xFF;
 					}
 
-					if ((memory_map[i].access & MEMORY_READABLE) == 0 || memory_map[i].memory == nullptr)
+					if ((memory_map[i].access & MEMORY_READABLE) == 0)
 					{
 						printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
 						return 0;
 					}
 
-					return memory_map[i].memory[addr - memory_map[i].addr_min];
+					return memory[addr];
 				}
 			}
 
@@ -120,25 +114,25 @@ namespace gameboy
 		{
 			if (addr == 0xFF44) // current scanline. if anyone tries to write to this value we reset to 0
 			{
-				memory_map[MEMORY_IO_REGISTERS].memory[addr - memory_map[MEMORY_IO_REGISTERS].addr_min] = 0x0;
+				memory[addr] = 0x0;
 				return;
 			}
 			else if (addr == 0xFF04) // divide register is reset if someone tries to write to it
 			{
-				memory_map[MEMORY_IO_REGISTERS].memory[addr - memory_map[MEMORY_IO_REGISTERS].addr_min] = 0x0;
+				memory[addr] = 0x0;
 				return;
 			}
 			else if (addr == 0xFF07) // timer controller. check if frequency has changed and reset timer if so
 			{
-				u8 timer_controller = memory_map[MEMORY_IO_REGISTERS].memory[addr - memory_map[MEMORY_IO_REGISTERS].addr_min];
+				u8 timer_controller = memory[addr];
 
 				if ((timer_controller & 0x3) != (*value & 0x3)) // not equal
 				{
-					memory_map[MEMORY_IO_REGISTERS].memory[0xFF05 - memory_map[MEMORY_IO_REGISTERS].addr_min] = 0x0; // reset timer
+					memory[0xFF05] = 0x0; // reset timer
 					cpu::reset_timer_counter();
 				}
 
-				memcpy(&memory_map[MEMORY_IO_REGISTERS].memory[addr - memory_map[MEMORY_IO_REGISTERS].addr_min], value, size);
+				memcpy(&memory[addr], value, size);
 				return;
 			}
 
@@ -147,7 +141,7 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
-					u8 mode = memory_map[MEMORY_IO_REGISTERS].memory[0xFF41 - 0xFF00] &= 0x3; // lcd_status
+					u8 mode = memory[0xFF41] &= 0x3; // lcd_status
 					if (i == MEMORY_VRAM && mode > 2)
 					{
 						printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
@@ -160,14 +154,14 @@ namespace gameboy
 						return;
 					}
 
-					if ((memory_map[i].access & MEMORY_WRITABLE) == 0 || memory_map[i].memory == nullptr)
+					if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
 					{
 						printf("Error - writing to memory map that is not writable: 0x%X\n", addr);
 						return;
 					}
 
 					warning("NOTE: check if memory is writable");
-					memcpy(&memory_map[i].memory[addr - memory_map[i].addr_min], value, size);
+					memcpy(&memory[addr], value, size);
 					return;
 				}
 			}
@@ -183,8 +177,7 @@ namespace gameboy
 
 		int reset()
 		{
-			memset(vram, 0x0, sizeof(vram));
-			memset(working_ram, 0x0, sizeof(working_ram));
+			memset(memory, 0x0, sizeof(memory));
 
 			write_memory(0xFF05, 0x00); // TIMA
 			write_memory(0xFF06, 0x00); // TMA
@@ -220,13 +213,18 @@ namespace gameboy
 			write_memory(0xFFFF, 0x00); // IE
 
 			// NOTE: writing to 1 to 0xFF50 unmaps boot rom
+
+			// memcpy rom data
+			memcpy(memory, rom_ptr->romdata, rom_ptr->romsize);
+
 			return 0;
 		}
 
 		int initialize(rom* rom)
 		{
-			memory_map[MEMORY_CATRIDGE_ROM].memory = rom->romdata;
-			memory_map[MEMORY_CATRIDGE_SWITCHABLE_ROM].memory = &rom->romdata[0x4000];
+			assert(rom->romsize - 1 <= memory_map[MEMORY_CATRIDGE_SWITCHABLE_ROM].addr_max);
+
+			rom_ptr = rom;
 
 			reset();
 
