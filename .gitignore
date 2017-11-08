@@ -290,3 +290,4 @@ prj/
 build/
 tools/visualboy_emulator/vba.ini
 tools/bgb/bgb.ini
+*.gbasm
