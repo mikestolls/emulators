@@ -53,11 +53,11 @@ namespace gameboy
 			for (unsigned int i = 0; i < 16; i++)
 			{
 				std::stringstream stream;
-				stream << WRITE_HEX_16(disassembler::disassembled_program[i].addr);
-				stream << "\t" << WRITE_HEX_16((int)disassembler::disassembled_program[i].opcode);
-				stream << "\t" << WRITE_HEX_16((int)disassembler::disassembled_program[i].cb_opcode);
-				stream << "\t" << disassembler::disassembled_program[i].mnemonic;
-				stream << "\t" << disassembler::disassembled_program[i].operands;
+		//		stream << WRITE_HEX_16(disassembler::disassembled_program[i].addr);
+		//		stream << "\t" << WRITE_HEX_16((int)disassembler::disassembled_program[i].opcode);
+		//		stream << "\t" << WRITE_HEX_16((int)disassembler::disassembled_program[i].cb_opcode);
+		//		stream << "\t" << disassembler::disassembled_program[i].mnemonic;
+		//		stream << "\t" << disassembler::disassembled_program[i].operands;
 
 				disassembler_text.setString(stream.str());
 

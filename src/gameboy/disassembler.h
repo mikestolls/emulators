@@ -31,35 +31,13 @@ namespace gameboy
 			std::string comment;
 		};
 
-		rom* loaded_rom;
-		u16 PC;
-
-		std::vector<symbol> disassembled_program;
-
 		std::string condition_function_str[] = { "NZ", "Z", "NC", "C", "INVALID", "INVALID", "INVALID", "INVALID" };
 		std::string register_pairs_str[] = { "BC", "DE", "HL", "SP" };
 		std::string register_pairs2_str[] = { "BC", "DE", "HL", "AF" };
 		std::string register_single_str[] = { "B", "C", "D", "E", "H", "L", "(HL)", "A" };
 		std::string alu_function_str[] = { "ADD", "ADC", "SUB", "SBC", "AND", "XOR", "OR", "CP" };
 		std::string rot_function_str[] = { "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SWAP", "SRL" };
-
-		// read 8 and 16 bit at PC. increment PC
-		inline u8 readpc_u8()
-		{
-			u8 val = loaded_rom->romdata[PC++];
-
-			return val;
-		}
-
-		inline u16 readpc_u16()
-		{
-			// lsb is first in memory
-			u16 val = loaded_rom->romdata[PC++];
-			val |= (loaded_rom->romdata[PC++] << 8);
-
-			return val;
-		}
-
+		
 		int disassemble_nonprefixed(u8 opcode, symbol& sym)
 		{
 			u8 x = (opcode >> 6);
@@ -89,7 +67,7 @@ namespace gameboy
 					case 0x1:
 					{
 						// LD mem NN with SP
-						u16 addr = readpc_u16();
+						u16 addr = cpu::readpc_u16();
 
 						sym.mnemonic = "LD";
 						operand_stream << "(0x" << WRITE_HEX_16(addr) << "), SP";
@@ -103,7 +81,7 @@ namespace gameboy
 					case 0x3:
 						// JR d
 						sym.mnemonic = "JR";
-						operand_stream << (s32)readpc_u8();
+						operand_stream << (s32)cpu::readpc_u8();
 						sym.operands = operand_stream.str();
 						break;
 					case 0x4:
@@ -112,7 +90,7 @@ namespace gameboy
 					case 0x7:
 						// JR conditions[y - 4], d - relative jump
 						sym.mnemonic = "JR";
-						operand_stream << condition_function_str[y - 4] << ", " << (s32)readpc_u8();
+						operand_stream << condition_function_str[y - 4] << ", " << (s32)cpu::readpc_u8();
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -125,7 +103,7 @@ namespace gameboy
 					case 0x0:
 						// LD register_pairs[p] with nn
 						sym.mnemonic = "LD";
-						operand_stream << register_pairs_str[p] << ", " << readpc_u16();
+						operand_stream << register_pairs_str[p] << ", " << cpu::readpc_u16();
 						sym.operands = operand_stream.str();
 						break;
 					case 0x1:
@@ -232,7 +210,7 @@ namespace gameboy
 				case 0x6: // z = 6
 					// LD register_single[y] with n
 					sym.mnemonic = "LD";
-					operand_stream << register_single_str[y] << ", " << (u32)readpc_u8();
+					operand_stream << register_single_str[y] << ", " << (u32)cpu::readpc_u8();
 					sym.operands = operand_stream.str();
 					break;
 				case 0x7: // z = 7
@@ -336,28 +314,28 @@ namespace gameboy
 					case 0x4:
 						// LD mem(FF00 + n) with A
 						sym.mnemonic = "LDH";
-						operand_stream << "(" << WRITE_HEX_16(0xFF00 + (u32)readpc_u8()) << "), A";
+						operand_stream << "(" << WRITE_HEX_16(0xFF00 + (u32)cpu::readpc_u8()) << "), A";
 						sym.operands = operand_stream.str();
 						break;
 					case 0x5:
 					{
 						// ADD SP with (signed)n
 						sym.mnemonic = "ADD";
-						operand_stream << "SP, " << (s32)readpc_u8();
+						operand_stream << "SP, " << (s32)cpu::readpc_u8();
 						sym.operands = operand_stream.str();
 						break;
 					}
 					case 0x6:
 						// LD A with mem(FF00 + n)
 						sym.mnemonic = "LDH";
-						operand_stream << "A, " << WRITE_HEX_16(0xFF00 + (u32)readpc_u8());
+						operand_stream << "A, " << WRITE_HEX_16(0xFF00 + (u32)cpu::readpc_u8());
 						sym.operands = operand_stream.str();
 						break;
 					case 0x7:
 					{
 						// ADD (signed)n to SP then LD HL with SP
 						sym.mnemonic = "LDHL";
-						operand_stream << "SP, " << (s32)readpc_u8();
+						operand_stream << "SP, " << (s32)cpu::readpc_u8();
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -410,7 +388,7 @@ namespace gameboy
 					{
 						// JP to nn if condition_funct[y]
 						sym.mnemonic = "JP";
-						operand_stream << condition_function_str[y] << ", " << readpc_u16();
+						operand_stream << condition_function_str[y] << ", " << cpu::readpc_u16();
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -422,7 +400,7 @@ namespace gameboy
 					case 0x5:
 						// LD mem(nn) with A
 						sym.mnemonic = "LD";
-						operand_stream << WRITE_HEX_16(readpc_u16()) << "), A";
+						operand_stream << WRITE_HEX_16(cpu::readpc_u16()) << "), A";
 						sym.operands = operand_stream.str();
 						break;
 					case 0x6:
@@ -433,7 +411,7 @@ namespace gameboy
 					case 0x7:
 						// LD A with mem(nn)
 						sym.mnemonic = "LD";
-						operand_stream << "A, (" << WRITE_HEX_16(readpc_u16()) << ")";
+						operand_stream << "A, (" << WRITE_HEX_16(cpu::readpc_u16()) << ")";
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -446,7 +424,7 @@ namespace gameboy
 					case 0x0:
 						// JP nn
 						sym.mnemonic = "JP";
-						operand_stream << WRITE_HEX_16(readpc_u16());
+						operand_stream << WRITE_HEX_16(cpu::readpc_u16());
 						sym.operands = operand_stream.str();
 						break;
 					case 0x1:
@@ -484,7 +462,7 @@ namespace gameboy
 					{
 						// CALL nn if condition_funct[y]
 						sym.mnemonic = "CALL";
-						operand_stream << condition_function_str[y] << ", " << WRITE_HEX_16(readpc_u16());
+						operand_stream << condition_function_str[y] << ", " << WRITE_HEX_16(cpu::readpc_u16());
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -514,7 +492,7 @@ namespace gameboy
 						{
 							// CALL nn
 							sym.mnemonic = "CALL";
-							operand_stream << WRITE_HEX_16(readpc_u16());
+							operand_stream << WRITE_HEX_16(cpu::readpc_u16());
 							sym.operands = operand_stream.str();
 						}
 						else
@@ -531,7 +509,7 @@ namespace gameboy
 					// alu[y] with n
 					mnemonic_stream << alu_function_str[y];
 					sym.mnemonic = mnemonic_stream.str();
-					operand_stream << "A, " << (u32)readpc_u8();
+					operand_stream << "A, " << (u32)cpu::readpc_u8();
 					sym.operands = operand_stream.str();
 					break;
 				}
@@ -596,34 +574,6 @@ namespace gameboy
 			return cycles;
 		}
 
-		int disassemble(rom* rom)
-		{
-			loaded_rom = rom;
-			
-			// disasseble the rom data
-			PC = 0x0;
-			while (PC < loaded_rom->romsize - 1)
-			{
-				symbol sym;
-				sym.addr = PC;
-				sym.opcode = readpc_u8();
-
-				if (sym.opcode == 0xCB)
-				{
-					sym.cb_opcode = readpc_u8();
-					disassemble_prefixed_cb(sym.opcode, sym);
-				}
-				else
-				{
-					disassemble_nonprefixed(sym.opcode, sym);
-				}
-
-				disassembled_program.push_back(sym);
-			}
-
-			return 0;
-		}
-
 		int write_instruction(FILE * file, u16 addr, u8 opcode, u8 cb_opcode, const char* mnemonic, const char* operands, const char* comment)
 		{
 			static char writebuffer[256];
@@ -658,21 +608,37 @@ namespace gameboy
 			line.append(writebuffer);
 
 			fprintf(file, line.c_str());
+			fprintf(file, "\n");
 
 			return 0;
 		}
 
-		int save_to_file(const char* filename)
+		int disassemble_to_file(const char* filename)
 		{
+			// export to file
 			FILE* file = fopen(filename, "w");
 
-			for (auto itr = disassembled_program.begin(); itr != disassembled_program.end(); itr++)
+			// disasseble the rom data
+			cpu::R.pc = 0x0;
+			while (cpu::R.pc <= memory_module::memory_map[memory_module::MEMORY_CATRIDGE_SWITCHABLE_ROM].addr_max)
 			{
-				write_instruction(file, (*itr).addr, (*itr).opcode, (*itr).cb_opcode, (*itr).mnemonic.c_str(), (*itr).operands.c_str(), (*itr).comment.c_str());
+				symbol sym;
+				sym.addr = cpu::R.pc;
+				sym.opcode = cpu::readpc_u8();
 
-				// start a newline
-				fprintf(file, "\n");
+				if (sym.opcode == 0xCB)
+				{
+					sym.cb_opcode = cpu::readpc_u8();
+					disassemble_prefixed_cb(sym.opcode, sym);
+				}
+				else
+				{
+					disassemble_nonprefixed(sym.opcode, sym);
+				}
+
+				write_instruction(file, sym.addr, sym.opcode, sym.cb_opcode, sym.mnemonic.c_str(), sym.operands.c_str(), sym.comment.c_str());
 			}
+
 			fclose(file);
 
 			return 0;

@@ -31,7 +31,16 @@ namespace gameboy
 			filename = argv[2];
 			if (strcmp("-d", argv[1]) == 0)
 			{
-				disassemble = true;
+				rom rom(filename.c_str());
+				memory_module::initialize(&rom);
+
+				// export disassembler to file and close
+				std::string outfilename = rom.filename.substr(0, rom.filename.rfind("."));
+				outfilename.append(".gbasm");
+
+				disassembler::disassemble_to_file(outfilename.c_str());
+
+				return 0;
 			}
 			else if (strcmp("-a", argv[1]) == 0)
 			{
@@ -41,20 +50,6 @@ namespace gameboy
 
 		// load and run the rom
 		rom rom(filename.c_str());
-
-		// disassembe the rom
-		disassembler::disassemble(&rom);
-
-		if (disassemble)
-		{
-			// export disassembler to file and close
-			std::string outfilename = rom.filename.substr(0, rom.filename.rfind("."));
-			outfilename.append(".gbasm");
-
-			disassembler::save_to_file(outfilename.c_str());
-
-			return 0;
-		}
 
 		// init sfml
 		sf::RenderWindow window(sf::VideoMode(gpu::width * pixelSize, gpu::height * pixelSize), "Emulator");
