@@ -98,7 +98,7 @@ namespace gameboy
 					case 0x3:
 						// JR d
 						sym.mnemonic = "JR";
-						operand_stream << (s32)readpc_u8();
+						operand_stream << (s32)((s8)readpc_u8());
 						sym.operands = operand_stream.str();
 						break;
 					case 0x4:
@@ -107,7 +107,7 @@ namespace gameboy
 					case 0x7:
 						// JR conditions[y - 4], d - relative jump
 						sym.mnemonic = "JR";
-						operand_stream << condition_function_str[y - 4] << ", " << (s32)readpc_u8();
+						operand_stream << condition_function_str[y - 4] << ", " << (s32)((s8)readpc_u8());
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -338,7 +338,7 @@ namespace gameboy
 					{
 						// ADD SP with (signed)n
 						sym.mnemonic = "ADD";
-						operand_stream << "SP, " << (s32)readpc_u8();
+						operand_stream << "SP, " << (s32)((s8)readpc_u8());
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -352,7 +352,7 @@ namespace gameboy
 					{
 						// ADD (signed)n to SP then LD HL with SP
 						sym.mnemonic = "LDHL";
-						operand_stream << "SP, " << (s32)readpc_u8();
+						operand_stream << "SP, " << (s32)((s8)readpc_u8());
 						sym.operands = operand_stream.str();
 						break;
 					}
