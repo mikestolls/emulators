@@ -87,7 +87,7 @@ namespace gameboy
 						u16 addr = readpc_u16();
 
 						sym.mnemonic = "LD";
-						operand_stream << "(0x" << WRITE_HEX_16(addr) << "), SP";
+						operand_stream << "(" << WRITE_HEX_16(addr) << "), SP";
 						sym.operands = operand_stream.str();
 						break;
 					}
