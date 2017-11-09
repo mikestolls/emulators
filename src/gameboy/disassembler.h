@@ -608,6 +608,12 @@ namespace gameboy
 			return PC;
 		}
 
+		u16 disassemble_instr(u16 addr)
+		{
+			symbol sym;
+			return disassemble_instr(addr, sym);
+		}
+
 		int write_instruction(FILE * file, u16 addr, u8 opcode, u8 cb_opcode, const char* mnemonic, const char* operands, const char* comment)
 		{
 			static char writebuffer[256];

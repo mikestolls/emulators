@@ -1583,7 +1583,7 @@ namespace gameboy
 
 			return cycles;
 		}
-
+		
 		int execute_opcode()
 		{
 			if (!running || halt)
