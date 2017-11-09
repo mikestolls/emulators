@@ -28,6 +28,8 @@ namespace gameboy
 			
 			title_text.setString("Tileset");
 
+			bottom_text.setString("(Left / Right) Change Tileset");
+
 			tileset_index = 0;
 		}
 

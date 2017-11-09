@@ -21,27 +21,38 @@ namespace gameboy
 		// debug windows
 		std::vector<debug_window*> debug_windows;
 		u16 debug_window_index;
-				
+
+		sf::RectangleShape bottom_bar;
+
 		int initialize()
 		{
 			// debugger
 			window.create(sf::VideoMode(1024, 1024), "Debugger");
 			
+			// add bottom bar
+			bottom_bar.setFillColor(sf::Color(100, 100, 100, 255));
+			bottom_bar.setPosition(0, 1024 - 24);
+			bottom_bar.setSize(sf::Vector2f(1024, 24));
+
 			// create debug windows
 			debug_window* window = new debug_tileset();
 			window->set_position(16, 16);
+			window->bottom_text.setPosition(0, 1024 - 24);
 			debug_windows.push_back(window);
 
 			window = new debug_tilemap((debug_tileset*)window);
 			window->set_position(16, 300);
+			window->bottom_text.setPosition(0, 1024 - 24);
 			debug_windows.push_back(window);
 
 			window = new debug_registers();
 			window->set_position(300, 16);
+			window->bottom_text.setPosition(0, 1024 - 24);
 			debug_windows.push_back(window);
 
 			window = new debug_disassembler();
 			window->set_position(16, 614);
+			window->bottom_text.setPosition(0, 1024 - 24);
 			debug_windows.push_back(window);
 
 			debug_window_index = 0;
@@ -113,14 +124,22 @@ namespace gameboy
 			}
 
 			window.clear();
-			
+
+			window.draw(bottom_bar);
+
 			// update and render the windows
 			for (auto itr = debug_windows.begin(); itr != debug_windows.end(); itr++)
 			{
 				(*itr)->update();
+
 				window.draw((*itr)->window_sprite);
+
+				if ((*itr)->get_active())
+				{
+					window.draw((*itr)->bottom_text);
+				}
 			}
-						
+
 			// display debugger window
 			window.display();
 

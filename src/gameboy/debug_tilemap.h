@@ -32,6 +32,8 @@ namespace gameboy
 
 			title_text.setString("Tilemap");
 
+			bottom_text.setString("(Left / Right) Change Tilemap");
+
 			tilemap_index = 0;
 		}
 

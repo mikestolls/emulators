@@ -43,6 +43,8 @@ namespace gameboy
 			
 			title_text.setString("Disassembler");
 
+			bottom_text.setString("(Up / Down) Change Line");
+
 			active_line = 0;
 			pc_start = 0;
 			program_addr.push_back(0x0);
@@ -70,6 +72,9 @@ namespace gameboy
 				}
 				else
 				{
+					// clear everything beyond pc
+					program_addr.erase(itr + 1, program_addr.end());
+
 					// there is a gap. fill it
 					while (pc != next_pc)
 					{
@@ -115,12 +120,15 @@ namespace gameboy
 				u16 prev_pc = *(itr - 1);
 				u16 next_pc = disassembler::disassemble_instr(prev_pc);
 
-				if (next_pc == *(itr)) // no grap in list
+				if (next_pc == *(itr)) // no gap in list
 				{
 					return prev_pc;
 				}
 				else
 				{
+					// clear everything beyond itr
+					program_addr.erase(itr, program_addr.end());
+
 					next_pc = prev_pc;
 					do
 					{

@@ -20,6 +20,10 @@ namespace gameboy
 		sf::Font font;
 		sf::Text title_text;
 
+		sf::Text bottom_text;
+
+		bool is_active;
+
 		debug_window(u32 width, u32 height)
 		{
 			// create window texture and sprite
@@ -37,6 +41,10 @@ namespace gameboy
 			title_text.setFont(font);
 			title_text.setCharacterSize(16);
 			title_text.setPosition(0, 0);
+
+			bottom_text.setFont(font);
+			bottom_text.setCharacterSize(16);
+			bottom_text.setString("");
 
 			set_active(false);
 		}
@@ -68,7 +76,9 @@ namespace gameboy
 
 		void set_active(bool active)
 		{
-			if (active)
+			is_active = active;
+
+			if (is_active)
 			{
 				outer_border.setFillColor(sf::Color(200, 200, 200, 255));
 			}
@@ -76,6 +86,11 @@ namespace gameboy
 			{
 				outer_border.setFillColor(sf::Color(80, 80, 80, 255));
 			}
+		}
+
+		bool get_active()
+		{
+			return is_active;
 		}
 	};
 }
