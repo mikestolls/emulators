@@ -44,8 +44,8 @@ namespace gameboy
 
 		bool running = true;
 		bool halt = false;
-		bool debugging = false;
-		bool debugging_step = false;
+
+		std::vector<u16> breakpoints;
 
 		bool interrupt_master;
 		s8 interrupt_master_enable_delay; // delay used for EI delayed enable

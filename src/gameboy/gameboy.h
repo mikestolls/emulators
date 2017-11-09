@@ -92,55 +92,21 @@ namespace gameboy
 						gpu::reset();
 						cycle_count = 0;
 					}
-					else if (event.key.code == sf::Keyboard::F5)
-					{
-						cpu::debugging = !cpu::debugging;
-						cpu::debugging_step = false;
-						printf("Debugging: %s\n", (cpu::debugging ? "True" : "False"));
-					}
-					else if (event.key.code == sf::Keyboard::F10)
-					{
-						cpu::debugging_step = true;
-						printf("Debugging Step\n");
-					}
 				}
 			}
 
-			// this gets a little messy because of debug stepping
-			if (cpu::debugging && cpu::debugging_step)
+			while (cycle_count < cycles_per_frame)
 			{
+				// update the cpu emulation
 				u8 cpu_cycles = cpu::execute_opcode();
 				cpu::update_timer(cpu_cycles);
-				cycle_count += cpu_cycles;
-				cpu_cycles = cpu::check_interrupts();
+				cpu_cycles += cpu::check_interrupts();
 				cycle_count += cpu_cycles;
 				gpu::update(cpu_cycles);
-
-				cpu::debugging_step = false;
 			}
-			else if (!cpu::debugging)
-			{
-				while (cycle_count < cycles_per_frame)
-				{
-					// update the cpu emulation
-					u8 cpu_cycles = cpu::execute_opcode();
-					cpu::update_timer(cpu_cycles);
-					cpu_cycles += cpu::check_interrupts();
-					cycle_count += cpu_cycles;
-					gpu::update(cpu_cycles);
-
-					if (cpu::debugging)
-					{
-						break;
-					}
-				}
-
-				if (!cpu::debugging)
-				{
-					// once we have passed cycles per frame reset cycle count
-					cycle_count -= cycles_per_frame;
-				}
-			}
+		
+			// once we have passed cycles per frame reset cycle count
+			cycle_count -= cycles_per_frame;
 
 			debug_window.update();
 

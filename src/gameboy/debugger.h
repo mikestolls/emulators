@@ -92,17 +92,6 @@ namespace gameboy
 					{
 						window.setVisible(true);
 					}
-					else if (event.key.code == sf::Keyboard::F5)
-					{
-						cpu::debugging = !cpu::debugging;
-						cpu::debugging_step = false;
-						printf("Debugging: %s\n", (cpu::debugging ? "True" : "False"));
-					}
-					else if (event.key.code == sf::Keyboard::F10)
-					{
-						cpu::debugging_step = true;
-						printf("Debugging Step\n");
-					}
 					else if (event.key.code == sf::Keyboard::Tab)
 					{
 						debug_windows[debug_window_index]->set_active(false);

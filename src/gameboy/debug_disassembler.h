@@ -15,6 +15,7 @@ namespace gameboy
 		#define WRITE_HEX_8(x) "0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << x
 
 		#define LINE_HEIGHT		20
+		#define LINE_XPOS		32
 		#define LINE_COUNT		16
 
 		sf::Text disassembler_text;
@@ -22,7 +23,10 @@ namespace gameboy
 		sf::RectangleShape inner_border;
 		sf::RectangleShape line_border;
 
+		sf::CircleShape breakpoint_marker;
+
 		s16 active_line;
+		u16 active_addr;
 		u16 pc_start;
 		std::vector<u16> program_addr;
 
@@ -44,6 +48,9 @@ namespace gameboy
 			title_text.setString("Disassembler");
 
 			bottom_text.setString("(Up / Down) Change Line");
+
+			breakpoint_marker.setFillColor(sf::Color(255, 0, 0, 255));
+			breakpoint_marker.setRadius(5);
 
 			active_line = 0;
 			pc_start = 0;
@@ -154,10 +161,12 @@ namespace gameboy
 			window_texture.draw(title_text);
 			
 			line_border.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
-			disassembler_text.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
-
-			u8 color = 30;
+			disassembler_text.setPosition(BORDER_SIZE + LINE_XPOS, BORDER_SIZE + TITLEBAR_SIZE);
+			breakpoint_marker.setPosition(BORDER_SIZE + 10, BORDER_SIZE + TITLEBAR_SIZE + 5);
+			
+			// draw foreground of each line
 			u16 pc = pc_start;
+			u8 color = 30;
 			for (unsigned int i = 0; i < LINE_COUNT; i++)
 			{
 				disassembler::symbol sym;
@@ -167,29 +176,54 @@ namespace gameboy
 				{
 					program_addr.push_back(sym.addr);
 				}
-
+				
+				// draw addr
 				std::stringstream stream;
 				stream << WRITE_HEX_16(sym.addr);
-				stream << "\t" << WRITE_HEX_16((int)sym.opcode);
-				stream << "\t" << WRITE_HEX_16((int)sym.cb_opcode);
-				stream << "\t" << sym.mnemonic;
-				stream << "\t" << sym.operands;
+				stream << "\t\t" << WRITE_HEX_16((int)sym.opcode);
+				stream << "\t\t" << WRITE_HEX_16((int)sym.cb_opcode);
+				stream << "\t\t" << std::setfill(' ') << std::setw(4) << sym.mnemonic;
+				stream << "\t\t" << sym.operands;
 
 				disassembler_text.setString(stream.str());
-
+				
+				// draw the background line
 				if (i == active_line)
 				{
+					active_addr = sym.addr;
 					line_border.setFillColor(sf::Color(150, 150, 150, 255));
 				}
 
-				// draw the line
+				// check if breakpoint is set.
+				auto breakpoint_itr = std::find(cpu::breakpoints.begin(), cpu::breakpoints.end(), sym.addr);
+				if (breakpoint_itr != cpu::breakpoints.end())
+				{
+					line_border.setFillColor(line_border.getFillColor() + sf::Color(50, 0, 0, 0));
+				}
+
 				window_texture.draw(line_border);
+
+				// draw breakpoint marker
+				if (breakpoint_itr != cpu::breakpoints.end())
+				{
+					window_texture.draw(breakpoint_marker);
+				}
+
+				// draw the line
 				window_texture.draw(disassembler_text);
 
-				sf::Vector2f pos = line_border.getPosition();
+				// increase position
+				sf::Vector2f pos = disassembler_text.getPosition();
+				pos.y += LINE_HEIGHT;
+				disassembler_text.setPosition(pos);
+
+				pos = line_border.getPosition();
 				pos.y += LINE_HEIGHT;
 				line_border.setPosition(pos);
-				disassembler_text.setPosition(pos);
+
+				pos = breakpoint_marker.getPosition();
+				pos.y += LINE_HEIGHT;
+				breakpoint_marker.setPosition(pos);
 
 				line_border.setFillColor(sf::Color(color, color, color, 255));
 				color = (color == 30 ? 50 : 30);
@@ -200,6 +234,7 @@ namespace gameboy
 
 		void on_keypressed(sf::Keyboard::Key key)
 		{
+			// handle up and down
 			if (key == sf::Keyboard::Down)
 			{
 				active_line++;
@@ -218,6 +253,21 @@ namespace gameboy
 			{
 				active_line = 0;
 				pc_start = find_prev_instr(pc_start);
+			}
+
+			// handle breakpoint
+			if (key == sf::Keyboard::F9)
+			{
+				auto itr = std::find(cpu::breakpoints.begin(), cpu::breakpoints.end(), active_addr);
+				
+				if (itr != cpu::breakpoints.end())
+				{
+					cpu::breakpoints.erase(itr);
+				}
+				else
+				{
+					cpu::breakpoints.push_back(active_addr);
+				}
 			}
 		}
 	};
