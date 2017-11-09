@@ -40,7 +40,7 @@ namespace gameboy
 			title_text.setFillColor(sf::Color(0, 0, 0, 255));
 			title_text.setFont(font);
 			title_text.setCharacterSize(16);
-			title_text.setPosition(0, 0);
+			title_text.setPosition(BORDER_SIZE, 0);
 
 			bottom_text.setFont(font);
 			bottom_text.setCharacterSize(16);

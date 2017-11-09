@@ -14,9 +14,19 @@ namespace gameboy
 		#define WRITE_HEX_16(x) "0x" << std::setfill('0') << std::setw(4) << std::uppercase << std::hex << x
 		#define WRITE_HEX_8(x) "0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << x
 
-		#define LINE_HEIGHT		20
-		#define LINE_XPOS		32
-		#define LINE_COUNT		16
+		#define LINE_HEIGHT					20
+		#define LINE_XPOS					32
+		#define LINE_COUNT					16
+
+		#define GOTO_PROMPT_X				256
+		#define GOTO_PROMPT_Y				128
+		#define GOTO_PROMPT_WIDTH			188
+		#define GOTO_PROMPT_HEIGHT			48
+
+		#define GOTO_PROMPT_INPUT_X			32
+		#define GOTO_PROMPT_INPUT_Y			30
+		#define GOTO_PROMPT_INPUT_WIDTH		124
+		#define GOTO_PROMPT_INPUT_HEIGHT	24
 
 		sf::Text disassembler_text;
 
@@ -25,10 +35,20 @@ namespace gameboy
 
 		sf::CircleShape breakpoint_marker;
 
+		sf::RectangleShape goto_outer_border;
+		sf::RectangleShape goto_inner_border;
+		sf::RectangleShape goto_outer_input_border;
+		sf::RectangleShape goto_inner_input_border;
+		sf::Text goto_title_text;
+		sf::Text goto_input_text;
+		std::stringstream goto_input_stream;
+
 		s16 active_line;
 		u16 active_addr;
 		u16 pc_start;
 		std::vector<u16> program_addr;
+
+		bool is_goto_prompt;
 
 		debug_disassembler() : debug_window(916, 320)
 		{
@@ -47,14 +67,46 @@ namespace gameboy
 			
 			title_text.setString("Disassembler");
 
-			bottom_text.setString("(Up / Down) Change Line");
+			bottom_text.setString("(Up / Down) Change Line\t(G) Goto Address");
 
 			breakpoint_marker.setFillColor(sf::Color(255, 0, 0, 255));
 			breakpoint_marker.setRadius(5);
 
+			// setup the goto prompt visual
+			goto_outer_border.setSize(sf::Vector2f(GOTO_PROMPT_WIDTH + BORDER_SIZE * 2, GOTO_PROMPT_HEIGHT + TITLEBAR_SIZE + BORDER_SIZE * 2));
+			goto_outer_border.setPosition(sf::Vector2f(GOTO_PROMPT_X, GOTO_PROMPT_Y));
+			goto_outer_border.setFillColor(sf::Color(200, 200, 200, 255));
+
+			goto_inner_border.setSize(sf::Vector2f(GOTO_PROMPT_WIDTH, GOTO_PROMPT_HEIGHT));
+			goto_inner_border.setPosition(sf::Vector2f(GOTO_PROMPT_X + BORDER_SIZE, GOTO_PROMPT_Y + BORDER_SIZE + TITLEBAR_SIZE));
+			goto_inner_border.setFillColor(sf::Color(0, 0, 0, 255));
+
+			goto_outer_input_border.setSize(sf::Vector2f(GOTO_PROMPT_INPUT_WIDTH + BORDER_SIZE * 2, GOTO_PROMPT_INPUT_HEIGHT + BORDER_SIZE * 2));
+			goto_outer_input_border.setPosition(sf::Vector2f(GOTO_PROMPT_X + GOTO_PROMPT_INPUT_X, GOTO_PROMPT_Y + GOTO_PROMPT_INPUT_Y));
+			goto_outer_input_border.setFillColor(sf::Color(200, 200, 200, 255));
+
+			goto_inner_input_border.setSize(sf::Vector2f(GOTO_PROMPT_INPUT_WIDTH, GOTO_PROMPT_INPUT_HEIGHT));
+			goto_inner_input_border.setPosition(sf::Vector2f(GOTO_PROMPT_X + GOTO_PROMPT_INPUT_X + BORDER_SIZE, GOTO_PROMPT_Y + GOTO_PROMPT_INPUT_Y + BORDER_SIZE));
+			goto_inner_input_border.setFillColor(sf::Color(0, 0, 0, 255));
+
+			goto_title_text.setString("Goto Address");
+			goto_title_text.setFillColor(sf::Color(0, 0, 0, 255));
+			goto_title_text.setFont(font);
+			goto_title_text.setCharacterSize(16);
+			goto_title_text.setPosition(sf::Vector2f(GOTO_PROMPT_X + BORDER_SIZE, GOTO_PROMPT_Y));
+
+			goto_input_text.setString("");
+			goto_input_text.setFont(font);
+			goto_input_text.setCharacterSize(16);
+			goto_input_text.setPosition(sf::Vector2f(GOTO_PROMPT_X + GOTO_PROMPT_INPUT_X + BORDER_SIZE * 2, GOTO_PROMPT_Y + GOTO_PROMPT_INPUT_Y + BORDER_SIZE));
+
+			goto_input_stream.clear();
+
 			active_line = 0;
 			pc_start = 0;
 			program_addr.push_back(0x0);
+
+			is_goto_prompt = false;
 		}
 		
 		u16 find_next_instr(u16 pc)
@@ -72,7 +124,12 @@ namespace gameboy
 			else
 			{
 				// found pc in the list. check that the next itr matches the next_pc
-				if (*(itr + 1) == next_pc)
+				if (itr == program_addr.end() - 1)
+				{
+					program_addr.push_back(next_pc);
+					return next_pc;
+				}
+				else if (*(itr + 1) == next_pc)
 				{
 					// we are good
 					return next_pc;
@@ -139,10 +196,10 @@ namespace gameboy
 					next_pc = prev_pc;
 					do
 					{
+						prev_pc = next_pc;
 						next_pc = disassembler::disassemble_instr(next_pc); // this is the true next pc
 						program_addr.push_back(next_pc);
-						itr = program_addr.end() - 1;
-					} while (next_pc != *(itr + 1));
+					} while (next_pc != pc);
 
 					return prev_pc;
 				}
@@ -151,6 +208,36 @@ namespace gameboy
 			assert(0);
 
 			return 0;
+		}
+
+		void goto_instr(u16 addr)
+		{
+			u16 target_addr = addr;
+			addr = 0x0; 
+			warning("optimze this");
+			while (addr < target_addr)
+			{
+				addr = find_next_instr(addr);
+			}
+
+			pc_start = addr;
+		}
+
+		void update_goto_prompt()
+		{
+			window_texture.draw(goto_outer_border);
+			window_texture.draw(goto_inner_border);
+			window_texture.draw(goto_title_text);
+			window_texture.draw(goto_outer_input_border);
+			window_texture.draw(goto_inner_input_border);
+
+			// update the input text
+			std::stringstream input_stream;
+			input_stream <<"0x";
+			input_stream << goto_input_stream.str();
+			goto_input_text.setString(input_stream.str());
+
+			window_texture.draw(goto_input_text);
 		}
 
 		void update()
@@ -229,11 +316,69 @@ namespace gameboy
 				color = (color == 30 ? 50 : 30);
 			}
 
+			if (is_goto_prompt)
+			{
+				update_goto_prompt();
+			}
+
 			window_texture.display();
+		}
+
+		void on_keypressed_goto(sf::Keyboard::Key key)
+		{
+			if (key >= sf::Keyboard::Num0 && key <= sf::Keyboard::Num9)
+			{
+				// add the number to the input stream
+				goto_input_stream << (int)(key - sf::Keyboard::Num0);
+			}
+			else if (key >= sf::Keyboard::Numpad0 && key <= sf::Keyboard::Numpad9)
+			{
+				// add the number to the input stream
+				goto_input_stream << (int)(key - sf::Keyboard::Numpad0);
+			}
+			else if (key >= sf::Keyboard::A && key <= sf::Keyboard::F)
+			{
+				goto_input_stream << (char)(0x41 + (int)(key - sf::Keyboard::A));
+			}
+			else if (key == sf::Keyboard::BackSpace)
+			{
+				if (goto_input_stream.str().length() > 0)
+				{
+					std::string temp = goto_input_stream.str().erase(goto_input_stream.str().length() - 1);
+					goto_input_stream.str("");
+					goto_input_stream << temp;
+				}
+			}
+			else if (key == sf::Keyboard::Return)
+			{
+				//get the instruction int
+				u16 addr = (u16)std::stoul(goto_input_stream.str(), nullptr, 16);
+
+				goto_instr(addr);
+				is_goto_prompt = false;
+			}
+			else if (key == sf::Keyboard::Escape)
+			{
+				is_goto_prompt = false;
+			}
+
+			// cap size
+			if (goto_input_stream.tellp() > 4)
+			{
+				std::string temp = goto_input_stream.str().erase(4);
+				goto_input_stream.str("");
+				goto_input_stream << temp;
+			}
 		}
 
 		void on_keypressed(sf::Keyboard::Key key)
 		{
+			if (is_goto_prompt)
+			{
+				on_keypressed_goto(key);
+				return;
+			}
+
 			// handle up and down
 			if (key == sf::Keyboard::Down)
 			{
@@ -268,6 +413,13 @@ namespace gameboy
 				{
 					cpu::breakpoints.push_back(active_addr);
 				}
+			}
+
+			// handle goto
+			if (key == sf::Keyboard::G)
+			{
+				is_goto_prompt = true;
+				goto_input_stream.str("");
 			}
 		}
 	};

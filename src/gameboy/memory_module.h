@@ -55,17 +55,20 @@ namespace gameboy
 			{ 0xFFFF, 0xFFFF, MEMORY_READABLE | MEMORY_WRITABLE },
 		};
 				
-		u8* get_memory(u16 addr)
+		u8* get_memory(u16 addr, bool force = false)
 		{
 			// loop though memory map
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
-					if ((memory_map[i].access & MEMORY_READABLE) == 0)
+					if (!force)
 					{
-						printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
-						return 0;
+						if ((memory_map[i].access & MEMORY_READABLE) == 0)
+						{
+							printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
+							return 0;
+						}
 					}
 
 					return &memory[addr];
@@ -76,30 +79,33 @@ namespace gameboy
 			return 0;
 		}
 
-		u8 read_memory(u16 addr)
+		u8 read_memory(u16 addr, bool force = false)
 		{
 			// loop though memory map
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
-					u8 mode = memory[0xFF41] &= 0x3; // lcd_status
-					if (i == MEMORY_VRAM && mode > 2)
+					if (!force)
 					{
-						printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
-						return 0xFF;
-					}
+						u8 mode = memory[0xFF41] &= 0x3; // lcd_status
+						if (i == MEMORY_VRAM && mode > 2)
+						{
+							printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
+							return 0xFF;
+						}
 
-					if (i == MEMORY_OAM && mode > 1)
-					{
-						printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
-						return 0xFF;
-					}
+						if (i == MEMORY_OAM && mode > 1)
+						{
+							printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
+							return 0xFF;
+						}
 
-					if ((memory_map[i].access & MEMORY_READABLE) == 0)
-					{
-						printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
-						return 0;
+						if ((memory_map[i].access & MEMORY_READABLE) == 0)
+						{
+							printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
+							return 0;
+						}
 					}
 
 					return memory[addr];
@@ -110,7 +116,7 @@ namespace gameboy
 			return 0;
 		}
 
-		void write_memory(const u16 addr, const u8* value, const u8 size)
+		void write_memory(const u16 addr, const u8* value, const u8 size, bool force = false)
 		{
 			if (addr == 0xFF44) // current scanline. if anyone tries to write to this value we reset to 0
 			{
@@ -141,23 +147,26 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
-					u8 mode = memory[0xFF41] &= 0x3; // lcd_status
-					if (i == MEMORY_VRAM && mode > 2)
+					if (!force)
 					{
-						printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
-						return;
-					}
+						u8 mode = memory[0xFF41] &= 0x3; // lcd_status
+						if (i == MEMORY_VRAM && mode > 2)
+						{
+							printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
+							return;
+						}
 
-					if (i == MEMORY_OAM && mode > 1)
-					{
-						printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
-						return;
-					}
+						if (i == MEMORY_OAM && mode > 1)
+						{
+							printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
+							return;
+						}
 
-					if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
-					{
-						printf("Error - writing to memory map that is not writable: 0x%X\n", addr);
-						return;
+						if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
+						{
+							printf("Error - writing to memory map that is not writable: 0x%X\n", addr);
+							return;
+						}
 					}
 
 					warning("NOTE: check if memory is writable");
@@ -170,9 +179,9 @@ namespace gameboy
 			return;
 		}
 		
-		void write_memory(const u16 addr, const u8 value)
+		void write_memory(const u16 addr, const u8 value, bool force = false)
 		{
-			write_memory(addr, &value, 1);
+			write_memory(addr, &value, 1, force);
 		}
 
 		int reset()

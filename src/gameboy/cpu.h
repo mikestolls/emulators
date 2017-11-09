@@ -1592,6 +1592,13 @@ namespace gameboy
 				return 0;
 			}
 
+			// cehck for hitting 
+			auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
+			if (breakpoint_itr != breakpoints.end())
+			{
+				return 0;
+			}
+
 			// need to point this to mem. small hack for the (HL) register instructons
 			register_single[6] = memory_module::get_memory(R.hl); 
 

@@ -43,7 +43,7 @@ namespace gameboy
 		// read 8 and 16 bit at PC. increment PC
 		inline u8 readpc_u8()
 		{
-			u8 val = memory_module::read_memory(PC++);
+			u8 val = memory_module::read_memory(PC++, true);
 
 			return val;
 		}
@@ -51,8 +51,8 @@ namespace gameboy
 		inline u16 readpc_u16()
 		{
 			// lsb is first in memory
-			u16 val = memory_module::read_memory(PC++);
-			val |= (memory_module::read_memory(PC++) << 8);
+			u16 val = memory_module::read_memory(PC++, true);
+			val |= (memory_module::read_memory(PC++, true) << 8);
 
 			return val;
 		}
