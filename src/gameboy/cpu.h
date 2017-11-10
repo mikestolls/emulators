@@ -47,6 +47,7 @@ namespace gameboy
 		bool paused = false;
 
 		std::vector<u16> breakpoints;
+		std::vector<u16> soft_breakpoints;
 		bool breakpoint_hit;
 		bool breakpoint_disable_one_instr;
 
@@ -1593,13 +1594,13 @@ namespace gameboy
 		
 		int execute_opcode()
 		{
-			if (!running || halt || paused)
+			if (!running || halt || (paused && !breakpoint_disable_one_instr))
 			{
 				// processor is stopped
 				return 0;
 			}
 
-			// check for hitting 
+			// check for hitting breakpoints to pause
 			if (!breakpoint_disable_one_instr)
 			{
 				auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
@@ -1609,9 +1610,23 @@ namespace gameboy
 					breakpoint_hit = true;
 					return 0;
 				}
+
+				// soft breakpoints are used for step over. not visible
+				breakpoint_itr = std::find(soft_breakpoints.begin(), soft_breakpoints.end(), R.pc);
+				if (breakpoint_itr != soft_breakpoints.end())
+				{
+					paused = true;
+					breakpoint_hit = true;
+					soft_breakpoints.erase(breakpoint_itr);
+					return 0;
+				}
 			}
 
-			breakpoint_disable_one_instr = false;
+			if (breakpoint_disable_one_instr)
+			{
+				cpu::breakpoint_hit = true;
+				breakpoint_disable_one_instr = false;
+			}
 
 			// need to point this to mem. small hack for the (HL) register instructons
 			register_single[6] = memory_module::get_memory(R.hl); 

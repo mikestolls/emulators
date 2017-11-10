@@ -447,6 +447,14 @@ namespace gameboy
 				cpu::paused = false;
 				cpu::breakpoint_disable_one_instr = true;
 			}
+			else if (key == sf::Keyboard::F10)
+			{
+				if (cpu::paused)
+				{
+					//cpu::paused = false;
+					cpu::breakpoint_disable_one_instr = true;
+				}
+			}
 
 			// handle goto
 			if (key == sf::Keyboard::G)
