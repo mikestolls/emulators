@@ -70,7 +70,7 @@ namespace gameboy
 			
 			title_text.setString("Disassembler");
 
-			bottom_text.setString("(Up / Down) Change Line\t(G) Goto Address");
+			bottom_text.setString("(Up / Down) Change Line\t(G) Goto Address\tF5 Continue\tF9 Set Breakpoint\tF10 Step Once");
 
 			breakpoint_marker.setFillColor(sf::Color(255, 0, 0, 255));
 			breakpoint_marker.setRadius(5);
