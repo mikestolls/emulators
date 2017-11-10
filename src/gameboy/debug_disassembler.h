@@ -27,6 +27,8 @@ namespace gameboy
 		#define GOTO_PROMPT_INPUT_Y			30
 		#define GOTO_PROMPT_INPUT_WIDTH		124
 		#define GOTO_PROMPT_INPUT_HEIGHT	24
+		
+		#define BREAKPOINT_PAUSE_TRIANGLE_SIZE		10
 
 		sf::Text disassembler_text;
 
@@ -34,6 +36,7 @@ namespace gameboy
 		sf::RectangleShape line_border;
 
 		sf::CircleShape breakpoint_marker;
+		sf::ConvexShape breakpoint_paused_marker;
 
 		sf::RectangleShape goto_outer_border;
 		sf::RectangleShape goto_inner_border;
@@ -71,6 +74,12 @@ namespace gameboy
 
 			breakpoint_marker.setFillColor(sf::Color(255, 0, 0, 255));
 			breakpoint_marker.setRadius(5);
+
+			breakpoint_paused_marker.setPointCount(3);
+			breakpoint_paused_marker.setPoint(0, sf::Vector2f(0, -BREAKPOINT_PAUSE_TRIANGLE_SIZE));
+			breakpoint_paused_marker.setPoint(1, sf::Vector2f(0, BREAKPOINT_PAUSE_TRIANGLE_SIZE));
+			breakpoint_paused_marker.setPoint(2, sf::Vector2f(BREAKPOINT_PAUSE_TRIANGLE_SIZE, 0));
+			breakpoint_paused_marker.setFillColor(sf::Color(0, 255, 0, 255));
 
 			// setup the goto prompt visual
 			goto_outer_border.setSize(sf::Vector2f(GOTO_PROMPT_WIDTH + BORDER_SIZE * 2, GOTO_PROMPT_HEIGHT + TITLEBAR_SIZE + BORDER_SIZE * 2));
@@ -242,6 +251,13 @@ namespace gameboy
 
 		void update()
 		{
+			// check if cpu hit a breakpoint
+			if (cpu::breakpoint_hit)
+			{
+				pc_start = cpu::R.pc;
+				cpu::breakpoint_hit = false;
+			}
+
 			// draw to the window texture. 
 			window_texture.draw(outer_border);
 			window_texture.draw(inner_border);
@@ -250,7 +266,8 @@ namespace gameboy
 			line_border.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
 			disassembler_text.setPosition(BORDER_SIZE + LINE_XPOS, BORDER_SIZE + TITLEBAR_SIZE);
 			breakpoint_marker.setPosition(BORDER_SIZE + 10, BORDER_SIZE + TITLEBAR_SIZE + 5);
-			
+			breakpoint_paused_marker.setPosition(BORDER_SIZE + 5, BORDER_SIZE + TITLEBAR_SIZE + 10);
+
 			// draw foreground of each line
 			u16 pc = pc_start;
 			u8 color = 30;
@@ -289,11 +306,17 @@ namespace gameboy
 				}
 
 				window_texture.draw(line_border);
-
+				
 				// draw breakpoint marker
 				if (breakpoint_itr != cpu::breakpoints.end())
 				{
 					window_texture.draw(breakpoint_marker);
+				}
+
+				// if cpu is paused. draw where its paused
+				if (cpu::paused && sym.addr == cpu::R.pc)
+				{
+					window_texture.draw(breakpoint_paused_marker);
 				}
 
 				// draw the line
@@ -311,6 +334,10 @@ namespace gameboy
 				pos = breakpoint_marker.getPosition();
 				pos.y += LINE_HEIGHT;
 				breakpoint_marker.setPosition(pos);
+
+				pos = breakpoint_paused_marker.getPosition();
+				pos.y += LINE_HEIGHT;
+				breakpoint_paused_marker.setPosition(pos);
 
 				line_border.setFillColor(sf::Color(color, color, color, 255));
 				color = (color == 30 ? 50 : 30);

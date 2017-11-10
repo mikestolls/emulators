@@ -44,8 +44,10 @@ namespace gameboy
 
 		bool running = true;
 		bool halt = false;
+		bool paused = false;
 
 		std::vector<u16> breakpoints;
+		bool breakpoint_hit;
 
 		bool interrupt_master;
 		s8 interrupt_master_enable_delay; // delay used for EI delayed enable
@@ -731,6 +733,9 @@ namespace gameboy
 			
 			divide_value = memory_module::get_memory(0xFF04);
 			divide_counter = 0;
+
+			paused = false;
+			breakpoint_hit = false;
 
 			return 0;
 		}
@@ -1586,7 +1591,7 @@ namespace gameboy
 		
 		int execute_opcode()
 		{
-			if (!running || halt)
+			if (!running || halt || paused)
 			{
 				// processor is stopped
 				return 0;
@@ -1596,6 +1601,8 @@ namespace gameboy
 			auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
 			if (breakpoint_itr != breakpoints.end())
 			{
+				paused = true;
+				breakpoint_hit = true;
 				return 0;
 			}
 
