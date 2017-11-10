@@ -48,6 +48,7 @@ namespace gameboy
 
 		std::vector<u16> breakpoints;
 		bool breakpoint_hit;
+		bool breakpoint_disable_one_instr;
 
 		bool interrupt_master;
 		s8 interrupt_master_enable_delay; // delay used for EI delayed enable
@@ -736,6 +737,7 @@ namespace gameboy
 
 			paused = false;
 			breakpoint_hit = false;
+			breakpoint_disable_one_instr = false;
 
 			return 0;
 		}
@@ -1597,14 +1599,19 @@ namespace gameboy
 				return 0;
 			}
 
-			// cehck for hitting 
-			auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
-			if (breakpoint_itr != breakpoints.end())
+			// check for hitting 
+			if (!breakpoint_disable_one_instr)
 			{
-				paused = true;
-				breakpoint_hit = true;
-				return 0;
+				auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
+				if (breakpoint_itr != breakpoints.end())
+				{
+					paused = true;
+					breakpoint_hit = true;
+					return 0;
+				}
 			}
+
+			breakpoint_disable_one_instr = false;
 
 			// need to point this to mem. small hack for the (HL) register instructons
 			register_single[6] = memory_module::get_memory(R.hl); 

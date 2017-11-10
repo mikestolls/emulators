@@ -441,6 +441,12 @@ namespace gameboy
 					cpu::breakpoints.push_back(active_addr);
 				}
 			}
+			else if (key == sf::Keyboard::F5)
+			{
+				// resume the cpu
+				cpu::paused = false;
+				cpu::breakpoint_disable_one_instr = true;
+			}
 
 			// handle goto
 			if (key == sf::Keyboard::G)

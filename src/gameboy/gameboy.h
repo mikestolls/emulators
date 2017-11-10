@@ -104,14 +104,17 @@ namespace gameboy
 				cycle_count += cpu_cycles;
 				gpu::update(cpu_cycles);
 
-				if (cpu_cycles == 0)
+				if (cpu::paused)
 				{
 					break;
 				}
 			}
-		
-			// once we have passed cycles per frame reset cycle count
-			cycle_count -= cycles_per_frame;
+
+			if (!cpu::paused)
+			{
+				// once we have passed cycles per frame reset cycle count
+				cycle_count -= cycles_per_frame;
+			}
 
 			debug_window.update();
 
