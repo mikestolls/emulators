@@ -71,7 +71,6 @@ namespace gameboy
 		void update()
 		{
 			std::stringstream stream;
-			stream << "R.pc: " << WRITE_HEX_16(cpu::R.pc) << std::endl;
 			//stream << "R.a : " << WRITE_HEX_8((int)cpu::R.a) << std::endl;
 			//stream << "R.f : " << WRITE_HEX_8((int)cpu::R.f) << std::endl;
 			//stream << "R.b : " << WRITE_HEX_8((int)cpu::R.b) << std::endl;
@@ -85,6 +84,7 @@ namespace gameboy
 			stream << "R.de: " << WRITE_HEX_16(cpu::R.de) << std::endl;
 			stream << "R.hl: " << WRITE_HEX_16(cpu::R.hl) << std::endl;
 			stream << "R.sp: " << WRITE_HEX_16(cpu::R.sp) << std::endl;
+			stream << "R.pc: " << WRITE_HEX_16(cpu::R.pc) << std::endl;
 
 			registers_text.setString(stream.str());
 

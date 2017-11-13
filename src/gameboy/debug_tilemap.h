@@ -72,16 +72,17 @@ namespace gameboy
 					for (int x = 0; x < 8; x++)
 					{
 						u8 bit = 7 - x; // the bits and pixels are inversed
-						u8 color = ((dataA & (1 << bit)) >> bit) | (((dataB & (1 << bit)) >> bit) << 1);
+						u8 palette_color = ((dataA & (1 << bit)) >> bit) | (((dataB & (1 << bit)) >> bit) << 1);
 
-						color = gpu::get_palette_color(color);
+						u32 color = gpu::get_palette_color(palette_color);
 
 						u16 xPos = (i % 32) * 8 + x;
 						u16 yPos = (i / 32) * 8 + y;
 						u32 pixelPos = (yPos * 256 + xPos) * 4; // the pixel we are drawing * 4 bytes per pixel
-						tilemap_texture_data[pixelPos++] = color;
-						tilemap_texture_data[pixelPos++] = color;
-						tilemap_texture_data[pixelPos++] = color;
+
+						tilemap_texture_data[pixelPos++] = (color >> 24) & 0xFF;
+						tilemap_texture_data[pixelPos++] = (color >> 16) & 0xFF;
+						tilemap_texture_data[pixelPos++] = (color >> 8) & 0xFF;
 						tilemap_texture_data[pixelPos++] = 0xFF;
 					}
 

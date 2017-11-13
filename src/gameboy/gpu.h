@@ -8,6 +8,8 @@ namespace gameboy
 {
 	namespace gpu
 	{
+		const bool green_palette = false;
+
 		u8* scanline = 0;
 		u8* coincidence_scanline = 0;
 		u8* lcd_control = 0;
@@ -150,26 +152,49 @@ namespace gameboy
 			return 0;
 		}
 
-		u8 get_palette_color(u8 color)
+		u32 get_palette_color(u8 palette_color)
 		{
 			u8 palette = *palette_bg;
-			palette &= (0x3 << (color * 2)); // take two bits from palette depending on the passed in color id
-			palette >>= (color * 2); // shift palette color back down
+			palette &= (0x3 << (palette_color * 2)); // take two bits from palette depending on the passed in color id
+			palette >>= (palette_color * 2); // shift palette color back down
 
-			switch (palette)
+			u32 color = 0xFF; // alpha
+
+			if (green_palette)
 			{
-			case 0x00: // white
-				color = 0xFF;
-				break;
-			case 0x1: // light grey
-				color = 0xCC;
-				break;
-			case 0x2: // dark grey
-				color = 0x77;
-				break;
-			case 0x3: // black
-				color = 0x0;
-				break;
+				switch (palette)
+				{
+				case 0x00: // white
+					color = 0x9BBC0FFF;
+					break;
+				case 0x1: // light grey
+					color = 0x8BAC0FFF;
+					break;
+				case 0x2: // dark grey
+					color = 0x306230FF;
+					break;
+				case 0x3: // black
+					color = 0x0F380FFF;
+					break;
+				}
+			}
+			else
+			{
+				switch (palette)
+				{
+				case 0x00: // white
+					color = 0xFFFFFFFF;
+					break;
+				case 0x1: // light grey
+					color = 0xCCCCCCFF;
+					break;
+				case 0x2: // dark grey
+					color = 0x777777FF;
+					break;
+				case 0x3: // black
+					color = 0x000000FF;
+					break;
+				}
 			}
 
 			return color;
@@ -229,14 +254,14 @@ namespace gameboy
 					u8 dataA = tileset[0];
 					u8 dataB = tileset[1];
 					u8 bit = 7 - tileXPixel; // the bits and pixels are inversed
-					u8 color = ((dataA & (1 << bit)) >> bit) | (((dataB & (1 << bit)) >> bit) << 1);
+					u8 palette_color = ((dataA & (1 << bit)) >> bit) | (((dataB & (1 << bit)) >> bit) << 1);
 
-					color = gpu::get_palette_color(color);
+					u32 color = gpu::get_palette_color(palette_color);
 
 					u32 pixelPos = ((*scanline) * 160 + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
-					framebuffer[pixelPos++] = color;
-					framebuffer[pixelPos++] = color;
-					framebuffer[pixelPos++] = color;
+					framebuffer[pixelPos++] = (color >> 24) & 0xFF;
+					framebuffer[pixelPos++] = (color >> 16) & 0xFF;
+					framebuffer[pixelPos++] = (color >> 8) & 0xFF;
 					framebuffer[pixelPos++] = 0xFF;
 				}
 			}
