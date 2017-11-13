@@ -283,8 +283,13 @@ namespace gameboy
 				// draw addr
 				std::stringstream stream;
 				stream << WRITE_HEX_16(sym.addr);
-				stream << "\t\t" << WRITE_HEX_16((int)sym.opcode);
-				stream << "\t\t" << WRITE_HEX_16((int)sym.cb_opcode);
+				stream << "\t\t" << WRITE_HEX_8((int)sym.opcode);
+
+				if (sym.opcode == 0xCB)
+				{
+					stream << " " << WRITE_HEX_8((int)sym.cb_opcode);
+				}
+
 				stream << "\t\t" << std::setfill(' ') << std::setw(4) << sym.mnemonic;
 				stream << "\t\t" << sym.operands;
 

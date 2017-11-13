@@ -595,7 +595,7 @@ namespace gameboy
 			if (sym.opcode == 0xCB)
 			{
 				sym.cb_opcode = readpc_u8();
-				disassemble_prefixed_cb(sym.opcode, sym);
+				disassemble_prefixed_cb(sym.cb_opcode, sym);
 			}
 			else
 			{
