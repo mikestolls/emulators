@@ -81,6 +81,13 @@ namespace gameboy
 
 		u8 read_memory(u16 addr, bool force = false)
 		{
+			if (addr == 0xFF00) // special case for joystick register
+			{
+				u8 val = memory[0xFF00]; // bits 4 and 5 decide which joystick bits to return (0 - 3)
+				val |= 0xF; // for now all input is off
+				return val;
+			}
+
 			// loop though memory map
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
 			{
@@ -212,7 +219,6 @@ namespace gameboy
 			write_memory(0xFF40, 0x91); // LCDC
 			write_memory(0xFF42, 0x00); // SCY
 			write_memory(0xFF43, 0x00); // SCX
-			write_memory(0xFF44, 0x00); // SCANLINE
 			write_memory(0xFF45, 0x00); // LYC
 			write_memory(0xFF47, 0xFC); // BGP
 			write_memory(0xFF48, 0xFF); // OBP0

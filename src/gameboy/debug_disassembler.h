@@ -11,9 +11,6 @@ namespace gameboy
 	class debug_disassembler : public debug_window
 	{
 	public:
-		#define WRITE_HEX_16(x) "0x" << std::setfill('0') << std::setw(4) << std::uppercase << std::hex << x
-		#define WRITE_HEX_8(x) "0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << x
-
 		#define LINE_HEIGHT					20
 		#define LINE_XPOS					32
 		#define LINE_COUNT					16
@@ -169,8 +166,10 @@ namespace gameboy
 			 // try to find pc in our list
 			auto itr = std::find(program_addr.begin(), program_addr.end(), pc);
 
-			if (itr == program_addr.end())
+			if (itr == program_addr.end() || itr == program_addr.begin())
 			{
+				program_addr.clear();
+
 				// pc is not in list. start from begin and walk to pc
 				u16 i = 0;
 				while (i != pc)

@@ -8,9 +8,6 @@ namespace gameboy
 {
 	namespace disassembler
 	{
-		#define WRITE_HEX_16(x) "0x" << std::setfill('0') << std::setw(4) << std::uppercase << std::hex << x
-		#define WRITE_HEX_8(x) "0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << x
-
 		struct symbol
 		{
 			symbol()
@@ -417,7 +414,7 @@ namespace gameboy
 					case 0x5:
 						// LD mem(nn) with A
 						sym.mnemonic = "LD";
-						operand_stream << WRITE_HEX_16(readpc_u16()) << "), A";
+						operand_stream << "(" << WRITE_HEX_16(readpc_u16()) << "), A";
 						sym.operands = operand_stream.str();
 						break;
 					case 0x6:

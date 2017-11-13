@@ -30,6 +30,9 @@ typedef long s64;
 #define warning(x)					__pragma(message("[warning] - " x));
 #define warning_assert(x)			warning(x); assert(0); 
 
+#define WRITE_HEX_16(x) "0x" << std::setfill('0') << std::setw(4) << std::uppercase << std::hex << (s32)(x)
+#define WRITE_HEX_8(x) "0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << (s32)(x)
+
 namespace string_helpers
 {
 	std::string replaceAll(const std::string& str, const std::string& replace, const std::string& with)

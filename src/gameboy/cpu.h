@@ -712,12 +712,6 @@ namespace gameboy
 			R.de = 0x00D8;
 			R.hl = 0x014D;
 
-			// NOTE: these match the bgb init values
-			//R.af = 0x1180;
-			//R.bc = 0x0000;
-			//R.de = 0xFF56;
-			//R.hl = 0x000D;
-
 			R.pc = 0x0100; // starting entry point of the ROM
 			R.sp = 0xFFFE;
 
@@ -739,6 +733,8 @@ namespace gameboy
 			paused = false;
 			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
+
+			//breakpoints.push_back(0x0100);
 
 			return 0;
 		}
