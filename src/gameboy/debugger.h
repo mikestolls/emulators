@@ -15,8 +15,9 @@ namespace gameboy
 	class debugger
 	{
 	public:
-		// debugger sprites and textures
-		sf::RenderWindow window;
+		// render target for debugger
+		sf::RenderTexture window_texture;
+		sf::Sprite window_sprite;
 
 		// debug windows
 		std::vector<debug_window*> debug_windows;
@@ -24,35 +25,38 @@ namespace gameboy
 
 		sf::RectangleShape bottom_bar;
 
-		int initialize()
+		const float bottom_bar_height = 24;
+
+		int initialize(u32 width, u32 height)
 		{
-			// debugger
-			window.create(sf::VideoMode(1024, 1024), "Debugger");
-			
+			// create window texture and sprite
+			window_texture.create(width, height);
+			window_sprite.setTexture(window_texture.getTexture());
+
 			// add bottom bar
 			bottom_bar.setFillColor(sf::Color(100, 100, 100, 255));
-			bottom_bar.setPosition(0, 1024 - 24);
-			bottom_bar.setSize(sf::Vector2f(1024, 24));
+			bottom_bar.setPosition(0, height - bottom_bar_height);
+			bottom_bar.setSize(sf::Vector2f((float)width, bottom_bar_height));
 
-			// create debug windows
-			debug_window* window = new debug_tileset();
+			// create debug window
+			debug_window* window = new debug_disassembler();
+			window->set_position(16, 614);
+			window->bottom_text.setPosition(0, height - bottom_bar_height);
+			debug_windows.push_back(window);
+
+			window = new debug_tileset();
 			window->set_position(16, 16);
-			window->bottom_text.setPosition(0, 1024 - 24);
+			window->bottom_text.setPosition(0, height - bottom_bar_height);
 			debug_windows.push_back(window);
 
 			window = new debug_tilemap((debug_tileset*)window);
 			window->set_position(16, 300);
-			window->bottom_text.setPosition(0, 1024 - 24);
+			window->bottom_text.setPosition(0, height - bottom_bar_height);
 			debug_windows.push_back(window);
 
 			window = new debug_registers();
 			window->set_position(300, 16);
-			window->bottom_text.setPosition(0, 1024 - 24);
-			debug_windows.push_back(window);
-
-			window = new debug_disassembler();
-			window->set_position(16, 614);
-			window->bottom_text.setPosition(0, 1024 - 24);
+			window->bottom_text.setPosition(0, height - bottom_bar_height);
 			debug_windows.push_back(window);
 
 			debug_window_index = 0;
@@ -70,67 +74,51 @@ namespace gameboy
 				delete window;
 			}
 
-			window.close();
-
 			return 0;
+		}
+
+		void on_keypressed(sf::Keyboard::Key key)
+		{
+			if (key == sf::Keyboard::Tab)
+			{
+				debug_windows[debug_window_index]->set_active(false);
+
+				debug_window_index++;
+				if (debug_window_index >= debug_windows.size())
+				{
+					debug_window_index = 0;
+				}
+
+				debug_windows[debug_window_index]->set_active(true);
+			}
+			else
+			{
+				// forward remaining to active debug window
+				debug_windows[debug_window_index]->on_keypressed(key);
+			}
 		}
 
 		int update()
 		{
-			sf::Event event;
-			
-			// poll for debugger
-			while (window.pollEvent(event))
-			{
-				if (event.type == sf::Event::Closed)
-				{
-					window.setVisible(false);
-				}
-				else if (event.type == sf::Event::KeyPressed)
-				{
-					if (event.key.code == sf::Keyboard::F1)
-					{
-						window.setVisible(true);
-					}
-					else if (event.key.code == sf::Keyboard::Tab)
-					{
-						debug_windows[debug_window_index]->set_active(false);
+			window_texture.clear(sf::Color(0, 0, 0, 100));
 
-						debug_window_index++;
-						if (debug_window_index >= debug_windows.size())
-						{
-							debug_window_index = 0;
-						}
-
-						debug_windows[debug_window_index]->set_active(true);
-					}
-					else
-					{
-						// forward remaining to active debug window
-						debug_windows[debug_window_index]->on_keypressed(event.key.code);
-					}
-				}
-			}
-
-			window.clear();
-
-			window.draw(bottom_bar);
+			window_texture.draw(bottom_bar);
 
 			// update and render the windows
 			for (auto itr = debug_windows.begin(); itr != debug_windows.end(); itr++)
 			{
 				(*itr)->update();
 
-				window.draw((*itr)->window_sprite);
+				window_texture.draw((*itr)->window_sprite);
 
 				if ((*itr)->get_active())
 				{
-					window.draw((*itr)->bottom_text);
+					window_texture.draw((*itr)->bottom_text);
 				}
 			}
 
 			// display debugger window
-			window.display();
+			window_texture.display();
 
 			return 0;
 		}

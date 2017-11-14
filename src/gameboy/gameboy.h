@@ -59,8 +59,9 @@ namespace gameboy
 		framebuffer_sprite.setTexture(framebuffer_texture);
 		framebuffer_sprite.setScale(pixelSize, pixelSize);
 
-		debugger debug_window;
-		debug_window.initialize();
+		debugger debugger;
+		debugger.initialize(window.getSize().x, window.getSize().y);
+		bool show_debugger = false;
 
 		// init cpu and load rom
 		memory_module::initialize(&rom);
@@ -81,7 +82,7 @@ namespace gameboy
 			{
 				if (event.type == sf::Event::Closed)
 				{
-					debug_window.destroy();
+					debugger.destroy();
 					window.close();
 				}
 				else if (event.type == sf::Event::KeyPressed)
@@ -91,6 +92,17 @@ namespace gameboy
 						cpu::reset();
 						gpu::reset();
 						cycle_count = 0;
+					}
+					else if (event.key.code == sf::Keyboard::F1)
+					{
+						show_debugger = !show_debugger;
+					}
+					else
+					{
+						if (show_debugger)
+						{
+							debugger.on_keypressed(event.key.code);
+						}
 					}
 				}
 			}
@@ -116,13 +128,21 @@ namespace gameboy
 				cycle_count -= cycles_per_frame;
 			}
 
-			debug_window.update();
+			debugger.update();
+
+			window.clear();
 
 			// update the framebuffer
 			framebuffer_texture.update(gpu::framebuffer, gpu::width, gpu::height, 0, 0);
 			
 			// draw framebuffer
 			window.draw(framebuffer_sprite);
+
+			// draw debugger if shown
+			if (show_debugger)
+			{
+				window.draw(debugger.window_sprite);
+			}
 
 			// display on windows
 			window.display();
@@ -139,6 +159,10 @@ namespace gameboy
 
 			last_time = cur_time;
 		}
+
+		// cleanup
+		debugger.destroy();
+		window.close();
 
 		return 0;
 	}
