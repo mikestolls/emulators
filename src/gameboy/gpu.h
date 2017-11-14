@@ -171,7 +171,7 @@ namespace gameboy
 					color = 0x88C070FF;
 					break;
 				case 0x2: // dark grey
-					color = 0x3468BAFF;
+					color = 0x346856FF;
 					break;
 				case 0x3: // black
 					color = 0x081820FF;
