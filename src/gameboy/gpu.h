@@ -8,7 +8,7 @@ namespace gameboy
 {
 	namespace gpu
 	{
-		const bool green_palette = false;
+		const bool green_palette = true;
 
 		u8* scanline = 0;
 		u8* coincidence_scanline = 0;
@@ -165,16 +165,16 @@ namespace gameboy
 				switch (palette)
 				{
 				case 0x00: // white
-					color = 0x9BBC0FFF;
+					color = 0xE0F8D0FF;
 					break;
 				case 0x1: // light grey
-					color = 0x8BAC0FFF;
+					color = 0x88C070FF;
 					break;
 				case 0x2: // dark grey
-					color = 0x306230FF;
+					color = 0x3468BAFF;
 					break;
 				case 0x3: // black
-					color = 0x0F380FFF;
+					color = 0x081820FF;
 					break;
 				}
 			}
