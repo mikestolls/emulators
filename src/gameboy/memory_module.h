@@ -14,8 +14,8 @@ namespace gameboy
 	{
 		enum MEMORY_TYPE
 		{
-			MEMORY_CATRIDGE_ROM = 0,
-			MEMORY_CATRIDGE_SWITCHABLE_ROM,
+			MEMORY_CARTRIDGE_ROM = 0,
+			MEMORY_CARTRIDGE_SWITCHABLE_ROM,
 			MEMORY_VRAM,
 			MEMORY_EXTERNAL_RAM,
 			MEMORY_WORKING_RAM,
@@ -33,6 +33,7 @@ namespace gameboy
 
 		struct memory_map_object
 		{
+			std::string map_name;
 			u16 addr_min;
 			u16 addr_max;
 			u8 access;
@@ -42,18 +43,32 @@ namespace gameboy
 		u8 memory[0xFFFF];
 
 		memory_map_object memory_map[MEMORY_COUNT] = {
-			{ 0x0000, 0x3FFF, MEMORY_READABLE },
-			{ 0x4000, 0x7FFF, MEMORY_READABLE },
-			{ 0x8000, 0x9FFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xA000, 0xBFFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xC000, 0xDFFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xE000, 0xFDFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xFE00, 0xFE9F, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xFEA0, 0xFEFF, 0 },
-			{ 0xFF00, 0xFF7F, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xFF80, 0xFFFE, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ 0xFFFF, 0xFFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ROM0", 0x0000, 0x3FFF, MEMORY_READABLE },
+			{ "ROM1", 0x4000, 0x7FFF, MEMORY_READABLE },
+			{ "VRAM", 0x8000, 0x9FFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ERAM", 0xA000, 0xBFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "WRAM", 0xC000, 0xDFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ECHO", 0xE000, 0xFDFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ " OAM", 0xFE00, 0xFE9F, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ " NOT", 0xFEA0, 0xFEFF, 0 },
+			{ " IOR", 0xFF00, 0xFF7F, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ZERO", 0xFF80, 0xFFFE, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "INTF", 0xFFFF, 0xFFFF, MEMORY_READABLE | MEMORY_WRITABLE },
 		};
+
+		memory_map_object* find_map(u16 addr)
+		{
+			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
+			{
+				if (addr <= memory_map[i].addr_max)
+				{
+					return &memory_map[i];
+				}
+			}
+
+			printf("Error - memory map not implemented for this range of addr: 0x%X\n", addr);
+			return nullptr;
+		}
 				
 		u8* get_memory(u16 addr, bool force = false)
 		{
@@ -237,7 +252,7 @@ namespace gameboy
 
 		int initialize(rom* rom)
 		{
-			assert(rom->romsize - 1 <= memory_map[MEMORY_CATRIDGE_SWITCHABLE_ROM].addr_max);
+			assert(rom->romsize - 1 <= memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].addr_max);
 
 			rom_ptr = rom;
 

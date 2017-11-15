@@ -657,7 +657,7 @@ namespace gameboy
 
 			// disasseble the rom data
 			PC = 0x0;
-			while (PC <= memory_module::memory_map[memory_module::MEMORY_CATRIDGE_SWITCHABLE_ROM].addr_max)
+			while (PC <= memory_module::memory_map[memory_module::MEMORY_CARTRIDGE_SWITCHABLE_ROM].addr_max)
 			{
 				symbol sym;
 				PC = disassemble_instr(PC, sym);

@@ -11,9 +11,12 @@ namespace gameboy
 	class debug_memory : public debug_window
 	{
 	public:
-		#define LINE_HEIGHT					20
-		#define LINE_XPOS					32
-		#define LINE_COUNT					16
+		#define MEM_LINE_HEIGHT					20
+		#define MEM_LINE_XPOS					16
+		#define MEM_LINE_COUNT					16
+		#define MEM_LINE_COLUMN_XPOS			(BORDER_SIZE + MEM_LINE_XPOS + 167)
+		#define MEM_LINE_COLUMN_WIDTH			26
+		#define MEM_LINE_COLUMN_GAP				30
 
 		#define GOTO_PROMPT_X				256
 		#define GOTO_PROMPT_Y				128
@@ -31,6 +34,7 @@ namespace gameboy
 
 		sf::RectangleShape inner_border;
 		sf::RectangleShape line_border;
+		sf::RectangleShape active_border;
 		
 		sf::RectangleShape goto_outer_border;
 		sf::RectangleShape goto_inner_border;
@@ -41,6 +45,7 @@ namespace gameboy
 		std::stringstream goto_input_stream;
 
 		s16 active_line;
+		s16 active_column;
 		u16 active_addr;
 		u16 mem_start;
 
@@ -61,6 +66,10 @@ namespace gameboy
 			line_border.setFillColor(sf::Color(100, 100, 100, 255));
 			line_border.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
 			
+			active_border.setSize(sf::Vector2f(MEM_LINE_COLUMN_WIDTH, LINE_HEIGHT));
+			active_border.setFillColor(sf::Color(200, 200, 200, 200));
+			active_border.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
+
 			title_text.setString("Memory Viewer");
 
 			bottom_text.setString("(Up / Down) Change Line\t(G) Goto Address");
@@ -96,7 +105,8 @@ namespace gameboy
 			goto_input_stream.clear();
 
 			active_line = 0;
-			mem_start = 0;
+			active_column = 0;
+			mem_start = 0xFF00;
 
 			is_goto_prompt = false;
 		}
@@ -126,7 +136,7 @@ namespace gameboy
 			window_texture.draw(title_text);
 			
 			line_border.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
-			memory_text.setPosition(BORDER_SIZE + LINE_XPOS, BORDER_SIZE + TITLEBAR_SIZE);
+			memory_text.setPosition(BORDER_SIZE + MEM_LINE_XPOS, BORDER_SIZE + TITLEBAR_SIZE);
 			
 			// draw foreground of each line
 			u16 addr = mem_start;
@@ -135,7 +145,7 @@ namespace gameboy
 			{
 				// draw memory line
 				std::stringstream stream;
-				stream << WRITE_HEX_16(addr) << "\t";
+				stream << memory_module::find_map(addr)->map_name  << " : " << WRITE_HEX_16(addr) << "\t";
 				
 				for (unsigned int j = 0; j < MEM_PER_LINE; j++)
 				{
@@ -144,7 +154,7 @@ namespace gameboy
 				}
 
 				stream << "\t\t";
-
+				
 				for (unsigned int j = 0; j < MEM_PER_LINE; j++)
 				{
 					u32 val = (u32)memory_module::memory[addr + (i * MEM_PER_LINE) + j];
@@ -156,6 +166,13 @@ namespace gameboy
 					{
 						stream << (char)val;
 					}
+
+					if (j == active_column)
+					{
+						sf::Vector2f pos = memory_text.getPosition();
+						pos.x = (float)(MEM_LINE_COLUMN_XPOS + (j * (MEM_LINE_COLUMN_GAP)));
+						active_border.setPosition(pos);
+					}
 				}
 
 				memory_text.setString(stream.str());
@@ -164,20 +181,24 @@ namespace gameboy
 				if (i == active_line)
 				{
 					line_border.setFillColor(sf::Color(150, 150, 150, 255));
+					window_texture.draw(line_border);
+					window_texture.draw(active_border);
+				}
+				else
+				{
+					window_texture.draw(line_border);
 				}
 
-				window_texture.draw(line_border);
-				
 				// draw the line
 				window_texture.draw(memory_text);
 
 				// increase position
 				sf::Vector2f pos = memory_text.getPosition();
-				pos.y += LINE_HEIGHT;
+				pos.y += MEM_LINE_HEIGHT;
 				memory_text.setPosition(pos);
 
 				pos = line_border.getPosition();
-				pos.y += LINE_HEIGHT;
+				pos.y += MEM_LINE_HEIGHT;
 				line_border.setPosition(pos);
 
 				line_border.setFillColor(sf::Color(color, color, color, 255));
@@ -223,7 +244,7 @@ namespace gameboy
 			{
 				//get the instruction int
 				u16 addr = (u16)std::stoul(goto_input_stream.str(), nullptr, 16);
-				u16 max_addr = 0xFFFF - ((LINE_COUNT - 1) * MEM_PER_LINE);
+				u16 max_addr = 0xFFFF - ((MEM_LINE_COUNT - 1) * MEM_PER_LINE);
 
 				if (addr > max_addr)
 				{
@@ -265,12 +286,30 @@ namespace gameboy
 			{
 				active_line--;
 			}
-
-			if (active_line > LINE_COUNT - 1)
+			else if (key == sf::Keyboard::Left)
 			{
-				active_line = LINE_COUNT - 1;
+				active_column--;
+
+				if (active_column < 0)
+				{
+					active_column += MEM_PER_LINE;
+				}
+			}
+			else if (key == sf::Keyboard::Right)
+			{
+				active_column++;
+
+				if (active_column >= MEM_PER_LINE)
+				{
+					active_column -= MEM_PER_LINE;
+				}
+			}
+
+			if (active_line > MEM_LINE_COUNT - 1)
+			{
+				active_line = MEM_LINE_COUNT - 1;
 				s32 temp = mem_start + MEM_PER_LINE;
-				u16 max_addr = 0xFFFF - (LINE_COUNT * MEM_PER_LINE) + 1;
+				u16 max_addr = 0xFFFF - (MEM_LINE_COUNT * MEM_PER_LINE) + 1;
 
 				if (temp > max_addr)
 				{

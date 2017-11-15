@@ -40,12 +40,7 @@ namespace gameboy
 			bottom_bar.setSize(sf::Vector2f((float)width, bottom_bar_height));
 
 			// create debug window
-			debug_window* window = new debug_disassembler();
-			window->set_position(16, 314);
-			window->bottom_text.setPosition(0, height - bottom_bar_height);
-			debug_windows.push_back(window);
-
-			window = new debug_tileset();
+			debug_window* window = new debug_tileset();
 			window->set_position(16, 16);
 			window->bottom_text.setPosition(0, height - bottom_bar_height);
 			debug_windows.push_back(window);
@@ -59,13 +54,18 @@ namespace gameboy
 			window->set_position(616, 16);
 			window->bottom_text.setPosition(0, height - bottom_bar_height);
 			debug_windows.push_back(window);
-
+			
 			window = new debug_memory();
 			window->set_position(16, 678);
 			window->bottom_text.setPosition(0, height - bottom_bar_height);
 			debug_windows.push_back(window);
 
-			debug_window_index = 0;
+			window = new debug_disassembler();
+			window->set_position(16, 314);
+			window->bottom_text.setPosition(0, height - bottom_bar_height);
+			debug_windows.push_back(window);
+
+			debug_window_index = (u16)debug_windows.size() - 1;
 			debug_windows[debug_window_index]->set_active(true);
 
 			return 0;
