@@ -50,6 +50,7 @@ namespace gameboy
 		u16 mem_start;
 
 		bool is_goto_prompt;
+		bool is_mem_prompt;
 
 		debug_memory() : debug_window(916, 320)
 		{
@@ -72,7 +73,7 @@ namespace gameboy
 
 			title_text.setString("Memory Viewer");
 
-			bottom_text.setString("(Up / Down) Change Line\t(G) Goto Address");
+			bottom_text.setString("(Up / Down / Left / Right) Select Address\t(G) Goto Address\t(Enter) Modify Value");
 			
 			// setup the goto prompt visual
 			goto_outer_border.setSize(sf::Vector2f(GOTO_PROMPT_WIDTH + BORDER_SIZE * 2, GOTO_PROMPT_HEIGHT + TITLEBAR_SIZE + BORDER_SIZE * 2));
@@ -109,6 +110,7 @@ namespace gameboy
 			mem_start = 0xFF00;
 
 			is_goto_prompt = false;
+			is_mem_prompt = false;
 		}
 		
 		void update_goto_prompt()
@@ -139,17 +141,18 @@ namespace gameboy
 			memory_text.setPosition(BORDER_SIZE + MEM_LINE_XPOS, BORDER_SIZE + TITLEBAR_SIZE);
 			
 			// draw foreground of each line
-			u16 addr = mem_start;
 			u8 color = 30;
 			for (unsigned int i = 0; i < LINE_COUNT; i++)
 			{
+				u16 addr = mem_start + (i * MEM_PER_LINE);
+
 				// draw memory line
 				std::stringstream stream;
 				stream << memory_module::find_map(addr)->map_name  << " : " << WRITE_HEX_16(addr) << "\t";
 				
 				for (unsigned int j = 0; j < MEM_PER_LINE; j++)
 				{
-					u32 val = (u32)memory_module::memory[addr + (i * MEM_PER_LINE) + j];
+					u32 val = (u32)memory_module::read_memory(addr + j, true);
 					stream << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << val << " ";
 				}
 
@@ -157,7 +160,7 @@ namespace gameboy
 				
 				for (unsigned int j = 0; j < MEM_PER_LINE; j++)
 				{
-					u32 val = (u32)memory_module::memory[addr + (i * MEM_PER_LINE) + j];
+					u32 val = (u32)memory_module::read_memory(addr + j, true);
 					if (val < 0x20 || (val > 0x7E && val < 0xA0))
 					{
 						stream << ".";
@@ -203,11 +206,9 @@ namespace gameboy
 
 				line_border.setFillColor(sf::Color(color, color, color, 255));
 				color = (color == 30 ? 50 : 30);
-
-				addr += MEM_PER_LINE;
 			}
 
-			if (is_goto_prompt)
+			if (is_goto_prompt || is_mem_prompt)
 			{
 				update_goto_prompt();
 			}
@@ -242,6 +243,13 @@ namespace gameboy
 			}
 			else if (key == sf::Keyboard::Return)
 			{
+				is_goto_prompt = false;
+
+				if (goto_input_stream.str().length() == 0)
+				{
+					return;
+				}
+
 				//get the instruction int
 				u16 addr = (u16)std::stoul(goto_input_stream.str(), nullptr, 16);
 				u16 max_addr = 0xFFFF - ((MEM_LINE_COUNT - 1) * MEM_PER_LINE);
@@ -253,7 +261,11 @@ namespace gameboy
 
 				mem_start = addr - (addr % MEM_PER_LINE);
 
-				is_goto_prompt = false;
+				// select addr
+				addr = (u16)std::stoul(goto_input_stream.str(), nullptr, 16);
+				addr -= mem_start;
+				active_column = addr % MEM_PER_LINE;
+				active_line = (addr - active_column) / MEM_PER_LINE;
 			}
 			else if (key == sf::Keyboard::Escape)
 			{
@@ -269,11 +281,69 @@ namespace gameboy
 			}
 		}
 
+		void on_keypressed_mem(sf::Keyboard::Key key)
+		{
+			if (key >= sf::Keyboard::Num0 && key <= sf::Keyboard::Num9)
+			{
+				// add the number to the input stream
+				goto_input_stream << (int)(key - sf::Keyboard::Num0);
+			}
+			else if (key >= sf::Keyboard::Numpad0 && key <= sf::Keyboard::Numpad9)
+			{
+				// add the number to the input stream
+				goto_input_stream << (int)(key - sf::Keyboard::Numpad0);
+			}
+			else if (key >= sf::Keyboard::A && key <= sf::Keyboard::F)
+			{
+				goto_input_stream << (char)(0x41 + (int)(key - sf::Keyboard::A));
+			}
+			else if (key == sf::Keyboard::BackSpace)
+			{
+				if (goto_input_stream.str().length() > 0)
+				{
+					std::string temp = goto_input_stream.str().erase(goto_input_stream.str().length() - 1);
+					goto_input_stream.str("");
+					goto_input_stream << temp;
+				}
+			}
+			else if (key == sf::Keyboard::Return)
+			{
+				is_mem_prompt = false;
+
+				if (goto_input_stream.str().length() == 0)
+				{
+					return;
+				}
+
+				u8 value = (u8)std::stoul(goto_input_stream.str(), nullptr, 16);
+				u16 addr = mem_start + (active_line * MEM_PER_LINE) + active_column;
+				memory_module::write_memory(addr, value, true);
+			}
+			else if (key == sf::Keyboard::Escape)
+			{
+				is_mem_prompt = false;
+			}
+
+			// cap size
+			if (goto_input_stream.tellp() > 2)
+			{
+				std::string temp = goto_input_stream.str().erase(2);
+				goto_input_stream.str("");
+				goto_input_stream << temp;
+			}
+		}
+
 		void on_keypressed(sf::Keyboard::Key key)
 		{
 			if (is_goto_prompt)
 			{
 				on_keypressed_goto(key);
+				return;
+			}
+
+			if (is_mem_prompt)
+			{
+				on_keypressed_mem(key);
 				return;
 			}
 
@@ -304,6 +374,22 @@ namespace gameboy
 					active_column -= MEM_PER_LINE;
 				}
 			}
+			else if (key == sf::Keyboard::G)
+			{
+				goto_title_text.setString("Goto Address");
+				goto_input_stream.str("");
+				is_goto_prompt = true;
+			}
+			else if (key == sf::Keyboard::Return)
+			{
+				u32 val = (u32)memory_module::read_memory(mem_start + (active_line * MEM_PER_LINE) + active_column, true);
+
+				goto_title_text.setString("Enter Value");
+				goto_input_stream.str("");
+				goto_input_stream << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << val << " ";
+
+				is_mem_prompt = true;
+			}
 
 			if (active_line > MEM_LINE_COUNT - 1)
 			{
@@ -329,13 +415,6 @@ namespace gameboy
 				}
 
 				mem_start = (u16)temp;
-			}
-
-			// handle goto
-			if (key == sf::Keyboard::G)
-			{
-				is_goto_prompt = true;
-				goto_input_stream.str("");
 			}
 		}
 	};

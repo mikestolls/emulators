@@ -229,6 +229,7 @@ namespace gameboy
 			}
 
 			pc_start = addr;
+			active_line = 0;
 		}
 
 		void update_goto_prompt()
@@ -254,6 +255,7 @@ namespace gameboy
 			if (cpu::breakpoint_hit)
 			{
 				pc_start = cpu::R.pc;
+				active_line = 0;
 				cpu::breakpoint_hit = false;
 			}
 
@@ -382,11 +384,17 @@ namespace gameboy
 			}
 			else if (key == sf::Keyboard::Return)
 			{
+				is_goto_prompt = false;
+
+				if (goto_input_stream.str().length() == 0)
+				{
+					return;
+				}
+
 				//get the instruction int
 				u16 addr = (u16)std::stoul(goto_input_stream.str(), nullptr, 16);
 
 				goto_instr(addr);
-				is_goto_prompt = false;
 			}
 			else if (key == sf::Keyboard::Escape)
 			{
@@ -459,9 +467,7 @@ namespace gameboy
 					cpu::breakpoint_disable_one_instr = true;
 				}
 			}
-
-			// handle goto
-			if (key == sf::Keyboard::G)
+			else if (key == sf::Keyboard::G)
 			{
 				is_goto_prompt = true;
 				goto_input_stream.str("");

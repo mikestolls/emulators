@@ -34,6 +34,7 @@ namespace gameboy
 		struct memory_map_object
 		{
 			std::string map_name;
+			u8* memory_ptr;
 			u16 addr_min;
 			u16 addr_max;
 			u8 access;
@@ -43,17 +44,17 @@ namespace gameboy
 		u8 memory[0xFFFF];
 
 		memory_map_object memory_map[MEMORY_COUNT] = {
-			{ "ROM0", 0x0000, 0x3FFF, MEMORY_READABLE },
-			{ "ROM1", 0x4000, 0x7FFF, MEMORY_READABLE },
-			{ "VRAM", 0x8000, 0x9FFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ "ERAM", 0xA000, 0xBFFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ "WRAM", 0xC000, 0xDFFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ "ECHO", 0xE000, 0xFDFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ " OAM", 0xFE00, 0xFE9F, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ " NOT", 0xFEA0, 0xFEFF, 0 },
-			{ " IOR", 0xFF00, 0xFF7F, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ "ZERO", 0xFF80, 0xFFFE, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ "INTF", 0xFFFF, 0xFFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ROM0", &memory[0x0000], 0x0000, 0x3FFF, MEMORY_READABLE },
+			{ "ROM1", &memory[0x4000], 0x4000, 0x7FFF, MEMORY_READABLE },
+			{ "VRAM", &memory[0x8000], 0x8000, 0x9FFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ERAM", &memory[0xA000], 0xA000, 0xBFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "WRAM", &memory[0xC000], 0xC000, 0xDFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ECHO", &memory[0xC000], 0xE000, 0xFDFF, MEMORY_READABLE },
+			{ " OAM", &memory[0xFE00], 0xFE00, 0xFE9F, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ " NOT", &memory[0xFEA0], 0xFEA0, 0xFEFF, 0 },
+			{ " IOR", &memory[0xFF00], 0xFF00, 0xFF7F, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ZERO", &memory[0xFF80], 0xFF80, 0xFFFE, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "INTF", &memory[0xFFFF], 0xFFFF, 0xFFFF, MEMORY_READABLE | MEMORY_WRITABLE },
 		};
 
 		memory_map_object* find_map(u16 addr)
@@ -86,7 +87,7 @@ namespace gameboy
 						}
 					}
 
-					return &memory[addr];
+					return &memory_map[i].memory_ptr[addr - memory_map[i].addr_min];
 				}
 			}
 
@@ -130,7 +131,7 @@ namespace gameboy
 						}
 					}
 
-					return memory[addr];
+					return memory_map[i].memory_ptr[addr - memory_map[i].addr_min];
 				}
 			}
 
@@ -183,7 +184,7 @@ namespace gameboy
 							printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
 							return;
 						}
-
+						
 						if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
 						{
 							printf("Error - writing to memory map that is not writable: 0x%X\n", addr);
@@ -191,8 +192,8 @@ namespace gameboy
 						}
 					}
 
-					warning("NOTE: check if memory is writable");
-					memcpy(&memory[addr], value, size);
+					memcpy(&memory_map[i].memory_ptr[addr - memory_map[i].addr_min], value, size);
+
 					return;
 				}
 			}
