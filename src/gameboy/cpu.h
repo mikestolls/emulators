@@ -728,7 +728,7 @@ namespace gameboy
 			timer_counter = 0;
 			
 			divide_value = memory_module::get_memory(0xFF04);
-			divide_counter = 0;
+			divide_counter = 256;
 
 			paused = false;
 			breakpoint_hit = false;

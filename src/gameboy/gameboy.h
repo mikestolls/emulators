@@ -128,8 +128,6 @@ namespace gameboy
 				cycle_count -= cycles_per_frame;
 			}
 
-			debugger.update();
-
 			window.clear();
 
 			// update the framebuffer
@@ -141,6 +139,8 @@ namespace gameboy
 			// draw debugger if shown
 			if (show_debugger)
 			{
+				debugger.update();
+
 				window.draw(debugger.window_sprite);
 			}
 

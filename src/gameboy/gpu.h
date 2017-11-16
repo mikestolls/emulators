@@ -220,21 +220,15 @@ namespace gameboy
 					tilesetAddr = 0x8000;
 					tilesetOffset = 0;
 				}
-				*scrollY = 0; warning("NOTE: remove this once you've fixed some issues")
-				// check if scanline is below scrollY
-				if (*scanline < *scrollY)
-				{
-					return 0;
-				}
 
-				u32 yPos = *scrollY + *scanline;
+				u8 yPos = *scrollY + *scanline;
 				u32 tileY = (yPos / 8) * 32; // calc tile offset based on yPos. map is 32 tiles wide
 				u8 tileYPixel = yPos % 8; // the row of the specific tile the scanline is on
 
 				// draw the 160 horz pixels
 				for (u32 pixel = 0; pixel < 160; pixel++)
 				{
-					u32 xPos = *scrollX + pixel;
+					u8 xPos = *scrollX + pixel;
 					u32 tileX = xPos / 8; // calc tile offset base on xPos
 					u8 tileXPixel = xPos % 8; // the column of the speific tile to draw
 					s16 tileId = 0;
