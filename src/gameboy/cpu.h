@@ -1623,7 +1623,7 @@ namespace gameboy
 				cpu::breakpoint_hit = true;
 				breakpoint_disable_one_instr = false;
 			}
-
+			
 			// need to point this to mem. small hack for the (HL) register instructons
 			register_single[6] = memory_module::get_memory(R.hl); 
 

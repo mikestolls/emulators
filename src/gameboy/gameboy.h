@@ -59,10 +59,23 @@ namespace gameboy
 		framebuffer_sprite.setTexture(framebuffer_texture);
 		framebuffer_sprite.setScale(pixelSize, pixelSize);
 
+		// fps counter and profiler
+		sf::Font font;
+		font.loadFromFile("courbd.ttf");
+
+		sf::Text fps_text;
+		fps_text.setFont(font);
+		fps_text.setFillColor(sf::Color::White);
+		fps_text.setPosition(10, 10);
+		fps_text.setOutlineColor(sf::Color::Black);
+		fps_text.setOutlineThickness(2);
+		fps_text.setCharacterSize(18);
+
 		debugger debugger;
 		debugger.initialize(window.getSize().x, window.getSize().y);
 		bool show_debugger = false;
-
+		u32 fps = 0;
+		
 		// init cpu and load rom
 		memory_module::initialize(&rom);
 		cpu::initialize();
@@ -106,7 +119,7 @@ namespace gameboy
 					}
 				}
 			}
-
+			
 			while (cycle_count < cycles_per_frame)
 			{
 				// update the cpu emulation
@@ -144,9 +157,16 @@ namespace gameboy
 				window.draw(debugger.window_sprite);
 			}
 
+			// show profliler stats
+			std::stringstream stream;
+			stream << "FPS: " << fps << "\n";
+
+			fps_text.setString(stream.str());
+			window.draw(fps_text);
+
 			// display on windows
 			window.display();
-
+			
 			// limit fps
 			cur_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
 			std::chrono::milliseconds delta = cur_time - last_time;
@@ -155,6 +175,11 @@ namespace gameboy
 			if (delta < min_frame_time)
 			{
 				std::this_thread::sleep_for(min_frame_time - delta);
+			}
+
+			if (delta.count() != 0)
+			{
+				fps = (u32)(1000 / delta.count());
 			}
 
 			last_time = cur_time;

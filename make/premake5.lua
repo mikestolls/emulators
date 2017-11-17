@@ -21,7 +21,7 @@ solution "emulators"
 
     rtti "off"
     exceptionhandling "off"
-
+	
 	configuration "Debug*"
 		defines { "_DEBUG" }
 		-- flags { "FatalWarnings" }
@@ -43,6 +43,11 @@ solution "emulators"
 		targetdir "../build/%{cfg.buildcfg}/%{prj.name}"
 		objdir "../obj/%{cfg.buildcfg}/%{prj.name}"
         kind "ConsoleApp"
+		
+		flags {
+			"NoRuntimeChecks",
+		}
+			
 		files {
             "../src/**.h",
 			"../src/**.cpp",
@@ -95,10 +100,5 @@ solution "emulators"
 		configuration "Win*"
 			defines {
 				"WIN32",
-			}
-			flags {
-				--"StaticRuntime",
-				--"NoMinimalRebuild",
-				--"NoIncrementalLink",
 			}
 			

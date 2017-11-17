@@ -70,7 +70,7 @@ namespace gameboy
 			FLAG_BG_TILEMAP_DISPLAY_SELECT,
 			FLAG_BG_WINDOW_TILE_DISPLAY_SELECT,
 			FLAG_WINDOW_DISPLAY_ENABLED,
-			FLAG_WINDOW_TILE_DISPLAY_SELECT,
+			FLAG_WINDOW_TILEMAP_DISPLAY_SELECT,
 			FLAG_LCD_DISPLAY_ENABLED,
 		};
 
@@ -202,6 +202,11 @@ namespace gameboy
 
 		int draw_scanline()
 		{
+			if (get_lcd_control_flag(FLAG_WINDOW_DISPLAY_ENABLED))
+			{
+				warning_assert("window tilemap not implemented yet");
+			}
+
 			// only doing background. but will need to merge this with window
 			if (get_lcd_control_flag(FLAG_BG_DISPLAY_ENABLED)) 
 			{

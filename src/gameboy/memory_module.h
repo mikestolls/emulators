@@ -41,7 +41,7 @@ namespace gameboy
 		};
 
 		rom* rom_ptr;
-		u8 memory[0xFFFF];
+		u8 memory[0x10000]; // cover memory maps up to index 0xFFFF
 
 		memory_map_object memory_map[MEMORY_COUNT] = {
 			{ "ROM0", &memory[0x0000], 0x0000, 0x3FFF, MEMORY_READABLE },

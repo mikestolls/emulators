@@ -42,10 +42,7 @@ namespace gameboy
 			CATRIDGE_TYPE cartridgeType;
 			ROM_SIZE romSize;
 			RAM_SIZE ramSize;
-			u8 makerCode[2];
 			u8 version;
-			u8 complementCheck;
-			u8 checksum[2];
 		};
 
 
@@ -79,13 +76,10 @@ namespace gameboy
 			memcpy(romheader.entryPoint, &romdata[0x100], sizeof(romheader.entryPoint));
 			memcpy(romheader.nintendoCharacterArea, &romdata[0x104], sizeof(romheader.nintendoCharacterArea));
 			memcpy(romheader.gameTitle, &romdata[0x134], sizeof(romheader.gameTitle));
-			romheader.cartridgeType = (CATRIDGE_TYPE)romdata[0x144];
-			romheader.romSize = (ROM_SIZE)romdata[0x147];
-			romheader.ramSize = (RAM_SIZE)romdata[0x148];
-			memcpy(romheader.makerCode, &romdata[0x149], sizeof(romheader.makerCode));
-			romheader.version = romdata[0x14A];
-			romheader.complementCheck = romdata[0x14C];
-			memcpy(romheader.checksum, &romdata[0x14D], sizeof(romheader.checksum));
+			romheader.cartridgeType = (CATRIDGE_TYPE)romdata[0x147];
+			romheader.romSize = (ROM_SIZE)romdata[0x148];
+			romheader.ramSize = (RAM_SIZE)romdata[0x149];
+			romheader.version = romdata[0x14C];
 		}
 
 		rom()
