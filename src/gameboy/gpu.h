@@ -19,6 +19,7 @@ namespace gameboy
 		u8* windowX = 0;
 		u8* windowY = 0;
 		u8* palette_bg = 0;
+		u8* sprite_attr = 0;
 
 		const u8 width = 160;
 		const u8 height = 144;
@@ -126,6 +127,33 @@ namespace gameboy
 			FLAG_COINCIDENCE
 		};
 
+		// get sprite attributes
+		inline u8 get_sprite_attribute(u8 attribute, u8 flag)
+		{
+			return ((attribute & (1 << flag)) >> flag);
+		}
+		
+		//Bit 0 - Not Used
+		//Bit 1 - Not Used
+		//Bit 2 - Not Used
+		//Bit 3 - Not Used
+		//Bit 4 - Palette Number (0 = 0xFF48, 1 = 0xFF49)
+		//Bit 5 - X Flip (0 = None, 1 = Horizontal Flip)
+		//Bit 6 - Y Flip (0 = None, 1 = Vertical Flip)
+		//Bit 7 - Sprite to Background Priority
+
+		enum SPRITE_ATTRIBUTE_FLAGS
+		{
+			FLAG_BIT_0 = 0,
+			FLAG_BIT_1,
+			FLAG_BIT_2,
+			FLAG_BIT_3,
+			FLAG_SPRITE_PALETTE,
+			FLAG_SPRITE_FLIP_X,
+			FLAG_SPRITE_FLIP_Y,
+			FLAG_SPRITE_PRIORITY,
+		};
+
 		int reset()
 		{
 			horz_cycle_count = horz_cycles;
@@ -137,15 +165,16 @@ namespace gameboy
 		int initialize()
 		{
 			// setup memory ptrs
-			scanline = memory_module::get_memory(0xFF44);
-			coincidence_scanline = memory_module::get_memory(0xFF45);
-			lcd_control = memory_module::get_memory(0xFF40);
-			lcd_status = memory_module::get_memory(0xFF41);
-			scrollY = memory_module::get_memory(0xFF42);
-			scrollX = memory_module::get_memory(0xFF43);
-			windowY = memory_module::get_memory(0xFF4A);
-			windowX = memory_module::get_memory(0xFF4B);
-			palette_bg = memory_module::get_memory(0xFF47);
+			scanline = memory_module::get_memory(0xFF44, true);
+			coincidence_scanline = memory_module::get_memory(0xFF45, true);
+			lcd_control = memory_module::get_memory(0xFF40, true);
+			lcd_status = memory_module::get_memory(0xFF41, true);
+			scrollY = memory_module::get_memory(0xFF42, true);
+			scrollX = memory_module::get_memory(0xFF43, true);
+			windowY = memory_module::get_memory(0xFF4A, true);
+			windowX = memory_module::get_memory(0xFF4B, true);
+			palette_bg = memory_module::get_memory(0xFF47, true);
+			sprite_attr = memory_module::get_memory(0xFE00, true);
 			
 			reset();
 
@@ -268,6 +297,63 @@ namespace gameboy
 			return 0;
 		}
 
+		int draw_sprites()
+		{
+			u8 spriteHeight = (get_lcd_control_flag(FLAG_OBJ_SIZE) == 0 ? 8 : 16);
+			u8* spritePtr = sprite_attr;
+			u8 sprite_count = 0;
+			s32 tileSize = 16; // each tile is 16 bytes. 2 x 8 rows of a tile
+
+			while (sprite_count < 40) // oam has room for 40 sprites with 4 bytes attr each sprite
+			{
+				sprite_count++;
+				u8 yPos = *(spritePtr++) - 16;
+				u8 xPos = *(spritePtr++) - 8;
+				u8 tileId = *(spritePtr++);
+				u8 attr = *(spritePtr++);
+
+				// check if scnaline within y_min y_max
+				if (*scanline >= yPos && *scanline <= yPos + spriteHeight)
+				{
+					s16 tileY = *scanline - yPos;
+
+					if (get_sprite_attribute(attr, FLAG_SPRITE_FLIP_Y))
+					{
+						tileY -= spriteHeight;
+						tileY *= -1;
+					}
+
+					u8* tileset = memory_module::get_memory(0x8000 + (tileId * tileSize) + (tileY * 2));
+					u8 dataA = tileset[0];
+					u8 dataB = tileset[1];
+
+					// render the 8 pixels of the tiles scanline
+					for (u8 pixel = 0; pixel < 8; pixel++)
+					{
+						u8 bit = pixel;
+
+						if (get_sprite_attribute(attr, FLAG_SPRITE_FLIP_X))
+						{
+							bit -= 7;
+							bit *= -1;
+						}
+
+						u8 palette_color = ((dataA & (1 << bit)) >> bit) | (((dataB & (1 << bit)) >> bit) << 1);
+
+						u32 color = gpu::get_palette_color(palette_color);
+
+						u32 pixelPos = ((*scanline) * 160 + yPos + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
+						framebuffer[pixelPos++] = (color >> 24) & 0xFF;
+						framebuffer[pixelPos++] = (color >> 16) & 0xFF;
+						framebuffer[pixelPos++] = (color >> 8) & 0xFF;
+						framebuffer[pixelPos++] = 0xFF;
+					}
+				}
+			}
+
+			return 0;
+		}
+
 		int update_lcd_status()
 		{
 			// handle the new lcd status mode
@@ -348,6 +434,7 @@ namespace gameboy
 				{
 					// draw the scan line
 					draw_scanline();
+					draw_sprites();
 				}
 				else if (*scanline == 144)
 				{
