@@ -163,6 +163,11 @@ namespace gameboy
 
 		u16 find_prev_instr(u16 pc)
 		{
+			if (pc == 0x0)
+			{
+				return 0x0;
+			}
+
 			 // try to find pc in our list
 			auto itr = std::find(program_addr.begin(), program_addr.end(), pc);
 
@@ -180,6 +185,7 @@ namespace gameboy
 
 				// return the previous
 				itr = std::find(program_addr.begin(), program_addr.end(), pc); // optmize this
+
 				return *(itr - 1);
 			}
 			else if (*itr == 0x0) // start of program
