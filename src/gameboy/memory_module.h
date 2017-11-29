@@ -245,8 +245,14 @@ namespace gameboy
 
 			// NOTE: writing to 1 to 0xFF50 unmaps boot rom
 
-			// memcpy rom data
-			memcpy(memory, rom_ptr->romdata, rom_ptr->romsize);
+			// memcpy static rom bank
+			u64 size = memory_map[MEMORY_CARTRIDGE_ROM].addr_max - 1;
+			if (rom_ptr->romsize < size)
+			{
+				size = rom_ptr->romsize;
+			}
+
+			memcpy(memory, rom_ptr->romdata, size);
 
 			return 0;
 		}

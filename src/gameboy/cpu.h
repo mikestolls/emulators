@@ -123,7 +123,7 @@ namespace gameboy
 		// register pointers used by decoder
 		u16* register_pairs[] = { &R.bc, &R.de, &R.hl, &R.sp };
 		u16* register_pairs2[] = { &R.bc, &R.de, &R.hl, &R.af };
-		u8* register_single[] = { &R.b, &R.c, &R.d, &R.e, &R.h, &R.l, /*memory_module::get_memory(R.hl)*/ 0, &R.a };
+		u8* register_single[] = { &R.b, &R.c, &R.d, &R.e, &R.h, &R.l, 0, &R.a };
 		
 		// stack functions
 		inline void push_sp_to_stack(u16 addr)
