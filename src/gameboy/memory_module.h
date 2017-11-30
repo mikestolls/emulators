@@ -254,7 +254,7 @@ namespace gameboy
 #endif
 			
 			// memcpy static rom bank
-			u64 size = memory_map[MEMORY_CARTRIDGE_ROM + 1].addr_max - 1;
+			u64 size = memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].addr_max - 1;
 			if (rom_ptr->romsize < size)
 			{
 				size = rom_ptr->romsize;
