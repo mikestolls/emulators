@@ -5,6 +5,7 @@
 #include "cpu.h"
 #include "gpu.h"
 #include "rom.h"
+#include "boot_rom.h"
 #include "debugger.h"
 #include "disassembler.h"
 
@@ -32,7 +33,7 @@ namespace gameboy
 			if (strcmp("-d", argv[1]) == 0)
 			{
 				rom rom(filename.c_str());
-				memory_module::initialize(&rom);
+				memory_module::initialize(nullptr, &rom);
 
 				// export disassembler to file and close
 				std::string outfilename = rom.filename.substr(0, rom.filename.rfind("."));
@@ -50,6 +51,9 @@ namespace gameboy
 
 		// load and run the rom
 		rom rom(filename.c_str());
+
+		// load the boot rom file
+		boot_rom boot("gameboy\\boot.gb");
 
 		// init sfml
 		sf::RenderWindow window(sf::VideoMode(gpu::width * pixelSize, gpu::height * pixelSize), "Emulator");
@@ -77,7 +81,7 @@ namespace gameboy
 		u32 fps = 0;
 		
 		// init cpu and load rom
-		memory_module::initialize(&rom);
+		memory_module::initialize(&boot, &rom);
 		cpu::initialize();
 		gpu::initialize();
 

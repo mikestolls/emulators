@@ -85,7 +85,7 @@ namespace gameboy
 
 		inline u8 get_lcd_status_mode()
 		{
-			return *lcd_status &= 0x3;
+			return *lcd_status & 0x3;
 		}
 		
 		enum LCD_STATUS_MODES
@@ -116,7 +116,7 @@ namespace gameboy
 
 		inline void clear_all_lcd_interrupt_flags()
 		{
-			*lcd_status &= ~0x78; // take all but bits 3, 4, 5, 6
+			*lcd_status &= 0x87; // take all but bits 3, 4, 5, 6
 		}
 
 		enum LCD_INTERRUPT_FLAGS
@@ -158,6 +158,8 @@ namespace gameboy
 		{
 			horz_cycle_count = horz_cycles;
 			memset(framebuffer, 0x0, sizeof(framebuffer));
+
+			*lcd_status = 0x80; // setting bit 7 that is not used
 
 			return 0;
 		}
@@ -392,7 +394,7 @@ namespace gameboy
 				}
 			}
 
-			if (*lcd_status != new_lcd_mode)
+			if (get_lcd_status_mode() != new_lcd_mode)
 			{
 				if (req_lcd_interrupt)
 				{
@@ -401,7 +403,7 @@ namespace gameboy
 				}
 
 				// set the new mode
-				*lcd_status = new_lcd_mode;
+				set_lcd_status_mode(new_lcd_mode);
 			}
 
 			// check coincidence interrupt. scanline == coincidence scanline
@@ -456,18 +458,19 @@ namespace gameboy
 
 		int update(u8 cycles)
 		{
+			update_lcd_status();
+
 			if (get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED) == 0)
 			{
 				// lcd not enabled. reset scanline and horz cycle count. lcd mode set to 1 (VBlank)
 				*scanline = 0;
 				horz_cycle_count = 0;
-				set_lcd_status_mode(MODE_VBLANK);
+				//set_lcd_status_mode(MODE_VBLANK);
 				return 0;
 			}
 
 			horz_cycle_count -= cycles; // dec the horz cycles
 
-			update_lcd_status();
 			update_scanline();
 
 			return 0;

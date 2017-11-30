@@ -2,6 +2,7 @@
 
 #include "defines.h"
 #include "rom.h"
+#include "boot_rom.h"
 
 namespace gameboy
 {
@@ -41,6 +42,7 @@ namespace gameboy
 		};
 
 		rom* rom_ptr;
+		boot_rom* boot_ptr;
 		u8 memory[0x10000]; // cover memory maps up to index 0xFFFF
 
 		memory_map_object memory_map[MEMORY_COUNT] = {
@@ -111,7 +113,7 @@ namespace gameboy
 				{
 					if (!force)
 					{
-						u8 mode = memory[0xFF41] &= 0x3; // lcd_status
+						u8 mode = memory[0xFF41] & 0x3; // lcd_status
 						if (i == MEMORY_VRAM && mode > 2)
 						{
 							printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
@@ -164,6 +166,12 @@ namespace gameboy
 				memcpy(&memory[addr], value, size);
 				return;
 			}
+			else if (addr == 0xFF50)
+			{
+				// unload the boot rom
+				memcpy(memory, rom_ptr->romdata, 0x100);
+				return;
+			}
 
 			// loop though memory map
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
@@ -172,7 +180,7 @@ namespace gameboy
 				{
 					if (!force)
 					{
-						u8 mode = memory[0xFF41] &= 0x3; // lcd_status
+						u8 mode = memory[0xFF41] & 0x3; // lcd_status
 						if (i == MEMORY_VRAM && mode > 2)
 						{
 							printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
@@ -211,6 +219,7 @@ namespace gameboy
 		{
 			memset(memory, 0x0, sizeof(memory));
 
+#ifdef NO_BOOTROM
 			write_memory(0xFF05, 0x00); // TIMA
 			write_memory(0xFF06, 0x00); // TMA
 			write_memory(0xFF07, 0x00); // TMC
@@ -242,11 +251,10 @@ namespace gameboy
 			write_memory(0xFF4A, 0x00); // WY
 			write_memory(0xFF4B, 0x00); // WX
 			write_memory(0xFFFF, 0x00); // IE
-
-			// NOTE: writing to 1 to 0xFF50 unmaps boot rom
-
+#endif
+			
 			// memcpy static rom bank
-			u64 size = memory_map[MEMORY_CARTRIDGE_ROM].addr_max - 1;
+			u64 size = memory_map[MEMORY_CARTRIDGE_ROM + 1].addr_max - 1;
 			if (rom_ptr->romsize < size)
 			{
 				size = rom_ptr->romsize;
@@ -254,13 +262,20 @@ namespace gameboy
 
 			memcpy(memory, rom_ptr->romdata, size);
 
+			// copy boot rom
+			if (boot_ptr)
+			{
+				memcpy(memory, boot_ptr->romdata, 0x100);
+			}
+
 			return 0;
 		}
 
-		int initialize(rom* rom)
+		int initialize(boot_rom* boot, rom* rom)
 		{
 			assert(rom->romsize - 1 <= memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].addr_max);
 
+			boot_ptr = boot;
 			rom_ptr = rom;
 
 			reset();

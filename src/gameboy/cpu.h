@@ -706,7 +706,15 @@ namespace gameboy
 		int reset()
 		{
 			memset(&R, 0x0, sizeof(R)); // init registers to 0
+			
+			R.af = 0x0000;
+			R.bc = 0x0000;
+			R.de = 0x0000;
+			R.hl = 0x0000;
+			R.pc = 0x0000;
+			R.sp = 0x0000;
 
+#ifdef NO_BOOTROM
 			R.af = 0x01B0;
 			R.bc = 0x0013;
 			R.de = 0x00D8;
@@ -714,6 +722,7 @@ namespace gameboy
 
 			R.pc = 0x0100; // starting entry point of the ROM
 			R.sp = 0xFFFE;
+#endif
 
 			memory_module::reset();
 
