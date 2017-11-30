@@ -714,15 +714,16 @@ namespace gameboy
 			R.pc = 0x0000;
 			R.sp = 0x0000;
 
-#ifdef NO_BOOTROM
-			R.af = 0x01B0;
-			R.bc = 0x0013;
-			R.de = 0x00D8;
-			R.hl = 0x014D;
+			if (!memory_module::boot_ptr)
+			{
+				R.af = 0x01B0;
+				R.bc = 0x0013;
+				R.de = 0x00D8;
+				R.hl = 0x014D;
 
-			R.pc = 0x0100; // starting entry point of the ROM
-			R.sp = 0xFFFE;
-#endif
+				R.pc = 0x0100; // starting entry point of the ROM
+				R.sp = 0xFFFE;
+			}
 
 			memory_module::reset();
 
