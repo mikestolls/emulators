@@ -4,7 +4,7 @@
 #include "rom.h"
 #include "boot_rom.h"
 
-#include "mbc_none.h"
+#include "mbc_base.h"
 
 namespace gameboy
 {
@@ -37,7 +37,7 @@ namespace gameboy
 		struct memory_map_object
 		{
 			std::string map_name;
-			u8* memory_ptr;
+			u8** memory_ptr;
 			u16 addr_min;
 			u16 addr_max;
 			u8 access;
@@ -90,7 +90,7 @@ namespace gameboy
 						}
 					}
 
-					return &memory_map[i].memory_ptr[addr - memory_map[i].addr_min];
+					return &(*memory_map[i].memory_ptr)[addr - memory_map[i].addr_min];
 				}
 			}
 
@@ -134,7 +134,7 @@ namespace gameboy
 						}
 					}
 
-					return memory_map[i].memory_ptr[addr - memory_map[i].addr_min];
+					return (*memory_map[i].memory_ptr)[addr - memory_map[i].addr_min];
 				}
 			}
 
@@ -201,7 +201,7 @@ namespace gameboy
 						}
 					}
 
-					memcpy(&memory_map[i].memory_ptr[addr - memory_map[i].addr_min], value, size);
+					memcpy(&(*memory_map[i].memory_ptr)[addr - memory_map[i].addr_min], value, size);
 
 					return;
 				}
@@ -218,26 +218,19 @@ namespace gameboy
 
 		int reset()
 		{
-			memory_map[MEMORY_CARTRIDGE_ROM].memory_ptr = &rom_ptr->memory_bank_controller->memory[0x0000];
-			memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].memory_ptr = rom_ptr->memory_bank_controller->get_switchable_rom_bank();
-			memory_map[MEMORY_VRAM].memory_ptr = &rom_ptr->memory_bank_controller->memory[0x8000];
-			memory_map[MEMORY_EXTERNAL_RAM].memory_ptr = rom_ptr->memory_bank_controller->get_external_ram_bank();
-			memory_map[MEMORY_WORKING_RAM].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xC000];
-			memory_map[MEMORY_ECHO_RAM].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xC000];
-			memory_map[MEMORY_OAM].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xFE00];
-			memory_map[MEMORY_NOTUSED].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xFEA0];
-			memory_map[MEMORY_IO_REGISTERS].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xFF00];
-			memory_map[MEMORY_ZERO_PAGE].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xFF80];
-			memory_map[MEMORY_INTERRUPT_FLAG].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xFFFF];
+			rom_ptr->memory_bank_controller->initialize(rom_ptr->romheader.romSize, rom_ptr->romheader.ramSize, rom_ptr->romdata, (u64)rom_ptr->romsize);
 
-			// memcpy static rom bank
-			u64 size = memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].addr_max - 1;
-			if (rom_ptr->romsize < size)
-			{
-				size = rom_ptr->romsize;
-			}
-
-			memcpy(rom_ptr->memory_bank_controller->memory, rom_ptr->romdata, size);
+			memory_map[MEMORY_CARTRIDGE_ROM].memory_ptr = &rom_ptr->memory_bank_controller->memory_rom;
+			memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].memory_ptr = &rom_ptr->memory_bank_controller->memory_switchable_rom;
+			memory_map[MEMORY_VRAM].memory_ptr = &rom_ptr->memory_bank_controller->memory_vram;
+			memory_map[MEMORY_EXTERNAL_RAM].memory_ptr = &rom_ptr->memory_bank_controller->memory_external_ram;
+			memory_map[MEMORY_WORKING_RAM].memory_ptr = &rom_ptr->memory_bank_controller->memory_working_ram;
+			memory_map[MEMORY_ECHO_RAM].memory_ptr = &rom_ptr->memory_bank_controller->memory_working_ram;
+			memory_map[MEMORY_OAM].memory_ptr = &rom_ptr->memory_bank_controller->memory_oam;
+			memory_map[MEMORY_NOTUSED].memory_ptr = nullptr;
+			memory_map[MEMORY_IO_REGISTERS].memory_ptr = &rom_ptr->memory_bank_controller->memory_io_registers;
+			memory_map[MEMORY_ZERO_PAGE].memory_ptr = &rom_ptr->memory_bank_controller->memory_zero_page;
+			memory_map[MEMORY_INTERRUPT_FLAG].memory_ptr = &rom_ptr->memory_bank_controller->memory_interrupt_flag;
 
 			// copy boot rom
 			if (boot_ptr)
@@ -285,8 +278,6 @@ namespace gameboy
 
 		int initialize(boot_rom* boot, rom* rom)
 		{
-			assert(rom->romsize - 1 <= memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].addr_max);
-
 			boot_ptr = boot;
 			rom_ptr = rom;
 

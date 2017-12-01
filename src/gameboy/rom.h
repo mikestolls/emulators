@@ -2,40 +2,13 @@
 
 #include "defines.h"
 
-#include "mbc_none.h"
+#include "mbc_base.h"
+#include "mbc_mbc1.h"
 
 namespace gameboy
 {
 	struct rom
 	{
-		enum CATRIDGE_TYPE
-		{
-			ROM_ONLY = 0,
-			ROM_MBC1,
-			ROM_MBC1_RAM,
-			ROM_MBC1_RAM_BATTERY,
-			ROM_MBC2,
-			ROM_MBC2_BATTERY,
-		};
-
-		enum ROM_SIZE
-		{
-			ROM_256KB = 0,
-			ROM_512KB,
-			ROM_1MB,
-			ROM_2MB,
-			ROM_4MB,
-		};
-
-		enum RAM_SIZE
-		{
-			RAM_NONE = 0,
-			RAM_16KB,
-			RAM_64KB,
-			RAM_256KB,
-		};
-
-
 		struct rom_header
 		{
 			u8 entryPoint[4];
@@ -52,7 +25,7 @@ namespace gameboy
 		u64 romsize;
 		std::string filename;
 		rom_header romheader;
-		mbc_none* memory_bank_controller;
+		mbc_base* memory_bank_controller;
 
 		void open(const char* path)
 		{
@@ -87,12 +60,19 @@ namespace gameboy
 			switch (romheader.cartridgeType)
 			{
 			case ROM_ONLY:
-				memory_bank_controller = new mbc_none();
+				memory_bank_controller = new mbc_base();
+				break;
+			case ROM_MBC1:
+			case ROM_MBC1_RAM:
+			case ROM_MBC1_RAM_BATTERY:
+				memory_bank_controller = new mbc_mbc1();
 				break;
 			default:
 				warning_assert("memory bank controller not supported yet");
 				break;
 			}
+
+			memory_bank_controller->initialize(romheader.romSize, romheader.ramSize, romdata, (u64)size);
 		}
 
 		rom()
