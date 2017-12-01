@@ -158,9 +158,7 @@ namespace gameboy
 		{
 			horz_cycle_count = horz_cycles;
 			memset(framebuffer, 0x0, sizeof(framebuffer));
-
-			*lcd_status = 0x80; // setting bit 7 that is not used
-
+			
 			return 0;
 		}
 
@@ -458,6 +456,12 @@ namespace gameboy
 
 		int update(u8 cycles)
 		{
+			if (!cpu::running || cpu::halt || cpu::paused)
+			{
+				// processor is stopped
+				return 0;
+			}
+
 			update_lcd_status();
 
 			if (get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED) == 0)
@@ -465,7 +469,7 @@ namespace gameboy
 				// lcd not enabled. reset scanline and horz cycle count. lcd mode set to 1 (VBlank)
 				*scanline = 0;
 				horz_cycle_count = 0;
-				//set_lcd_status_mode(MODE_VBLANK);
+				set_lcd_status_mode(MODE_VBLANK);
 				return 0;
 			}
 

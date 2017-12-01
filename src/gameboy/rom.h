@@ -2,6 +2,8 @@
 
 #include "defines.h"
 
+#include "mbc_none.h"
+
 namespace gameboy
 {
 	struct rom
@@ -50,6 +52,7 @@ namespace gameboy
 		u64 romsize;
 		std::string filename;
 		rom_header romheader;
+		mbc_none* memory_bank_controller;
 
 		void open(const char* path)
 		{
@@ -80,6 +83,16 @@ namespace gameboy
 			romheader.romSize = (ROM_SIZE)romdata[0x148];
 			romheader.ramSize = (RAM_SIZE)romdata[0x149];
 			romheader.version = romdata[0x14C];
+
+			switch (romheader.cartridgeType)
+			{
+			case ROM_ONLY:
+				memory_bank_controller = new mbc_none();
+				break;
+			default:
+				warning_assert("memory bank controller not supported yet");
+				break;
+			}
 		}
 
 		rom()
@@ -101,6 +114,8 @@ namespace gameboy
 			{
 				delete[] romdata;
 			}
+
+			delete memory_bank_controller;
 		}
 	};
 }

@@ -4,6 +4,8 @@
 #include "rom.h"
 #include "boot_rom.h"
 
+#include "mbc_none.h"
+
 namespace gameboy
 {
 	namespace cpu
@@ -43,20 +45,19 @@ namespace gameboy
 
 		rom* rom_ptr;
 		boot_rom* boot_ptr;
-		u8 memory[0x10000]; // cover memory maps up to index 0xFFFF
 
 		memory_map_object memory_map[MEMORY_COUNT] = {
-			{ "ROM0", &memory[0x0000], 0x0000, 0x3FFF, MEMORY_READABLE },
-			{ "ROM1", &memory[0x4000], 0x4000, 0x7FFF, MEMORY_READABLE },
-			{ "VRAM", &memory[0x8000], 0x8000, 0x9FFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ "ERAM", &memory[0xA000], 0xA000, 0xBFFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ "WRAM", &memory[0xC000], 0xC000, 0xDFFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ "ECHO", &memory[0xC000], 0xE000, 0xFDFF, MEMORY_READABLE },
-			{ " OAM", &memory[0xFE00], 0xFE00, 0xFE9F, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ " NOT", &memory[0xFEA0], 0xFEA0, 0xFEFF, 0 },
-			{ " IOR", &memory[0xFF00], 0xFF00, 0xFF7F, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ "ZERO", &memory[0xFF80], 0xFF80, 0xFFFE, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ "INTF", &memory[0xFFFF], 0xFFFF, 0xFFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ROM0", nullptr, 0x0000, 0x3FFF, MEMORY_READABLE },
+			{ "ROM1", nullptr, 0x4000, 0x7FFF, MEMORY_READABLE },
+			{ "VRAM", nullptr, 0x8000, 0x9FFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ERAM", nullptr, 0xA000, 0xBFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "WRAM", nullptr, 0xC000, 0xDFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ECHO", nullptr, 0xE000, 0xFDFF, MEMORY_READABLE },
+			{ " OAM", nullptr, 0xFE00, 0xFE9F, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ " NOT", nullptr, 0xFEA0, 0xFEFF, 0 },
+			{ " IOR", nullptr, 0xFF00, 0xFF7F, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ZERO", nullptr, 0xFF80, 0xFFFE, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "INTF", nullptr, 0xFFFF, 0xFFFF, MEMORY_READABLE | MEMORY_WRITABLE },
 		};
 
 		memory_map_object* find_map(u16 addr)
@@ -101,7 +102,7 @@ namespace gameboy
 		{
 			if (addr == 0xFF00) // special case for joystick register
 			{
-				u8 val = memory[0xFF00]; // bits 4 and 5 decide which joystick bits to return (0 - 3)
+				u8 val = rom_ptr->memory_bank_controller->memory[0xFF00]; // bits 4 and 5 decide which joystick bits to return (0 - 3)
 				val |= 0xF; // for now all input is off
 				return val;
 			}
@@ -113,7 +114,7 @@ namespace gameboy
 				{
 					if (!force)
 					{
-						u8 mode = memory[0xFF41] & 0x3; // lcd_status
+						u8 mode = rom_ptr->memory_bank_controller->memory[0xFF41] & 0x3; // lcd_status
 						if (i == MEMORY_VRAM && mode > 2)
 						{
 							printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
@@ -145,31 +146,31 @@ namespace gameboy
 		{
 			if (addr == 0xFF44) // current scanline. if anyone tries to write to this value we reset to 0
 			{
-				memory[addr] = 0x0;
+				rom_ptr->memory_bank_controller->memory[addr] = 0x0;
 				return;
 			}
 			else if (addr == 0xFF04) // divide register is reset if someone tries to write to it
 			{
-				memory[addr] = 0x0;
+				rom_ptr->memory_bank_controller->memory[addr] = 0x0;
 				return;
 			}
 			else if (addr == 0xFF07) // timer controller. check if frequency has changed and reset timer if so
 			{
-				u8 timer_controller = memory[addr];
+				u8 timer_controller = rom_ptr->memory_bank_controller->memory[addr];
 
 				if ((timer_controller & 0x3) != (*value & 0x3)) // not equal
 				{
-					memory[0xFF05] = 0x0; // reset timer
+					rom_ptr->memory_bank_controller->memory[0xFF05] = 0x0; // reset timer
 					cpu::reset_timer_counter();
 				}
 
-				memcpy(&memory[addr], value, size);
+				memcpy(&rom_ptr->memory_bank_controller->memory[addr], value, size);
 				return;
 			}
 			else if (addr == 0xFF50)
 			{
 				// unload the boot rom
-				memcpy(memory, rom_ptr->romdata, 0x100);
+				memcpy(rom_ptr->memory_bank_controller->memory, rom_ptr->romdata, 0x100);
 				return;
 			}
 
@@ -180,7 +181,7 @@ namespace gameboy
 				{
 					if (!force)
 					{
-						u8 mode = memory[0xFF41] & 0x3; // lcd_status
+						u8 mode = rom_ptr->memory_bank_controller->memory[0xFF41] & 0x3; // lcd_status
 						if (i == MEMORY_VRAM && mode > 2)
 						{
 							printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
@@ -217,8 +218,18 @@ namespace gameboy
 
 		int reset()
 		{
-			memset(memory, 0x0, sizeof(memory));
-						
+			memory_map[MEMORY_CARTRIDGE_ROM].memory_ptr = &rom_ptr->memory_bank_controller->memory[0x0000];
+			memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].memory_ptr = rom_ptr->memory_bank_controller->get_switchable_rom_bank();
+			memory_map[MEMORY_VRAM].memory_ptr = &rom_ptr->memory_bank_controller->memory[0x8000];
+			memory_map[MEMORY_EXTERNAL_RAM].memory_ptr = rom_ptr->memory_bank_controller->get_external_ram_bank();
+			memory_map[MEMORY_WORKING_RAM].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xC000];
+			memory_map[MEMORY_ECHO_RAM].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xC000];
+			memory_map[MEMORY_OAM].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xFE00];
+			memory_map[MEMORY_NOTUSED].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xFEA0];
+			memory_map[MEMORY_IO_REGISTERS].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xFF00];
+			memory_map[MEMORY_ZERO_PAGE].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xFF80];
+			memory_map[MEMORY_INTERRUPT_FLAG].memory_ptr = &rom_ptr->memory_bank_controller->memory[0xFFFF];
+
 			// memcpy static rom bank
 			u64 size = memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].addr_max - 1;
 			if (rom_ptr->romsize < size)
@@ -226,12 +237,12 @@ namespace gameboy
 				size = rom_ptr->romsize;
 			}
 
-			memcpy(memory, rom_ptr->romdata, size);
+			memcpy(rom_ptr->memory_bank_controller->memory, rom_ptr->romdata, size);
 
 			// copy boot rom
 			if (boot_ptr)
 			{
-				memcpy(memory, boot_ptr->romdata, 0x100);
+				memcpy(rom_ptr->memory_bank_controller->memory, boot_ptr->romdata, 0x100);
 			}
 			else
 			{
