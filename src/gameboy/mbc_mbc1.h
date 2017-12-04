@@ -49,7 +49,7 @@ namespace gameboy
 			mode_select = MODE_ROM_BANK;
 			rom_bank_idx = 0x0;
 			memory_rom = rom_banks[0];
-			memory_switchable_rom = rom_banks[rom_bank_idx];
+			memory_switchable_rom = rom_banks[0x1];
 
 			// based on the ram setting. create external ram banks
 			switch (ramsize)
