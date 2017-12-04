@@ -60,6 +60,11 @@ namespace gameboy
 			{ "INTF", nullptr, 0xFFFF, 0xFFFF, MEMORY_READABLE | MEMORY_WRITABLE },
 		};
 
+		void enable_external_ram(bool enable)
+		{
+			memory_map[MEMORY_EXTERNAL_RAM].access = (enable ? MEMORY_READABLE | MEMORY_WRITABLE : 0);
+		}
+
 		memory_map_object* find_map(u16 addr)
 		{
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
@@ -144,6 +149,8 @@ namespace gameboy
 
 		void write_memory(const u16 addr, const u8* value, const u8 size, bool force = false)
 		{
+			rom_ptr->memory_bank_controller->write_memory(addr, *value);
+
 			if (addr == 0xFF44) // current scanline. if anyone tries to write to this value we reset to 0
 			{
 				rom_ptr->memory_bank_controller->memory[addr] = 0x0;

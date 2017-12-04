@@ -29,9 +29,9 @@ namespace gameboy
 	enum RAM_SIZE
 	{
 		RAM_NONE = 0,
-		RAM_16KB,
-		RAM_64KB,
-		RAM_256KB,
+		RAM_2KB,
+		RAM_8KB,
+		RAM_32KB,
 	};
 
 	struct mbc_base
@@ -59,6 +59,11 @@ namespace gameboy
 			
 			memcpy(memory, romdata, datasize);
 
+			return 0;
+		}
+
+		virtual int write_memory(u16 addr, u8 value)
+		{
 			return 0;
 		}
 
