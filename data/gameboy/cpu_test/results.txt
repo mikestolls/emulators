@@ -11,4 +11,5 @@
 11 - passed
 cpu_instrs - failed
 instr_timing - failed
-mem_timing - failed
+interrupt_time - failed
+mem_timing - passed
