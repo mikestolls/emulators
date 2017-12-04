@@ -104,7 +104,7 @@ namespace gameboy
 					case 0x7:
 						// JR conditions[y - 4], d - relative jump
 						sym.mnemonic = "JR";
-						operand_stream << condition_function_str[y - 4] << ", " << (s32)((s8)readpc_u8());
+						operand_stream << condition_function_str[y - 4] << ", " << WRITE_HEX_8((s32)((s8)readpc_u8()));
 						sym.operands = operand_stream.str();
 						break;
 					}
@@ -117,7 +117,7 @@ namespace gameboy
 					case 0x0:
 						// LD register_pairs[p] with nn
 						sym.mnemonic = "LD";
-						operand_stream << register_pairs_str[p] << ", " << readpc_u16();
+						operand_stream << register_pairs_str[p] << ", " << WRITE_HEX_16(readpc_u16());
 						sym.operands = operand_stream.str();
 						break;
 					case 0x1:

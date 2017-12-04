@@ -33,9 +33,6 @@ namespace gameboy
 
 			// copy in the static rom bank
 			u8* rom_ptr = romdata;
-			memcpy(memory, romdata, banksize);
-
-			rom_ptr += banksize;
 
 			// based on the size, create and copy the rom banks
 			u64 num_banks = datasize / banksize;
@@ -51,6 +48,7 @@ namespace gameboy
 			// point rom to default bank
 			mode_select = MODE_ROM_BANK;
 			rom_bank_idx = 0x0;
+			memory_rom = rom_banks[0];
 			memory_switchable_rom = rom_banks[rom_bank_idx];
 
 			// based on the ram setting. create external ram banks
