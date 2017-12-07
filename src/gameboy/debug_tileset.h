@@ -26,7 +26,7 @@ namespace gameboy
 			tileset_sprite.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
 			tileset_sprite.setScale(2, 2);
 			
-			title_text.setString("Tileset");
+			title_text.setString("Tileset: 8000");
 
 			bottom_text.setString("(Left / Right) Change Tileset");
 
@@ -102,6 +102,18 @@ namespace gameboy
 			if (key == sf::Keyboard::Left || key == sf::Keyboard::Right)
 			{
 				tileset_index ^= 1;
+
+				std::string title_str = "Tileset: ";
+				if (tileset_index)
+				{
+					title_str.append("0x8800");
+				}
+				else
+				{
+					title_str.append("0x8000");
+				}
+
+				title_text.setString(title_str);
 			}
 		}
 	};

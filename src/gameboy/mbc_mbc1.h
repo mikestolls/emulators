@@ -27,7 +27,7 @@ namespace gameboy
 
 		int initialize(ROM_SIZE romsize, RAM_SIZE ramsize, u8* romdata, u64 datasize)
 		{
-			memset(memory, 0x0, sizeof(memory));
+			reset();
 
 			u32 banksize = 0x4000;
 
@@ -76,6 +76,27 @@ namespace gameboy
 				ram_bank_idx = 0x0;
 				memory_external_ram = ram_banks[ram_bank_idx];
 				break;
+			}
+
+			return 0;
+		}
+
+		int reset()
+		{
+			mbc_base::reset();
+
+			while (!rom_banks.empty())
+			{
+				u8* temp = rom_banks.back();
+				rom_banks.pop_back();
+				delete[] temp;
+			}
+
+			while (!ram_banks.empty())
+			{
+				u8* temp = ram_banks.back();
+				ram_banks.pop_back();
+				delete[] temp;
 			}
 
 			return 0;
@@ -156,19 +177,7 @@ namespace gameboy
 
 		~mbc_mbc1()
 		{
-			while (!rom_banks.empty())
-			{
-				u8* temp = rom_banks.back();
-				rom_banks.pop_back();
-				delete[] temp;
-			}
-
-			while (!ram_banks.empty())
-			{
-				u8* temp = ram_banks.back();
-				ram_banks.pop_back();
-				delete[] temp;
-			}
+			reset();
 		}
 	};
 }

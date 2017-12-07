@@ -94,6 +94,11 @@ namespace gameboy
 							return 0;
 						}
 					}
+					
+					if (*memory_map[i].memory_ptr == nullptr)
+					{
+						return 0;
+					}
 
 					return &(*memory_map[i].memory_ptr)[addr - memory_map[i].addr_min];
 				}
@@ -137,6 +142,11 @@ namespace gameboy
 							printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
 							return 0;
 						}
+					}
+
+					if (*memory_map[i].memory_ptr == nullptr)
+					{
+						return 0;
 					}
 
 					return (*memory_map[i].memory_ptr)[addr - memory_map[i].addr_min];
@@ -206,6 +216,11 @@ namespace gameboy
 							printf("Error - writing to memory map that is not writable: 0x%X\n", addr);
 							return;
 						}
+					}
+
+					if (*memory_map[i].memory_ptr == nullptr)
+					{
+						return;
 					}
 
 					memcpy(&(*memory_map[i].memory_ptr)[addr - memory_map[i].addr_min], value, size);

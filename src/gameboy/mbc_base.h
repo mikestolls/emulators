@@ -62,6 +62,13 @@ namespace gameboy
 			return 0;
 		}
 
+		virtual int reset()
+		{
+			memset(memory, 0x0, sizeof(memory));
+
+			return 0;
+		}
+
 		virtual int write_memory(u16 addr, u8 value)
 		{
 			return 0;

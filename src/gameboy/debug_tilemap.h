@@ -30,7 +30,7 @@ namespace gameboy
 			tilemap_sprite.setTexture(tilemap_texture);
 			tilemap_sprite.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
 
-			title_text.setString("Tilemap");
+			title_text.setString("Tilemap: 0x9800");
 
 			bottom_text.setString("(Left / Right) Change Tilemap");
 
@@ -60,7 +60,7 @@ namespace gameboy
 				}
 
 				// get tile id
-				s32 tileId = tilemap[i] + tilesetOffset;
+				s32 tileId = (s8)tilemap[i] + tilesetOffset;
 				u8* tileset = memory_module::get_memory(tilesetAddr + (tileId * 16));
 
 				for (int y = 0; y < 8; y++)
@@ -105,6 +105,18 @@ namespace gameboy
 			if (key == sf::Keyboard::Left || key == sf::Keyboard::Right)
 			{
 				tilemap_index ^= 1;
+
+				std::string title_str = "Tilemap: ";
+				if (tilemap_index)
+				{
+					title_str.append("0x9C00");
+				}
+				else
+				{
+					title_str.append("0x9800");
+				}
+
+				title_text.setString(title_str);
 			}
 		}
 	};

@@ -456,12 +456,6 @@ namespace gameboy
 
 		int update(u8 cycles)
 		{
-			if (!cpu::running || cpu::halt || cpu::paused)
-			{
-				// processor is stopped
-				return 0;
-			}
-
 			update_lcd_status();
 
 			if (get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED) == 0)

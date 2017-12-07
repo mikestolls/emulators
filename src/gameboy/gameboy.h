@@ -81,7 +81,12 @@ namespace gameboy
 		u32 fps = 0;
 		
 		// init cpu and load rom
+#if USE_BOOT_ROM
 		memory_module::initialize(&boot, &rom);
+#else
+		memory_module::initialize(nullptr, &rom);
+#endif
+
 		cpu::initialize();
 		gpu::initialize();
 

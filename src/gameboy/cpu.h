@@ -744,7 +744,6 @@ namespace gameboy
 			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
 
-			//breakpoints.push_back(0x0100);
 
 			return 0;
 		}
@@ -796,7 +795,7 @@ namespace gameboy
 					case 0x3:
 						// JR d
 						R.pc += (s8)readpc_u8(); // relative jump is singed offset
-						cycles = 8;
+						cycles = 12;
 						break;
 					case 0x4:
 					case 0x5:
@@ -811,6 +810,7 @@ namespace gameboy
 						if (condition_funct[y - 4]())
 						{
 							R.pc += val; // relative jump is singed offset
+							cycles += 4;
 						}
 						break;
 					}
@@ -1227,6 +1227,7 @@ namespace gameboy
 						if (condition_funct[y]())
 						{
 							R.pc = pop_from_stack();
+							cycles += 12;
 						}
 						break;
 					case 0x4:
@@ -1334,14 +1335,14 @@ namespace gameboy
 							// RET
 							R.pc = pop_from_stack();
 
-							cycles = 8;
+							cycles = 16;
 							break;
 						case 0x1:
 							// RETI
 							R.pc = pop_from_stack();
 							interrupt_master_enable_delay = interrupt_master_max_enable_delay;
 
-							cycles = 8;
+							cycles = 16;
 							break;
 						case 0x2:
 							// JP (HL)
@@ -1374,6 +1375,7 @@ namespace gameboy
 						if (condition_funct[y]())
 						{
 							R.pc = val;
+							cycles += 4;
 						}
 						break;
 					}
@@ -1408,7 +1410,7 @@ namespace gameboy
 						// JP nn
 						R.pc = readpc_u16();
 
-						cycles = 12;
+						cycles = 16;
 						break;
 					case 0x1:
 						// CB prefix
@@ -1453,6 +1455,7 @@ namespace gameboy
 							push_sp_to_stack(R.pc);
 
 							R.pc = val;
+							cycles += 12;
 						}
 						break;
 					}
@@ -1484,7 +1487,7 @@ namespace gameboy
 							push_sp_to_stack(R.pc);
 							R.pc = val;
 
-							cycles = 12;
+							cycles = 24;
 						}
 						else
 						{
@@ -1508,7 +1511,7 @@ namespace gameboy
 					push_sp_to_stack(R.pc);
 					R.pc = y * 8;
 
-					cycles = 32;
+					cycles = 16;
 					break;
 				}
 				}
@@ -1560,7 +1563,7 @@ namespace gameboy
 
 				if (z == 6) // (HL) register
 				{
-					cycles = 16;
+					cycles = 12;
 				}
 				else
 				{
@@ -1602,6 +1605,11 @@ namespace gameboy
 		{
 			if (!running || halt || (paused && !breakpoint_disable_one_instr))
 			{
+				if (halt)
+				{
+					return 4;
+				}
+
 				// processor is stopped
 				return 0;
 			}
