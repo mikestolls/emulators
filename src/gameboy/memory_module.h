@@ -190,6 +190,13 @@ namespace gameboy
 				memcpy(rom_ptr->memory_bank_controller->memory, rom_ptr->romdata, 0x100);
 				return;
 			}
+			else if (addr == 0xFF46)
+			{
+				// transfer OAM data
+				u16 src_addr = *value;
+				src_addr *= 0x100;
+				memcpy(&rom_ptr->memory_bank_controller->memory[0xFE00], &rom_ptr->memory_bank_controller->memory[src_addr], 0x9F);
+			}
 
 			// loop though memory map
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)

@@ -312,7 +312,7 @@ namespace gameboy
 				u8 tileId = *(spritePtr++);
 				u8 attr = *(spritePtr++);
 
-				// check if scnaline within y_min y_max
+				// check if scanline within y_min y_max
 				if (*scanline >= yPos && *scanline <= yPos + spriteHeight)
 				{
 					s16 tileY = *scanline - yPos;
@@ -330,7 +330,7 @@ namespace gameboy
 					// render the 8 pixels of the tiles scanline
 					for (u8 pixel = 0; pixel < 8; pixel++)
 					{
-						u8 bit = pixel;
+						s8 bit = 7 - pixel;
 
 						if (get_sprite_attribute(attr, FLAG_SPRITE_FLIP_X))
 						{
@@ -342,7 +342,7 @@ namespace gameboy
 
 						u32 color = gpu::get_palette_color(palette_color);
 
-						u32 pixelPos = ((*scanline) * 160 + yPos + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
+						u32 pixelPos = ((*scanline) * 160 + xPos + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
 						framebuffer[pixelPos++] = (color >> 24) & 0xFF;
 						framebuffer[pixelPos++] = (color >> 16) & 0xFF;
 						framebuffer[pixelPos++] = (color >> 8) & 0xFF;
