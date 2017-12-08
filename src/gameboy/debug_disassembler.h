@@ -67,7 +67,7 @@ namespace gameboy
 			
 			title_text.setString("Disassembler");
 
-			bottom_text.setString("(Up / Down) Change Line\t(G) Goto Address\tF5 Continue\tF9 Set Breakpoint\tF10 Step Once");
+			bottom_text.setString("(Up / Down) Change Line\t(G) Goto Address\tF5 Continue\tF6 Goto PC\tF9 Set Breakpoint\tF10 Step Over\tF11 Step Into");
 
 			breakpoint_marker.setFillColor(sf::Color(255, 0, 0, 255));
 			breakpoint_marker.setRadius(5);
@@ -126,6 +126,7 @@ namespace gameboy
 			{
 				// pc is not in list. add to end
 				program_addr.push_back(pc);
+				return next_pc;
 			}
 			else
 			{
@@ -465,7 +466,31 @@ namespace gameboy
 				cpu::paused = false;
 				cpu::breakpoint_disable_one_instr = true;
 			}
+			else if (key == sf::Keyboard::F6)
+			{
+				cpu::paused = true;
+				goto_instr(cpu::R.pc);
+			}
 			else if (key == sf::Keyboard::F10)
+			{
+				if (cpu::paused)
+				{
+					disassembler::symbol sym;
+					disassembler::disassemble_instr(cpu::R.pc, sym);
+
+					if (sym.mnemonic.compare("CALL") == 0)
+					{
+						cpu::soft_breakpoints.push_back(find_next_instr(cpu::R.pc));
+						cpu::paused = false;
+						cpu::breakpoint_disable_one_instr = true;
+					}
+					else
+					{
+						cpu::breakpoint_disable_one_instr = true;
+					}
+				}
+			}
+			else if (key == sf::Keyboard::F11)
 			{
 				if (cpu::paused)
 				{

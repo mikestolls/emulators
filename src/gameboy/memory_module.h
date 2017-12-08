@@ -95,7 +95,7 @@ namespace gameboy
 						}
 					}
 					
-					if (*memory_map[i].memory_ptr == nullptr)
+					if (memory_map[i].memory_ptr == nullptr)
 					{
 						return 0;
 					}
@@ -144,7 +144,7 @@ namespace gameboy
 						}
 					}
 
-					if (*memory_map[i].memory_ptr == nullptr)
+					if (memory_map[i].memory_ptr == nullptr)
 					{
 						return 0;
 					}
@@ -218,7 +218,7 @@ namespace gameboy
 						}
 					}
 
-					if (*memory_map[i].memory_ptr == nullptr)
+					if (memory_map[i].memory_ptr == nullptr)
 					{
 						return;
 					}

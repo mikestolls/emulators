@@ -697,7 +697,7 @@ namespace gameboy
 				}
 
 				// set counter back to frequency
-				timer_counter = get_timer_frequency();
+				timer_counter += get_timer_frequency();
 			}
 
 			return 0;
