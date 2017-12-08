@@ -127,6 +127,7 @@ namespace gameboy
 			stream << "CSCAN: " << WRITE_HEX_8(*gpu::coincidence_scanline) << std::endl;
 			stream << "   IE: " << WRITE_HEX_8(*cpu::interrupt_enable_flag) << std::endl;
 			stream << "   IF: " << WRITE_HEX_8((0xE0 | *cpu::interrupt_request_flag)) << std::endl;
+			stream << "  CNT: " << std::dec << cpu::timer_counter << std::endl;
 
 			gpu_registers_text.setString(stream.str());
 
