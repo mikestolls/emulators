@@ -50,7 +50,7 @@ namespace gameboy
 			{ "ROM0", nullptr, 0x0000, 0x3FFF, MEMORY_READABLE },
 			{ "ROM1", nullptr, 0x4000, 0x7FFF, MEMORY_READABLE },
 			{ "VRAM", nullptr, 0x8000, 0x9FFF, MEMORY_READABLE | MEMORY_WRITABLE },
-			{ "ERAM", nullptr, 0xA000, 0xBFFF, MEMORY_READABLE | MEMORY_WRITABLE },
+			{ "ERAM", nullptr, 0xA000, 0xBFFF, 0 },
 			{ "WRAM", nullptr, 0xC000, 0xDFFF, MEMORY_READABLE | MEMORY_WRITABLE },
 			{ "ECHO", nullptr, 0xE000, 0xFDFF, MEMORY_READABLE },
 			{ " OAM", nullptr, 0xFE00, 0xFE9F, MEMORY_READABLE | MEMORY_WRITABLE },
