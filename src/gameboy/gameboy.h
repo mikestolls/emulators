@@ -81,7 +81,7 @@ namespace gameboy
 		u32 fps = 0;
 		
 		// init cpu and load rom
-#if USE_BOOT_ROM
+#ifndef USE_BOOT_ROM
 		memory_module::initialize(&boot, &rom);
 #else
 		memory_module::initialize(nullptr, &rom);
@@ -89,9 +89,9 @@ namespace gameboy
 
 		cpu::initialize();
 		gpu::initialize();
-
-		std::chrono::milliseconds cur_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-		std::chrono::milliseconds last_time = cur_time;
+		
+		auto cur_time = std::chrono::high_resolution_clock::now();
+		auto last_time = cur_time;
 
 		const u32 cycles_per_frame = cpu::cycles_per_sec / cpu::fps;
 		u32 cycle_count = 0;
@@ -177,14 +177,18 @@ namespace gameboy
 			window.display();
 			
 			// limit fps
-			cur_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-			std::chrono::milliseconds delta = cur_time - last_time;
-
+			cur_time = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<double, std::milli> delta = cur_time - last_time;
 			std::chrono::duration<double, std::milli> min_frame_time(1000.0 / (float)cpu::fps);
+
 			if (delta < min_frame_time)
 			{
 				std::this_thread::sleep_for(min_frame_time - delta);
 			}
+
+			// recalculate fps
+			cur_time = std::chrono::high_resolution_clock::now();
+			delta = cur_time - last_time;
 
 			if (delta.count() != 0)
 			{

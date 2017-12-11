@@ -187,7 +187,7 @@ namespace gameboy
 			else if (addr == 0xFF50)
 			{
 				// unload the boot rom
-				memcpy(rom_ptr->memory_bank_controller->memory, rom_ptr->romdata, 0x100);
+				memcpy(rom_ptr->memory_bank_controller->memory_rom, rom_ptr->romdata, 0x100);
 				return;
 			}
 			else if (addr == 0xFF46)
@@ -264,7 +264,7 @@ namespace gameboy
 			// copy boot rom
 			if (boot_ptr)
 			{
-				memcpy(rom_ptr->memory_bank_controller->memory, boot_ptr->romdata, 0x100);
+				memcpy(rom_ptr->memory_bank_controller->memory_rom, boot_ptr->romdata, 0x100);
 			}
 			else
 			{
