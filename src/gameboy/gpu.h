@@ -313,7 +313,7 @@ namespace gameboy
 				u8 attr = *(spritePtr++);
 
 				// check if scanline within y_min y_max
-				if (*scanline >= yPos && *scanline <= yPos + spriteHeight)
+				if (*scanline >= yPos && *scanline < yPos + spriteHeight)
 				{
 					s16 tileY = *scanline - yPos;
 
@@ -339,6 +339,12 @@ namespace gameboy
 						}
 
 						u8 palette_color = ((dataA & (1 << bit)) >> bit) | (((dataB & (1 << bit)) >> bit) << 1);
+
+						if (palette_color == 0x0)
+						{
+							// pixel is transparent
+							continue;
+						}
 
 						u32 color = gpu::get_palette_color(palette_color);
 
