@@ -74,6 +74,11 @@ namespace gameboy
 			return 0;
 		}
 
+		virtual int get_rom_bank_idx()
+		{
+			return 1;
+		}
+
 		mbc_base()
 		{
 			memory_rom = &memory[0x0000];

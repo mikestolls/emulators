@@ -3,6 +3,7 @@
 #include "defines.h"
 #include "debug_window.h"
 #include "disassembler.h"
+#include "mbc_base.h"
 
 #include <SFML/Graphics.hpp>
 
@@ -147,8 +148,19 @@ namespace gameboy
 				u16 addr = mem_start + (i * MEM_PER_LINE);
 
 				// draw memory line
+				memory_module::memory_map_object* map = memory_module::find_map(addr);
+
 				std::stringstream stream;
-				stream << memory_module::find_map(addr)->map_name  << " : " << WRITE_HEX_16(addr) << "\t";
+				if (map->map_name.compare("ROMS") == 0)
+				{
+					stream << "ROM" << memory_module::rom_ptr->memory_bank_controller->get_rom_bank_idx();
+				}
+				else
+				{
+					stream << map->map_name;
+				}
+				
+				stream << " : " << WRITE_HEX_16(addr) << "\t";
 				
 				for (unsigned int j = 0; j < MEM_PER_LINE; j++)
 				{

@@ -48,7 +48,7 @@ namespace gameboy
 
 		memory_map_object memory_map[MEMORY_COUNT] = {
 			{ "ROM0", nullptr, 0x0000, 0x3FFF, MEMORY_READABLE },
-			{ "ROM1", nullptr, 0x4000, 0x7FFF, MEMORY_READABLE },
+			{ "ROMS", nullptr, 0x4000, 0x7FFF, MEMORY_READABLE },
 			{ "VRAM", nullptr, 0x8000, 0x9FFF, MEMORY_READABLE | MEMORY_WRITABLE },
 			{ "ERAM", nullptr, 0xA000, 0xBFFF, 0 },
 			{ "WRAM", nullptr, 0xC000, 0xDFFF, MEMORY_READABLE | MEMORY_WRITABLE },
@@ -144,7 +144,7 @@ namespace gameboy
 						}
 					}
 
-					if (memory_map[i].memory_ptr == nullptr)
+					if (memory_map[i].memory_ptr == nullptr || *memory_map[i].memory_ptr == nullptr)
 					{
 						return 0;
 					}

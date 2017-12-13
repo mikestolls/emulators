@@ -47,7 +47,7 @@ namespace gameboy
 
 			// point rom to default bank
 			mode_select = MODE_ROM_BANK;
-			rom_bank_idx = 0x0;
+			rom_bank_idx = 0x1;
 			memory_rom = rom_banks[0];
 			memory_switchable_rom = rom_banks[0x1];
 
@@ -55,12 +55,8 @@ namespace gameboy
 			switch (ramsize)
 			{
 			case RAM_NONE:
-				ram_bank_idx = 0x0;
-				memory_external_ram = nullptr;
-				break;
 			case RAM_2KB:
 			case RAM_8KB:
-				// one bank, can just point to 0xA000
 				ram_bank_idx = 0x0;
 				memory_external_ram = &memory[0xA000];
 				break;
@@ -168,6 +164,11 @@ namespace gameboy
 			}
 
 			return 0;
+		}
+
+		int get_rom_bank_idx()
+		{
+			return rom_bank_idx;
 		}
 
 		mbc_mbc1() : mbc_base()

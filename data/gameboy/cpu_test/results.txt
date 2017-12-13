@@ -1,8 +1,8 @@
-01-read_timing.gb - failed
+01-read_timing.gb - passed
 01-special.gb - passed
 02-interrupts.gb - failed
-02-write_timing.gb - failed
-03-modify_timing.gb - failed
+02-write_timing.gb - passed
+03-modify_timing.gb - passed
 03-op_sp,hl.gb - passed
 04-op_r,imm.gb - passed
 05-op_rp.gb - passed
