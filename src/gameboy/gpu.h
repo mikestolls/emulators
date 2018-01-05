@@ -379,7 +379,7 @@ namespace gameboy
 				if (horz_cycle_count >= 456) // restart screen refresh
 				{
 					(*scanline)++; // inc scanline
-					horz_cycle_count = 0;
+					horz_cycle_count -= 456;
 
 					if (*scanline >= 154)
 					{
@@ -418,15 +418,11 @@ namespace gameboy
 					else // enter vblank
 					{
 						set_lcd_status_mode(MODE_VBLANK);
-
-						if (get_lcd_interrupt_flag(FLAG_VBLANK))
-						{
-							req_lcd_interrupt = true;
-						}
+						cpu::set_request_interrupt_flag(cpu::INTERRUPT_VBLANK);
 					}
 
 					(*scanline)++; // inc scanline
-					horz_cycle_count = 0;
+					horz_cycle_count -= 456;
 				}
 				break;
 			}
