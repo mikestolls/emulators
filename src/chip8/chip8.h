@@ -62,12 +62,25 @@ namespace chip8
 		sf::RectangleShape whiteRect(sf::Vector2f(pixelSize, pixelSize));
 		whiteRect.setFillColor(sf::Color::White);
 	
+		// fps counter and profiler
+		sf::Font font;
+		font.loadFromFile("courbd.ttf");
+
+		sf::Text fps_text;
+		fps_text.setFont(font);
+		fps_text.setFillColor(sf::Color::White);
+		fps_text.setPosition(10, 10);
+		fps_text.setOutlineColor(sf::Color::Black);
+		fps_text.setOutlineThickness(2);
+		fps_text.setCharacterSize(18);
+
 		// init scpu and load rom
 		cpu::initialize();
 		cpu::load_rom(rom.romdata, rom.romsize & 0xFFFF);
 
-		std::chrono::milliseconds curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-		std::chrono::milliseconds lastTime = curTime;
+		auto cur_time = std::chrono::high_resolution_clock::now();
+		auto last_time = cur_time;
+		u32 fps = 0;
 
 		while (window.isOpen())
 		{
@@ -118,20 +131,37 @@ namespace chip8
 					}
 				}
 
+				// show profliler stats
+				std::stringstream stream;
+				stream << "FPS: " << fps << "\n";
+
+				fps_text.setString(stream.str());
+				window.draw(fps_text);
+
 				// display on windows
 				window.display();
 			}
 
-			curTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-			std::chrono::milliseconds delta = curTime - lastTime;
+			// limit fps
+			cur_time = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<double, std::milli> delta = cur_time - last_time;
+			std::chrono::duration<double, std::milli> min_frame_time(1000.0 / 360.0f);
 
-			std::chrono::duration<double, std::milli> minFrameTime(1000.0 / 360.0);
-			if (delta < minFrameTime)
+			if (delta < min_frame_time)
 			{
-				std::this_thread::sleep_for(minFrameTime - delta);
+				std::this_thread::sleep_for(min_frame_time - delta);
 			}
 
-			lastTime = curTime;
+			// recalculate fps
+			cur_time = std::chrono::high_resolution_clock::now();
+			delta = cur_time - last_time;
+
+			if (delta.count() != 0)
+			{
+				fps = (u32)(1000 / delta.count());
+			}
+
+			last_time = cur_time;
 		}
 
 		return 0;

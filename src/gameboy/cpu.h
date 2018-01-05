@@ -741,6 +741,7 @@ namespace gameboy
 			divide_counter = 256;
 
 			paused = false;
+			halt = false;
 			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
 
