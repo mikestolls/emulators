@@ -38,7 +38,7 @@ namespace gameboy
 {
 	namespace cpu
 	{
-		const u32 interrupt_master_max_enable_delay = 2;
+		const u32 interrupt_master_max_enable_delay = 1;
 		const u32 cycles_per_sec = 4194304;
 		const u32 fps = 60;
 
@@ -63,6 +63,64 @@ namespace gameboy
 
 		u8* divide_value;
 		s32 divide_counter;
+
+		// debug instruction timings
+		static const int instruction_times_nocondition[] = {
+			1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1,
+			0, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
+			2, 3, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1,
+			2, 3, 2, 2, 3, 3, 3, 1, 2, 2, 2, 2, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			2, 2, 2, 2, 2, 2, 0, 2, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			2, 3, 3, 4, 3, 4, 2, 4, 2, 4, 3, 0, 3, 6, 2, 4,
+			2, 3, 3, 0, 3, 4, 2, 4, 2, 4, 3, 0, 3, 0, 2, 4,
+			3, 3, 2, 0, 0, 4, 2, 4, 4, 1, 4, 0, 0, 0, 2, 4,
+			3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4,
+		};
+
+		static const int instruction_times_condition[] = {
+			1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1,
+			0, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
+			3, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
+			3, 3, 2, 2, 3, 3, 3, 1, 3, 2, 2, 2, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			2, 2, 2, 2, 2, 2, 0, 2, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
+			5, 3, 4, 4, 6, 4, 2, 4, 5, 4, 4, 0, 6, 6, 2, 4,
+			5, 3, 4, 0, 6, 4, 2, 4, 5, 4, 4, 0, 6, 0, 2, 4,
+			3, 3, 2, 0, 0, 4, 2, 4, 4, 1, 4, 0, 0, 0, 2, 4,
+			3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4,
+		};
+
+		static const int instruction_times_cb[] = {
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+			2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
+			2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
+			2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
+			2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2,
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
+		};
 
 		// cpus register structure
 		struct registers
@@ -627,7 +685,7 @@ namespace gameboy
 					// service the intterupt
 					service_interrupt(i);
 					halt = false;
-					return 12;
+					return 20;
 				}
 			}
 
@@ -683,17 +741,15 @@ namespace gameboy
 
 			if (timer_counter <= 0)
 			{
+				(*timer_value)++;
+
 				// check if overflow. set timer_counter to modulator. increase timer
-				if (*timer_value == 255)
+				if (*timer_value > 255)
 				{
 					*timer_value = *timer_modulator;
 
 					// interrupt
 					set_request_interrupt_flag(INTERRUPT_TIMER);
-				}
-				else
-				{
-					(*timer_value)++;
 				}
 
 				// set counter back to frequency
@@ -765,6 +821,7 @@ namespace gameboy
 			u8 q = (opcode >> 3) & 0x1;
 
 			u8 cycles = 0;
+			bool is_condition = false;
 
 			switch (x)
 			{
@@ -779,6 +836,7 @@ namespace gameboy
 					case 0x0:
 						// NOP
 						cycles = 4;
+						update_timer(4);
 						break;
 					case 0x1:
 					{
@@ -786,17 +844,18 @@ namespace gameboy
 						u16 addr = readpc_u16();
 						memory_module::write_memory(addr, (const u8*)&R.sp, 2);
 						cycles = 20;
+						update_timer(20);
 						break;
 					}
 					case 0x2:
 						// STOP
 						running = false;
-						cycles = 4;
 						break;
 					case 0x3:
 						// JR d
 						R.pc += (s8)readpc_u8(); // relative jump is singed offset
 						cycles = 12;
+						update_timer(12);
 						break;
 					case 0x4:
 					case 0x5:
@@ -804,6 +863,7 @@ namespace gameboy
 					case 0x7:
 					{
 						cycles = 8; // if condition true 12, if false 8
+						update_timer(8);
 
 						s8 val = (s8)readpc_u8();
 
@@ -812,7 +872,10 @@ namespace gameboy
 						{
 							R.pc += val; // relative jump is singed offset
 							cycles += 4;
+							update_timer(4);
+							is_condition = true;
 						}
+
 						break;
 					}
 					}
@@ -826,6 +889,7 @@ namespace gameboy
 						// LD register_pairs[p] with nn
 						*register_pairs[p] = readpc_u16();
 						cycles = 12;
+						update_timer(12);
 						break;
 					case 0x1:
 						// ADD HL with register_pairs[p]
@@ -856,6 +920,7 @@ namespace gameboy
 						R.hl = (u16)(res & 0xFFFF);
 
 						cycles = 8;
+						update_timer(8);
 						break;
 					}
 					break;
@@ -872,23 +937,27 @@ namespace gameboy
 							// LD (BC) with A
 							memory_module::write_memory(R.bc, &R.a, 1);
 							cycles = 8;
+							update_timer(8);
 							break;
 						case 0x1:
 							// LD (DE) with A
 							memory_module::write_memory(R.de, &R.a, 1);
 							cycles = 8;
+							update_timer(8);
 							break;
 						case 0x2:
 							// LDI (HL) with A. inc HL
 							memory_module::write_memory(R.hl, &R.a, 1);
 							R.hl++;
 							cycles = 8;
+							update_timer(8);
 							break;
 						case 0x3:
 							// LDD (HL) with A. decr HL
 							memory_module::write_memory(R.hl, &R.a, 1);
 							R.hl--;
 							cycles = 8;
+							update_timer(8);
 							break;
 						}
 						break;
@@ -901,23 +970,27 @@ namespace gameboy
 							// LD A with (BC)
 							R.a = memory_module::read_memory(R.bc);
 							cycles = 8;
+							update_timer(8);
 							break;
 						case 0x1:
 							// LD A with (DE)
 							R.a = memory_module::read_memory(R.de);
 							cycles = 8;
+							update_timer(8);
 							break;
 						case 0x2:
 							// LDI A with (HL). inc HL
 							R.a = memory_module::read_memory(R.hl);
 							R.hl++;
 							cycles = 8;
+							update_timer(8);
 							break;
 						case 0x3:
 							// LDD A with (HL). decr HL
 							R.a = memory_module::read_memory(R.hl);
 							R.hl--;
 							cycles = 8;
+							update_timer(8);
 							break;
 						}
 						break;
@@ -933,11 +1006,13 @@ namespace gameboy
 						// INC register_pairs[p]
 						(*register_pairs[p])++;
 						cycles = 8;
+						update_timer(8);
 						break;
 					case 0x1:
 						// DEC register_pairs[p]
 						(*register_pairs[p])--;
 						cycles = 8;
+						update_timer(8);
 						break;
 					}
 					break;
@@ -959,6 +1034,7 @@ namespace gameboy
 
 					if (y == 6) // register (HL)
 					{
+						cycles += 4;
 						update_timer(4);
 					}
 
@@ -967,6 +1043,7 @@ namespace gameboy
 
 					if (y == 6) // register (HL)
 					{
+						cycles += 4;
 						update_timer(4);
 					}
 
@@ -981,14 +1058,8 @@ namespace gameboy
 
 					clear_flag(FLAG_SUBTRACTION);
 
-					if (y == 6) // register (HL)
-					{
-						cycles = 12;
-					}
-					else
-					{
-						cycles = 4;
-					}
+					cycles += 4;
+					update_timer(4);
 					break;
 				}
 				case 0x5: // z = 5
@@ -1008,6 +1079,7 @@ namespace gameboy
 
 					if (y == 6) // register (HL)
 					{
+						cycles += 4;
 						update_timer(4);
 					}
 
@@ -1016,6 +1088,7 @@ namespace gameboy
 
 					if (y == 6) // register (HL)
 					{
+						cycles += 4;
 						update_timer(4);
 					}
 
@@ -1030,19 +1103,22 @@ namespace gameboy
 
 					set_flag(FLAG_SUBTRACTION);
 
-					cycles = 4;
+					cycles += 4;
+					update_timer(4);
 					break;
 				}
 				case 0x6: // z = 6
 					// LD register_single[y] with n
 					if (y == 6) // register is (HL)
 					{
+						cycles += 4;
 						update_timer(4);
 					}
 
 					*register_single[y] = readpc_u8();
 
-					cycles = 8;
+					cycles += 8;
+					update_timer(8);
 					break;
 				case 0x7: // z = 7
 				{
@@ -1060,6 +1136,7 @@ namespace gameboy
 						}
 
 						cycles = 4;
+						update_timer(4);
 						break;
 					}
 					case 0x1:
@@ -1074,6 +1151,7 @@ namespace gameboy
 						}
 
 						cycles = 4;
+						update_timer(4);
 						break;
 					}
 					case 0x2:
@@ -1088,6 +1166,7 @@ namespace gameboy
 						}
 
 						cycles = 4;
+						update_timer(4);
 						break;
 					}
 					case 0x3:
@@ -1102,6 +1181,7 @@ namespace gameboy
 						}
 
 						cycles = 4;
+						update_timer(4);
 						break;
 					}
 					case 0x4:
@@ -1152,6 +1232,7 @@ namespace gameboy
 						}
 
 						cycles = 4;
+						update_timer(4);
 						break;
 					}
 					case 0x5:
@@ -1161,6 +1242,7 @@ namespace gameboy
 						set_flag(FLAG_SUBTRACTION);
 
 						cycles = 4;
+						update_timer(4);
 						break;
 					case 0x6:
 						// SCF
@@ -1169,6 +1251,7 @@ namespace gameboy
 						clear_flag(FLAG_SUBTRACTION);
 
 						cycles = 4;
+						update_timer(4);
 						break;
 					case 0x7:
 						// CCF
@@ -1184,6 +1267,7 @@ namespace gameboy
 						clear_flag(FLAG_SUBTRACTION);
 
 						cycles = 4;
+						update_timer(4);
 						break;
 					}
 					break;
@@ -1198,6 +1282,7 @@ namespace gameboy
 					// HALT
 					halt = true;
 					cycles = 4;
+					update_timer(4);
 				}
 				else
 				{
@@ -1206,12 +1291,12 @@ namespace gameboy
 
 					if (y == 6 || z == 6) // LD (HL), A,B,C,F,E,F,H,L or LD A,B,C,F,E,H,L, (HL)
 					{
-						cycles = 8;
+						cycles += 4;
+						update_timer(4);
 					}
-					else
-					{
-						cycles = 4;
-					}
+					
+					cycles += 4;
+					update_timer(4);
 				}
 				break;
 			} // end x = 1
@@ -1222,12 +1307,12 @@ namespace gameboy
 
 				if (z == 6) // using (HL) register
 				{
-					cycles = 8;
+					cycles += 4;
+					update_timer(4);
 				}
-				else
-				{
-					cycles = 4;
-				}
+
+				cycles += 4;
+				update_timer(4);
 				break;
 			}
 			case 0x3: // x = 3
@@ -1243,20 +1328,29 @@ namespace gameboy
 					case 0x2:
 					case 0x3:
 						// RET if condition_funct[y]
-						cycles = 8;
 						if (condition_funct[y]())
 						{
 							R.pc = pop_from_stack();
 							cycles += 12;
+							update_timer(12);
+							is_condition = true;
 						}
+
+						cycles += 8;
+						update_timer(8);
 						break;
 					case 0x4:
 					{
 						// LD mem(FF00 + n) with A
 						u8 addr = readpc_u8();
-						update_timer(4);
-						memory_module::write_memory(0xFF00 + addr, &R.a, 1);
+
 						cycles = 4;
+						update_timer(4);
+
+						memory_module::write_memory(0xFF00 + addr, &R.a, 1);
+
+						cycles += 8;
+						update_timer(8);
 						break;
 					}
 					case 0x5:
@@ -1292,17 +1386,26 @@ namespace gameboy
 						clear_flag(FLAG_SUBTRACTION);
 												
 						cycles = 16;
+						update_timer(16);
 						break;
 					}
 					case 0x6:
 					{
 						// LD A with mem(FF00 + n)
 						u8 addr = readpc_u8();
-						update_timer(4);
-						u8 val = memory_module::read_memory(0xFF00 + addr);
-						update_timer(4);
-						R.a = val;
+
 						cycles = 4;
+						update_timer(4);
+
+						u8 val = memory_module::read_memory(0xFF00 + addr);
+						
+						cycles += 4;
+						update_timer(4);
+
+						R.a = val;
+
+						cycles += 4;
+						update_timer(4);
 						break;
 					}
 					case 0x7:
@@ -1337,6 +1440,7 @@ namespace gameboy
 						clear_flag(FLAG_ZERO);
 						clear_flag(FLAG_SUBTRACTION);
 						cycles = 12;
+						update_timer(12);
 						break;
 					}
 					}
@@ -1356,6 +1460,7 @@ namespace gameboy
 
 						*(register_pairs2[p]) = addr;
 						cycles = 12;
+						update_timer(12);
 					}
 					else
 					{
@@ -1366,6 +1471,7 @@ namespace gameboy
 							R.pc = pop_from_stack();
 
 							cycles = 16;
+							update_timer(16);
 							break;
 						case 0x1:
 							// RETI
@@ -1373,17 +1479,20 @@ namespace gameboy
 							interrupt_master_enable_delay = interrupt_master_max_enable_delay;
 
 							cycles = 16;
+							update_timer(16);
 							break;
 						case 0x2:
 							// JP (HL)
 							R.pc = R.hl;
 
 							cycles = 4;
+							update_timer(4);
 							break;
 						case 0x3:
 							// LD SP with HL
 							R.sp = R.hl;
 							cycles = 8;
+							update_timer(8);
 							break;
 						}
 					}
@@ -1398,31 +1507,43 @@ namespace gameboy
 					case 0x2:
 					case 0x3:
 					{
-						cycles = 12; // 16 if true, 12 is false
-
 						// JP to nn if condition_funct[y]
 						u16 val = readpc_u16();
 						if (condition_funct[y]())
 						{
 							R.pc = val;
 							cycles += 4;
+							update_timer(4);
+							is_condition = true;
 						}
+
+						cycles += 12;
+						update_timer(12);
 						break;
 					}
 					case 0x4:
 						// LD mem(FF00 + C) with A
 						memory_module::write_memory(0xFF00 + R.c, &R.a, 1);
 						cycles = 8;
+						update_timer(8);
 						break;
 					case 0x5:
 					{
 						// LD mem(nn) with A
 						u16 addr = readpc_u16();
-						update_timer(4);
-						u8 val = R.a;
-						update_timer(4);
-						memory_module::write_memory(addr, &val, 1);
+
 						cycles = 4;
+						update_timer(4);
+
+						u8 val = R.a;
+
+						cycles += 4;
+						update_timer(4);
+
+						memory_module::write_memory(addr, &val, 1);
+						
+						cycles += 8;
+						update_timer(8);
 						break;
 					}
 					case 0x6:
@@ -1433,11 +1554,19 @@ namespace gameboy
 					case 0x7:
 						// LD A with mem(nn)
 						u16 addr = readpc_u16();
+
+						cycles = 8;
 						update_timer(8);
+
 						u8 val = memory_module::read_memory(addr);
+
+						cycles += 4;
 						update_timer(4);
+
 						R.a = val;
-						cycles = 4;
+
+						cycles += 4;
+						update_timer(4);
 						break;
 					}
 					break;
@@ -1451,6 +1580,7 @@ namespace gameboy
 						R.pc = readpc_u16();
 
 						cycles = 16;
+						update_timer(16);
 						break;
 					case 0x1:
 						// CB prefix
@@ -1468,11 +1598,13 @@ namespace gameboy
 						// DI - disable interupts
 						interrupt_master = false;
 						cycles = 4;
+						update_timer(4);
 						break;
 					case 0x7:
 						// EI - enable interupts
 						interrupt_master_enable_delay = interrupt_master_max_enable_delay;
 						cycles = 4;
+						update_timer(4);
 						break;
 					}
 					break;
@@ -1486,8 +1618,6 @@ namespace gameboy
 					case 0x2:
 					case 0x3:
 					{
-						cycles = 12;
-
 						// CALL nn if condition_funct[y]
 						u16 val = readpc_u16();
 						if (condition_funct[y]())
@@ -1496,7 +1626,12 @@ namespace gameboy
 
 							R.pc = val;
 							cycles += 12;
+							update_timer(12);
+							is_condition = true;
 						}
+
+						cycles += 12;
+						update_timer(12);
 						break;
 					}
 					case 0x4:
@@ -1517,6 +1652,7 @@ namespace gameboy
 						push_sp_to_stack(*register_pairs2[p]);
 
 						cycles = 16;
+						update_timer(16);
 					}
 					else
 					{
@@ -1528,6 +1664,7 @@ namespace gameboy
 							R.pc = val;
 
 							cycles = 24;
+							update_timer(24);
 						}
 						else
 						{
@@ -1543,6 +1680,7 @@ namespace gameboy
 					u8 value = readpc_u8();
 					alu_function[y](&value);
 					cycles = 8;
+					update_timer(8);
 					break;
 				}
 				case 0x7: // z = 7
@@ -1552,11 +1690,21 @@ namespace gameboy
 					R.pc = y * 8;
 
 					cycles = 16;
+					update_timer(16);
 					break;
 				}
 				}
 				break;
 			}
+			}
+
+			if (is_condition)
+			{
+				assert(cycles / 4 == instruction_times_condition[opcode]);
+			}
+			else
+			{
+				assert(cycles / 4 == instruction_times_nocondition[opcode]);
 			}
 
 			return cycles;
@@ -1579,6 +1727,7 @@ namespace gameboy
 				// rot_function[y] with register_single[z]
 				if (z == 6) // (HL) register
 				{
+					cycles = 4;
 					update_timer(4);
 				}
 
@@ -1587,18 +1736,21 @@ namespace gameboy
 
 				if (z == 6) // (HL) register
 				{
+					cycles += 4;
 					update_timer(4);
 				}
 
 				*register_single[z] = val;
 
-				cycles = 4;
+				cycles += 8;
+				update_timer(8);
 				break;
 			}
 			case 0x1:
 				// test bit y from register_single[z]
 				if (z == 6) // (HL) register
 				{
+					cycles = 4;
 					update_timer(4);
 				}
 
@@ -1614,13 +1766,15 @@ namespace gameboy
 				set_flag(FLAG_HALFCARRY);
 				clear_flag(FLAG_SUBTRACTION);
 
-				cycles = 8;
+				cycles += 8;
+				update_timer(8);
 				break;
 			case 0x2:
 			{
 				// reset bit y from register_single[z]
 				if (z == 6) // (HL) register
 				{
+					cycles = 4;
 					update_timer(4);
 				}
 
@@ -1629,12 +1783,14 @@ namespace gameboy
 
 				if (z == 6) // (HL) register
 				{
+					cycles += 4;
 					update_timer(4);
 				}
 
 				*register_single[z] = val;
 
-				cycles = 4;
+				cycles += 8;
+				update_timer(8);
 				break;
 			}
 			case 0x3:
@@ -1642,6 +1798,7 @@ namespace gameboy
 				// reset bit y from register_single[z]
 				if (z == 6) // (HL) register
 				{
+					cycles = 4;
 					update_timer(4);
 				}
 
@@ -1650,15 +1807,19 @@ namespace gameboy
 
 				if (z == 6) // (HL) register
 				{
+					cycles += 4;
 					update_timer(4);
 				}
 
 				*register_single[z] = val;
 
-				cycles = 8;
+				cycles += 8;
+				update_timer(8);
 				break;
 			}
 			}
+
+			assert(cycles / 4 == instruction_times_cb[opcode]);
 
 			return cycles;
 		}
