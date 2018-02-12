@@ -676,6 +676,7 @@ namespace gameboy
 			if (eiOcccurred)
 			{
 				eiOcccurred = false;
+				interrupt_master = true;
 				return 0;
 			}
 
@@ -685,12 +686,12 @@ namespace gameboy
 				{
 					if (interrupt_master)
 					{
-						R.pc++;
 						u8 cycles = 20;
 
 						if (halt)
 						{
 							cycles += 4;
+							R.pc++;
 						}
 
 						service_interrupt(i);
@@ -1647,7 +1648,6 @@ namespace gameboy
 						break;
 					case 0x7:
 						// EI - enable interupts
-						interrupt_master = true;
 						eiOcccurred = true;
 						cycles = 4;
 						update_timer(4);
