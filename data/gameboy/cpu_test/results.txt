@@ -16,3 +16,4 @@ cpu_instrs.gb - failed
 instr_timing.gb - failed
 interrupt_time.gb - failed
 mem_timing.gb - passed
+halt_bug.gb - passed

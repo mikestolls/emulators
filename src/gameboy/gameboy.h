@@ -132,8 +132,8 @@ namespace gameboy
 			while (cycle_count < cycles_per_frame)
 			{
 				// update the cpu emulation
-				u8 cpu_cycles = cpu::execute_opcode();
-				cpu_cycles += cpu::check_interrupts();
+				u8 cpu_cycles = cpu::check_interrupts();
+				cpu_cycles += cpu::execute_opcode();
 				cycle_count += cpu_cycles;
 				gpu::update(cpu_cycles);
 				

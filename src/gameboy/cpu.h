@@ -38,12 +38,14 @@ namespace gameboy
 {
 	namespace cpu
 	{
-		const u32 interrupt_master_max_enable_delay = 1;
 		const u32 cycles_per_sec = 4194304;
 		const u32 fps = 60;
 
 		bool running = true;
+		bool eiOcccurred = false;
 		bool halt = false;
+		bool halt_bug = false;
+		bool halt_continue_exec = false;
 		bool paused = false;
 
 		std::vector<u16> breakpoints;
@@ -52,7 +54,6 @@ namespace gameboy
 		bool breakpoint_disable_one_instr;
 
 		bool interrupt_master;
-		s8 interrupt_master_enable_delay; // delay used for EI delayed enable
 		u8* interrupt_enable_flag;
 		u8* interrupt_request_flag;
 
@@ -73,7 +74,7 @@ namespace gameboy
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-			2, 2, 2, 2, 2, 2, 0, 2, 1, 1, 1, 1, 1, 1, 2, 1,
+			2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
@@ -92,7 +93,7 @@ namespace gameboy
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-			2, 2, 2, 2, 2, 2, 0, 2, 1, 1, 1, 1, 1, 1, 2, 1,
+			2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
@@ -596,12 +597,14 @@ namespace gameboy
 		{
 			flag = (1 << flag);
 			*interrupt_request_flag |= flag;
+			*interrupt_request_flag |= 0xE0;
 		}
 
 		inline void clear_request_interrupt_flag(u8 flag)
 		{
 			flag = (1 << flag);
 			*interrupt_request_flag &= ~flag; // clear the bit
+			*interrupt_request_flag |= 0xE0;
 		}
 
 		inline u8 get_request_interrupt_flag(u8 flag)
@@ -611,7 +614,7 @@ namespace gameboy
 
 		inline void clear_all_request_interrupt_flags()
 		{
-			*interrupt_request_flag = 0x0;
+			*interrupt_request_flag = 0xE0;
 		}
 
 		// interrupt enable function
@@ -639,9 +642,6 @@ namespace gameboy
 
 		void service_interrupt(u8 interrupt)
 		{
-			interrupt_master = false;
-			clear_request_interrupt_flag(interrupt);
-
 			push_sp_to_stack(R.pc);
 
 			u16 addr = 0;
@@ -673,8 +673,9 @@ namespace gameboy
 
 		int check_interrupts()
 		{
-			if (!interrupt_master)
+			if (eiOcccurred)
 			{
+				eiOcccurred = false;
 				return 0;
 			}
 
@@ -682,10 +683,34 @@ namespace gameboy
 			{
 				if (get_request_interrupt_flag(i) && get_enabled_interrupt_flag(i))
 				{
-					// service the intterupt
-					service_interrupt(i);
-					halt = false;
-					return 20;
+					if (interrupt_master)
+					{
+						R.pc++;
+						u8 cycles = 20;
+
+						if (halt)
+						{
+							cycles += 4;
+						}
+
+						service_interrupt(i);
+						clear_request_interrupt_flag(i);
+
+						halt = false;
+
+						return cycles;
+					}
+					else if (halt_continue_exec)
+					{
+						R.pc++;
+						halt = false;
+						halt_continue_exec = false;
+						return 4;
+					}
+					else
+					{
+						return 4;
+					}
 				}
 			}
 
@@ -726,10 +751,10 @@ namespace gameboy
 			// update divide register first
 			divide_counter -= cycles;
 
-			if (divide_counter <= 0) // divide register is 16382 hz
+			while (divide_counter <= 0) // divide register is 16382 hz
 			{
 				(*divide_value)++;
-				divide_counter = 256;
+				divide_counter += 256;
 			}
 
 			if (!timer_enabled())
@@ -739,7 +764,7 @@ namespace gameboy
 
 			timer_counter -= cycles;
 
-			if (timer_counter <= 0)
+			while (timer_counter <= 0)
 			{
 				(*timer_value)++;
 
@@ -784,7 +809,6 @@ namespace gameboy
 			memory_module::reset();
 
 			interrupt_master = false;
-			interrupt_master_enable_delay = 0;
 			interrupt_enable_flag = memory_module::get_memory(0xFFFF);
 			interrupt_request_flag = memory_module::get_memory(0xFF0F);
 			
@@ -797,7 +821,10 @@ namespace gameboy
 			divide_counter = 256;
 
 			paused = false;
+			eiOcccurred = false;
 			halt = false;
+			halt_bug = false;
+			halt_continue_exec = false;
 			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
 
@@ -1280,8 +1307,26 @@ namespace gameboy
 				if (z == 6 && y== 6)
 				{
 					// HALT
-					halt = true;
-					cycles = 4;
+					if (interrupt_master) // interrupt servicing enabled
+					{
+						halt = true;
+						R.pc--;
+					}
+					else // interrupt servicing disabled
+					{
+						if ((*interrupt_enable_flag & *interrupt_request_flag & 0x1F) != 0x0) // halt bug if pending interrupts
+						{
+							halt_bug = true;
+						}
+						else // no pending. we halt but dont service interrupt
+						{
+							halt = true;
+							halt_continue_exec = true;
+							R.pc--;
+						}
+					}
+
+					cycles += 4;
 					update_timer(4);
 				}
 				else
@@ -1476,7 +1521,7 @@ namespace gameboy
 						case 0x1:
 							// RETI
 							R.pc = pop_from_stack();
-							interrupt_master_enable_delay = interrupt_master_max_enable_delay;
+							interrupt_master = true;
 
 							cycles = 16;
 							update_timer(16);
@@ -1602,7 +1647,8 @@ namespace gameboy
 						break;
 					case 0x7:
 						// EI - enable interupts
-						interrupt_master_enable_delay = interrupt_master_max_enable_delay;
+						interrupt_master = true;
+						eiOcccurred = true;
 						cycles = 4;
 						update_timer(4);
 						break;
@@ -1826,13 +1872,8 @@ namespace gameboy
 		
 		int execute_opcode()
 		{
-			if (!running || halt || (paused && !breakpoint_disable_one_instr))
+			if (!running || (paused && !breakpoint_disable_one_instr))
 			{
-				if (halt)
-				{
-					return 4;
-				}
-
 				// processor is stopped
 				return 0;
 			}
@@ -1873,6 +1914,12 @@ namespace gameboy
 			// fetch the opcode
 			u8 opcode = readpc_u8();
 
+			if (halt_bug)
+			{
+				R.pc--;
+				halt_bug = false;
+			}
+
 			// decode. gameboy only has CB prefix
 			if (opcode == 0xCB)
 			{
@@ -1882,16 +1929,6 @@ namespace gameboy
 			else
 			{
 				cycles = decode_nonprefixed(opcode);
-			}
-
-			if (interrupt_master_enable_delay > 0)
-			{
-				interrupt_master_enable_delay--;
-
-				if (interrupt_master_enable_delay <= 0)
-				{
-					interrupt_master = true;
-				}
 			}
 
 			if (cycles == 0)
