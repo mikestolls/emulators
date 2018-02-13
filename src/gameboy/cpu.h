@@ -824,6 +824,7 @@ namespace gameboy
 			divide_counter = 256;
 
 			paused = false;
+			running = true;
 			eiOcccurred = false;
 			halt = false;
 			halt_bug = false;
@@ -1598,6 +1599,7 @@ namespace gameboy
 						// LD A with mem(FF00 + C)
 						R.a = memory_module::read_memory(0xFF00 + R.c);
 						cycles = 8;
+						update_timer(8);
 						break;
 					case 0x7:
 						// LD A with mem(nn)

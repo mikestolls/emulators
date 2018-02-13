@@ -13,7 +13,7 @@
 10-bit_ops.gb - passed
 11-op_a,(hl).gb - passed
 cpu_instrs.gb - failed
-instr_timing.gb - failed
+instr_timing.gb - passed
 interrupt_time.gb - failed
 mem_timing.gb - passed
 halt_bug.gb - passed
