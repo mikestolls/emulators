@@ -137,7 +137,7 @@ namespace gameboy
 				cycle_count += cpu_cycles;
 				gpu::update(cpu_cycles);
 				
-				if (cpu::paused)
+				if (cpu::paused || !cpu::running)
 				{
 					break;
 				}

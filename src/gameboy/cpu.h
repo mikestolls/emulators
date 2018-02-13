@@ -767,15 +767,17 @@ namespace gameboy
 
 			while (timer_counter <= 0)
 			{
-				(*timer_value)++;
-
 				// check if overflow. set timer_counter to modulator. increase timer
-				if (*timer_value > 255)
+				if (*timer_value == 0xFF)
 				{
 					*timer_value = *timer_modulator;
 
 					// interrupt
 					set_request_interrupt_flag(INTERRUPT_TIMER);
+				}
+				else
+				{
+					(*timer_value)++;
 				}
 
 				// set counter back to frequency

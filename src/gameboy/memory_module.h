@@ -174,14 +174,12 @@ namespace gameboy
 			else if (addr == 0xFF07) // timer controller. check if frequency has changed and reset timer if so
 			{
 				u8 timer_controller = rom_ptr->memory_bank_controller->memory[addr];
+				memcpy(&rom_ptr->memory_bank_controller->memory[addr], value, size);
 
 				if ((timer_controller & 0x3) != (*value & 0x3)) // not equal
 				{
-					rom_ptr->memory_bank_controller->memory[0xFF05] = 0x0; // reset timer
-					cpu::reset_timer_counter();
+					cpu::reset_timer_counter(); // reset timer
 				}
-
-				memcpy(&rom_ptr->memory_bank_controller->memory[addr], value, size);
 				return;
 			}
 			else if (addr == 0xFF50)
