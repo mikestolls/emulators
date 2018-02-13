@@ -18,6 +18,7 @@ namespace gameboy
 			ROM_SIZE romSize;
 			RAM_SIZE ramSize;
 			u8 version;
+			u8 cgbFlag;
 		};
 
 
@@ -56,6 +57,7 @@ namespace gameboy
 			romheader.romSize = (ROM_SIZE)romdata[0x148];
 			romheader.ramSize = (RAM_SIZE)romdata[0x149];
 			romheader.version = romdata[0x14C];
+			romheader.cgbFlag = romdata[0x143];
 
 			switch (romheader.cartridgeType)
 			{

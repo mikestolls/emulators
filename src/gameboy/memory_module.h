@@ -297,6 +297,7 @@ namespace gameboy
 				write_memory(0xFF49, 0xFF); // OBP1
 				write_memory(0xFF4A, 0x00); // WY
 				write_memory(0xFF4B, 0x00); // WX
+				write_memory(0xFF4D, 0xFF); // KEY1 - CGB only
 				write_memory(0xFFFF, 0x00); // IE
 			}
 
