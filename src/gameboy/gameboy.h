@@ -144,6 +144,7 @@ namespace gameboy
 			}
 
 			if (!cpu::paused)
+			if (!cpu::paused && cpu::running)
 			{
 				// once we have passed cycles per frame reset cycle count
 				cycle_count -= cycles_per_frame;
