@@ -267,6 +267,8 @@ namespace gameboy
 			if (boot_ptr)
 			{
 				memcpy(rom_ptr->memory_bank_controller->memory_rom, boot_ptr->romdata, 0x100);
+
+				write_memory(0xFF4D, 0xFF); // KEY1 - CGB only
 			}
 			else
 			{
