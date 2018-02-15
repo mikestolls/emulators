@@ -11,7 +11,6 @@ namespace gameboy
 	namespace cpu
 	{
 		extern void reset_timer_counter();
-		extern int update_timer(u8 cycles);
 	}
 	
 	namespace memory_module
@@ -160,10 +159,7 @@ namespace gameboy
 
 		void write_memory(const u16 addr, const u8* value, const u8 size, bool force = false)
 		{
-			if (rom_ptr->memory_bank_controller->write_memory(addr, *value)) // if memory controller handles addr, return here
-			{
-				return;
-			}
+			rom_ptr->memory_bank_controller->write_memory(addr, *value);
 
 			if (addr == 0xFF44) // current scanline. if anyone tries to write to this value we reset to 0
 			{
@@ -210,13 +206,13 @@ namespace gameboy
 						u8 mode = rom_ptr->memory_bank_controller->memory[0xFF41] & 0x3; // lcd_status
 						if (i == MEMORY_VRAM && mode > 2)
 						{
-							printf("Error - writing to memory during the wrong mode: 0x%X bank: %d mode: %d\n", addr, i, mode);
+							printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
 							return;
 						}
 
 						if (i == MEMORY_OAM && mode > 1)
 						{
-							printf("Error - writing to memory during the wrong mode: 0x%X bank: %d mode: %d\n", addr, i, mode);
+							printf("Error - writing to memory during the wrong mode: 0x%X\n", addr);
 							return;
 						}
 						
@@ -293,7 +289,6 @@ namespace gameboy
 				write_memory(0xFF25, 0xF3); // NR51
 				write_memory(0xFF26, 0xF1); // GB
 				write_memory(0xFF40, 0x91); // LCDC
-				write_memory(0xFF41, 0x85); // LCDC
 				write_memory(0xFF42, 0x00); // SCY
 				write_memory(0xFF43, 0x00); // SCX
 				write_memory(0xFF45, 0x00); // LYC

@@ -24,7 +24,7 @@ namespace gameboy
 		const u8 width = 160;
 		const u8 height = 144;
 		u8 framebuffer[width * height * 4];
-		bool lcd_enabled = false;
+		
 		s32 horz_cycle_count = 0;
 				
 		// set and get lcd control flag helpers
@@ -77,7 +77,6 @@ namespace gameboy
 			mode &= 0x3; // just incase
 			*lcd_status &= 0xFC; // clear old mode bits
 			*lcd_status |= mode;
-			*lcd_status |= 0x80; // turn bit 7 on
 		}
 
 		inline u8 get_lcd_status_mode()
@@ -154,7 +153,7 @@ namespace gameboy
 		int reset()
 		{
 			horz_cycle_count = 0;
-			lcd_enabled = false;
+			set_lcd_status_mode(MODE_VBLANK);
 			memset(framebuffer, 0x0, sizeof(framebuffer));
 			
 			return 0;
@@ -368,7 +367,6 @@ namespace gameboy
 			case MODE_HBLANK:
 				if (horz_cycle_count >= 204)
 				{
-					(*scanline)++; // inc scanline
 					set_lcd_status_mode(MODE_OAM_ACCESS);
 
 					if (get_lcd_interrupt_flag(FLAG_OAM_ACCESS))
@@ -404,7 +402,7 @@ namespace gameboy
 			case MODE_VRAM_ACCESS:
 				if (horz_cycle_count >= 456)
 				{
-					if (*scanline < 143)
+					if (*scanline < 144)
 					{
 						set_lcd_status_mode(MODE_HBLANK);
 
@@ -420,13 +418,10 @@ namespace gameboy
 					else // enter vblank
 					{
 						set_lcd_status_mode(MODE_VBLANK);
-
-						// draw the scan line
-						draw_scanline();
-						draw_sprites();
-
 						cpu::set_request_interrupt_flag(cpu::INTERRUPT_VBLANK);
 					}
+
+					(*scanline)++; // inc scanline
 					horz_cycle_count -= 456;
 				}
 				break;
@@ -441,11 +436,7 @@ namespace gameboy
 				}
 			}
 
-			return 0;
-		}
-		
-		int update(u8 cycles)
-		{
+			// check coincidence interrupt. scanline == coincidence scanline
 			if (*coincidence_scanline == *scanline)
 			{
 				*lcd_status |= (1 << 2); // set bit 2 for coincidence
@@ -457,19 +448,20 @@ namespace gameboy
 			}
 			else
 			{
-				*lcd_status &= 0xFB; // take all but bit 2. clear coincidence flag
+				*lcd_status &= 0xFB; // take all but bit 2
 			}
 
-			if (lcd_enabled != (bool)get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED))
+			return 0;
+		}
+		
+		int update(u8 cycles)
+		{
+			if (get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED) == 0)
 			{
 				// lcd not enabled. reset scanline and horz cycle count. lcd mode set to 1 (VBlank)
 				*scanline = 0;
-				lcd_enabled = (bool)get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED);
-				set_lcd_status_mode(lcd_enabled ? MODE_OAM_ACCESS : MODE_HBLANK);
-			}
-
-			if (!lcd_enabled)
-			{
+				horz_cycle_count = 0;
+				set_lcd_status_mode(MODE_VBLANK);
 				return 0;
 			}
 

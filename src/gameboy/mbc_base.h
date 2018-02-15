@@ -69,9 +69,9 @@ namespace gameboy
 			return 0;
 		}
 
-		virtual bool write_memory(u16 addr, u8 value)
+		virtual int write_memory(u16 addr, u8 value)
 		{
-			return false;
+			return 0;
 		}
 
 		virtual int get_rom_bank_idx()

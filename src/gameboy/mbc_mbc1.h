@@ -98,15 +98,12 @@ namespace gameboy
 			return 0;
 		}
 
-		bool write_memory(u16 addr, u8 value)
+		int write_memory(u16 addr, u8 value)
 		{
-			bool handled = false;
-
 			if (addr < 0x2000)
 			{
 				// enable external ram
 				memory_module::enable_external_ram(true);
-				handled = true;
 			}
 			else if (addr < 0x4000)
 			{
@@ -120,7 +117,6 @@ namespace gameboy
 				}
 
 				memory_switchable_rom = rom_banks[rom_bank_idx];
-				handled = true;
 			}
 			else if (addr < 0x6000)
 			{
@@ -137,9 +133,7 @@ namespace gameboy
 						rom_bank_idx = 0x1; // if set to 0, force it to 1
 					}
 
-					printf("Rom bank: %d\n", rom_bank_idx);
 					memory_switchable_rom = rom_banks[rom_bank_idx];
-					handled = true;
 				}
 				else
 				{
@@ -147,7 +141,6 @@ namespace gameboy
 					ram_bank_idx = bits;
 
 					memory_external_ram = ram_banks[ram_bank_idx];
-					handled = true;
 				}
 			}
 			else if (addr < 0x8000)
@@ -168,11 +161,9 @@ namespace gameboy
 
 					mode_select = mode;
 				}
-
-				handled = true;
 			}
 
-			return handled;
+			return 0;
 		}
 
 		int get_rom_bank_idx()
