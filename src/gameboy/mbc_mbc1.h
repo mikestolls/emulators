@@ -130,7 +130,7 @@ namespace gameboy
 				rom_bank_idx &= 0xE0; // clear lower 5 bits
 				rom_bank_idx |= val;
 				
-				printf("Rom bank: %d\n", rom_bank_idx);
+				//printf("Rom bank: %d\n", rom_bank_idx);
 				memory_switchable_rom = rom_banks[rom_bank_idx];
 
 				handled = true;
@@ -145,7 +145,7 @@ namespace gameboy
 					rom_bank_idx &= 0x1F; // clear high 3 bits
 					rom_bank_idx |= (bits << 5);
 
-					printf("Rom bank: %d\n", rom_bank_idx);
+					//printf("Rom bank: %d\n", rom_bank_idx);
 					memory_switchable_rom = rom_banks[rom_bank_idx];
 
 					handled = true;
