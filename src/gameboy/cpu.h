@@ -3,6 +3,7 @@
 #include "defines.h"
 
 #include "memory_module.h"
+#include "input.h"
 
 //Opcode  Z80				GMB
 //---------------------------------------------
@@ -615,6 +616,11 @@ namespace gameboy
 		inline void clear_all_request_interrupt_flags()
 		{
 			*interrupt_request_flag = 0xE0;
+		}
+
+		void request_joypad_interrupt()
+		{
+			set_request_interrupt_flag(cpu::INTERRUPT_JOYPAD);
 		}
 
 		// interrupt enable function
@@ -1916,6 +1922,21 @@ namespace gameboy
 			{
 				register_single[6] = &temp_mem;
 			}
+
+			// update the joypad register
+			u8 joypad_register = memory_module::read_memory(0xFF00);
+			joypad_register &= 0xF0; // keep upper bits
+
+			if ((joypad_register & 0x20) == 0)
+			{
+				// directional keys are set
+				joypad_register |= (get_button_register(false) & 0xF); // only lower 4 bits
+			}
+			else
+			{
+				joypad_register |= (get_button_register(true) & 0xF); // only lower 4 bits
+			}
+			memory_module::write_memory(0xFF00, joypad_register);
 
 			u8 cycles = 0;
 

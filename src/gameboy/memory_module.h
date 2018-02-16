@@ -46,7 +46,7 @@ namespace gameboy
 
 		rom* rom_ptr;
 		boot_rom* boot_ptr;
-
+		
 		memory_map_object memory_map[MEMORY_COUNT] = {
 			{ "ROM0", nullptr, 0x0000, 0x3FFF, MEMORY_READABLE },
 			{ "ROMS", nullptr, 0x4000, 0x7FFF, MEMORY_READABLE },
@@ -111,13 +111,6 @@ namespace gameboy
 
 		u8 read_memory(u16 addr, bool force = false)
 		{
-			if (addr == 0xFF00) // special case for joystick register
-			{
-				u8 val = rom_ptr->memory_bank_controller->memory[0xFF00]; // bits 4 and 5 decide which joystick bits to return (0 - 3)
-				val |= 0xF; // for now all input is off
-				return val;
-			}
-
 			// loop though memory map
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
 			{
@@ -273,6 +266,7 @@ namespace gameboy
 			else
 			{
 				// no boot rom set default mem values
+				write_memory(0xFF00, 0x30); // JOYPAD
 				write_memory(0xFF05, 0x00); // TIMA
 				write_memory(0xFF06, 0x00); // TMA
 				write_memory(0xFF07, 0x00); // TMC

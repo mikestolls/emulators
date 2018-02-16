@@ -3,15 +3,26 @@
 #include <SFML/Graphics.hpp>
 
 #include "cpu.h"
+#include "input.h"
 #include "gpu.h"
 #include "rom.h"
 #include "boot_rom.h"
 #include "debugger.h"
 #include "disassembler.h"
 
+#include <map>
+
 namespace gameboy
 {
 	const u8 pixelSize = 8;
+
+	struct input_binding
+	{
+		u8 joypad_map;
+		bool is_directional;
+	};
+
+	std::map<sf::Keyboard::Key, input_binding> input_map;
 	
 	int run_emulator(int argc, char** argv)
 	{
@@ -79,6 +90,16 @@ namespace gameboy
 		debugger.initialize(window.getSize().x, window.getSize().y);
 		bool show_debugger = false;
 		u32 fps = 0;
+
+		// init input map
+		input_map[sf::Keyboard::Left] = { DIRECTION_LEFT, true };
+		input_map[sf::Keyboard::Right] = { DIRECTION_RIGHT, true };
+		input_map[sf::Keyboard::Up] = { DIRECTION_UP, true };
+		input_map[sf::Keyboard::Down] = { DIRECTION_DOWN, true };
+		input_map[sf::Keyboard::A] = { BUTTON_A, false };
+		input_map[sf::Keyboard::B] = { BUTTON_B, false };
+		input_map[sf::Keyboard::Return] = { BUTTON_START, false };
+		input_map[sf::Keyboard::RShift] = { BUTTON_SELECT, false };
 		
 		// init cpu and load rom
 #ifdef USE_BOOT_ROM
@@ -109,7 +130,15 @@ namespace gameboy
 				}
 				else if (event.type == sf::Event::KeyPressed)
 				{
-					if (event.key.code == sf::Keyboard::Space)
+					// check for joypad input
+					auto itr = input_map.find(event.key.code);
+					
+					if (itr != input_map.end())
+					{
+						// handle joypad input
+						set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
+					}
+					else if (event.key.code == sf::Keyboard::Space)
 					{
 						cpu::reset();
 						gpu::reset();
@@ -125,6 +154,17 @@ namespace gameboy
 						{
 							debugger.on_keypressed(event.key.code);
 						}
+					}
+				}
+				else if (event.type == sf::Event::KeyReleased)
+				{
+					// check for joypad input
+					auto itr = input_map.find(event.key.code);
+
+					if (itr != input_map.end())
+					{
+						// handle joypad input
+						set_button_released(itr->second.joypad_map, itr->second.is_directional);
 					}
 				}
 			}
