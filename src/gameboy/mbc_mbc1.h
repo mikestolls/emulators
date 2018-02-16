@@ -48,7 +48,7 @@ namespace gameboy
 			// point rom to default bank
 			mode_select = MODE_ROM_BANK;
 			rom_bank_idx = 0x1;
-			memory_rom = rom_banks[0];
+			memory_rom = rom_banks[0x0];
 			memory_switchable_rom = rom_banks[0x1];
 
 			// based on the ram setting. create external ram banks
@@ -104,22 +104,35 @@ namespace gameboy
 
 			if (addr < 0x2000)
 			{
-				// enable external ram
-				memory_module::enable_external_ram(true);
+				u8 val = value & 0xF;
+
+				if (val == 0xA)
+				{
+					// enable external ram
+					memory_module::enable_external_ram(true);
+				}
+				else
+				{
+					memory_module::enable_external_ram(false);
+				}
+
 				handled = true;
 			}
 			else if (addr < 0x4000)
 			{
 				// set the lower 5 bits of rom bank
-				rom_bank_idx &= 0xE0; // clear lower 5 bits
-				rom_bank_idx |= (value & 0x1F); // and in the new lower 5 bits
-
-				if (rom_bank_idx == 0x0)
+				u8 val = value & 0x1F;
+				if (val == 0x0)
 				{
-					rom_bank_idx = 0x1; // if set to 0, force it to 1
+					val = 0x1; // cant be 0
 				}
-
+				
+				rom_bank_idx &= 0xE0; // clear lower 5 bits
+				rom_bank_idx |= val;
+				
+				printf("Rom bank: %d\n", rom_bank_idx);
 				memory_switchable_rom = rom_banks[rom_bank_idx];
+
 				handled = true;
 			}
 			else if (addr < 0x6000)
@@ -132,13 +145,9 @@ namespace gameboy
 					rom_bank_idx &= 0x1F; // clear high 3 bits
 					rom_bank_idx |= (bits << 5);
 
-					if (rom_bank_idx == 0x0)
-					{
-						rom_bank_idx = 0x1; // if set to 0, force it to 1
-					}
-
 					printf("Rom bank: %d\n", rom_bank_idx);
 					memory_switchable_rom = rom_banks[rom_bank_idx];
+
 					handled = true;
 				}
 				else
@@ -147,6 +156,7 @@ namespace gameboy
 					ram_bank_idx = bits;
 
 					memory_external_ram = ram_banks[ram_bank_idx];
+
 					handled = true;
 				}
 			}
@@ -159,11 +169,12 @@ namespace gameboy
 				{
 					if (mode == MODE_ROM_BANK)
 					{
-						ram_bank_idx = 0x0; // only use ram bank 0 during this mode
+						memory_external_ram = ram_banks[0x0];
 					}
 					else
 					{
 						// in RAM mode only ROM banks 0x0 - 0x1F can be used
+						memory_external_ram = ram_banks[ram_bank_idx];
 					}
 
 					mode_select = mode;

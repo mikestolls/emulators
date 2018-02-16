@@ -143,7 +143,6 @@ namespace gameboy
 				}
 			}
 
-			if (!cpu::paused)
 			if (!cpu::paused && cpu::running)
 			{
 				// once we have passed cycles per frame reset cycle count

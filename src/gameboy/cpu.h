@@ -64,7 +64,7 @@ namespace gameboy
 
 		u8* divide_value;
 		s32 divide_counter;
-
+		
 		// debug instruction timings
 		static const int instruction_times_nocondition[] = {
 			1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1,
@@ -831,8 +831,7 @@ namespace gameboy
 			halt_continue_exec = false;
 			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
-
-
+			
 			return 0;
 		}
 
@@ -1912,6 +1911,11 @@ namespace gameboy
 			
 			// need to point this to mem. small hack for the (HL) register instructons
 			register_single[6] = memory_module::get_memory(R.hl); 
+			u8 temp_mem = 0xFF;
+			if (register_single[6] == 0x0)
+			{
+				register_single[6] = &temp_mem;
+			}
 
 			u8 cycles = 0;
 

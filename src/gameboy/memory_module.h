@@ -91,7 +91,7 @@ namespace gameboy
 					{
 						if ((memory_map[i].access & MEMORY_READABLE) == 0)
 						{
-							printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
+							//printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
 							return 0;
 						}
 					}
@@ -140,8 +140,8 @@ namespace gameboy
 
 						if ((memory_map[i].access & MEMORY_READABLE) == 0)
 						{
-							printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
-							return 0;
+							//printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
+							return 0xFF;
 						}
 					}
 
@@ -222,7 +222,7 @@ namespace gameboy
 						
 						if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
 						{
-							printf("Error - writing to memory map that is not writable: 0x%X\n", addr);
+							printf("Error - writing to memory map that is not writable: 0x%X map: %d\n", addr, i);
 							return;
 						}
 					}
