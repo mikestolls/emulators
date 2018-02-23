@@ -130,41 +130,49 @@ namespace gameboy
 				}
 				else if (event.type == sf::Event::KeyPressed)
 				{
-					// check for joypad input
-					auto itr = input_map.find(event.key.code);
-					
-					if (itr != input_map.end())
-					{
-						// handle joypad input
-						set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
-					}
-					else if (event.key.code == sf::Keyboard::Space)
-					{
-						cpu::reset();
-						gpu::reset();
-						cycle_count = 0;
-					}
-					else if (event.key.code == sf::Keyboard::F1)
+					if (event.key.code == sf::Keyboard::F1)
 					{
 						show_debugger = !show_debugger;
 					}
+
+					if (show_debugger)
+					{
+						debugger.on_keypressed(event.key.code);
+					}
 					else
 					{
-						if (show_debugger)
+						// check for joypad input
+						auto itr = input_map.find(event.key.code);
+
+						if (itr != input_map.end())
 						{
-							debugger.on_keypressed(event.key.code);
+							// handle joypad input
+							set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
+						}
+						else if (event.key.code == sf::Keyboard::Space)
+						{
+							cpu::reset();
+							gpu::reset();
+							cycle_count = 0;
 						}
 					}
 				}
 				else if (event.type == sf::Event::KeyReleased)
 				{
-					// check for joypad input
-					auto itr = input_map.find(event.key.code);
-
-					if (itr != input_map.end())
+					if (show_debugger)
 					{
-						// handle joypad input
-						set_button_released(itr->second.joypad_map, itr->second.is_directional);
+
+					}
+					else
+					{
+						// check for joypad input
+						auto itr = input_map.find(event.key.code);
+
+						if (itr != input_map.end())
+						{
+							// handle joypad input
+							set_button_released(itr->second.joypad_map, itr->second.is_directional);
+						}
 					}
 				}
 			}
