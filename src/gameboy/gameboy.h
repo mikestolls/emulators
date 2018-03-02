@@ -137,7 +137,16 @@ namespace gameboy
 
 					if (show_debugger)
 					{
-						debugger.on_keypressed(event.key.code);
+						if (event.key.code == sf::Keyboard::Space)
+						{
+							cpu::reset();
+							gpu::reset();
+							cycle_count = 0;
+						}
+						else
+						{
+							debugger.on_keypressed(event.key.code);
+						}
 					}
 					else
 					{
@@ -148,12 +157,6 @@ namespace gameboy
 						{
 							// handle joypad input
 							set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
-						}
-						else if (event.key.code == sf::Keyboard::Space)
-						{
-							cpu::reset();
-							gpu::reset();
-							cycle_count = 0;
 						}
 					}
 				}
