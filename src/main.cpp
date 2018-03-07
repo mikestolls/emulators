@@ -6,9 +6,9 @@
 
 int main(int argc, char** argv)
 {
-	// main entry point for all emulators. for now just run emulator, eventually could add more global function to reset all emulators, control mapping, etc.
-	//chip8::run_emulator(argc, argv);
-	gameboy::run_emulator(argc, argv);
+    // main entry point for all emulators. for now just run emulator, eventually could add more global function to reset all emulators, control mapping, etc.
+    //chip8::run_emulator(argc, argv);
+    gameboy::run_emulator(argc, argv);
 
     return 0;
 }
