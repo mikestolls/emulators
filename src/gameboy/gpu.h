@@ -181,9 +181,8 @@ namespace gameboy
             return 0;
         }
 
-        u32 get_palette_color(u8 palette_color)
+        u32 get_palette_color(u8 palette_color, u8 palette)
         {
-            u8 palette = *palette_bg;
             palette >>= (palette_color << 1);
             palette &= 0x3;
 
@@ -227,6 +226,11 @@ namespace gameboy
             }
 
             return color;
+        }
+
+        u32 get_palette_color(u8 palette_color)
+        {
+            return get_palette_color(palette_color, memory_module::read_memory(0xFF47, true));
         }
 
         int draw_scanline()
@@ -346,7 +350,18 @@ namespace gameboy
                             continue;
                         }
 
-                        u32 color = gpu::get_palette_color(palette_color);
+                        u8 palette = get_sprite_attribute(attr, FLAG_SPRITE_PALETTE);
+
+                        if (palette == 0)
+                        {
+                            palette = memory_module::read_memory(0xFF48, true);
+                        }
+                        else
+                        {
+                            palette = memory_module::read_memory(0xFF49, true);
+                        }
+
+                        u32 color = gpu::get_palette_color(palette_color, palette);
 
                         u32 pixelPos = ((*scanline) * 160 + xPos + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
                         framebuffer[pixelPos++] = (color >> 24) & 0xFF;
