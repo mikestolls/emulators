@@ -175,7 +175,7 @@ namespace gameboy
             windowX = memory_module::get_memory(0xFF4B, true);
             palette_bg = memory_module::get_memory(0xFF47, true);
             sprite_attr = memory_module::get_memory(0xFE00, true);
-            
+
             reset();
 
             return 0;
@@ -184,8 +184,8 @@ namespace gameboy
         u32 get_palette_color(u8 palette_color)
         {
             u8 palette = *palette_bg;
-            palette &= (0x3 << (palette_color * 2)); // take two bits from palette depending on the passed in color id
-            palette >>= (palette_color * 2); // shift palette color back down
+            palette >>= (palette_color << 1);
+            palette &= 0x3;
 
             u32 color = 0xFF; // alpha
 
