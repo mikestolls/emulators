@@ -10,6 +10,7 @@
 #include "debug_registers.h"
 #include "debug_disassembler.h"
 #include "debug_memory.h"
+#include "debug_palette.h"
 
 namespace gameboy
 {
@@ -50,8 +51,13 @@ namespace gameboy
 			window->bottom_text.setPosition(0, height - bottom_bar_height);
 			debug_windows.push_back(window);
 
+            window = new debug_palette();
+            window->set_position(616, 16);
+            window->bottom_text.setPosition(0, height - bottom_bar_height);
+            debug_windows.push_back(window);
+
 			window = new debug_registers();
-			window->set_position(616, 16);
+			window->set_position(916, 16);
 			window->bottom_text.setPosition(0, height - bottom_bar_height);
 			debug_windows.push_back(window);
 			
@@ -87,15 +93,23 @@ namespace gameboy
 		{
 			if (key == sf::Keyboard::Tab)
 			{
-				debug_windows[debug_window_index]->set_active(false);
+                u16 prev_index = debug_window_index;
+                do
+                {
+                    debug_windows[debug_window_index]->set_active(false);
 
-				debug_window_index++;
-				if (debug_window_index >= debug_windows.size())
-				{
-					debug_window_index = 0;
-				}
+                    debug_window_index++;
+                    if (debug_window_index >= debug_windows.size())
+                    {
+                        debug_window_index = 0;
+                    }
 
-				debug_windows[debug_window_index]->set_active(true);
+                    if (debug_windows[debug_window_index]->is_selectable)
+                    {
+                        debug_windows[debug_window_index]->set_active(true);
+                        break;
+                    }
+                } while (prev_index != debug_window_index);
 			}
 			else
 			{

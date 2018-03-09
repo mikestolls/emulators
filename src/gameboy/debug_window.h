@@ -24,6 +24,8 @@ namespace gameboy
 
 		bool is_active;
 
+        bool is_selectable;
+
 		debug_window(u32 width, u32 height)
 		{
 			// create window texture and sprite
@@ -45,6 +47,8 @@ namespace gameboy
 			bottom_text.setFont(font);
 			bottom_text.setCharacterSize(16);
 			bottom_text.setString("");
+
+            is_selectable = true;
 
 			set_active(false);
 		}

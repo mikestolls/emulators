@@ -34,6 +34,8 @@ namespace gameboy
 
 		debug_registers() : debug_window(256, 256)
 		{
+            is_selectable = false;
+
 			registers_text.setString("");
 			registers_text.setFont(font);
 			registers_text.setCharacterSize(16);
