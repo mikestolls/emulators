@@ -186,7 +186,7 @@ namespace gameboy
 				u8 cpu_cycles = cpu::check_interrupts();
 				cpu_cycles += cpu::execute_opcode();
 				cycle_count += cpu_cycles;
-				gpu::update(cpu_cycles);
+				//gpu::update(cpu_cycles);
 				
 				if (cpu::paused || !cpu::running)
 				{

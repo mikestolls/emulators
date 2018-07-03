@@ -37,6 +37,11 @@
 
 namespace gameboy
 {
+	namespace gpu
+	{
+		int update(u8 cycles);
+	}
+
 	namespace cpu
 	{
 		const u32 cycles_per_sec = 4194304;
@@ -755,6 +760,8 @@ namespace gameboy
 
 		int update_timer(u8 cycles)
 		{
+			gpu::update(cycles);
+
 			// update divide register first
 			divide_counter -= cycles;
 

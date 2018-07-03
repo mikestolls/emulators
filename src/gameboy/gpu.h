@@ -235,6 +235,11 @@ namespace gameboy
 
         int draw_scanline()
         {
+            if (get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED) == false)
+            {
+                return 0;
+            }
+
             if (get_lcd_control_flag(FLAG_WINDOW_DISPLAY_ENABLED))
             {
 //				warning_assert("window tilemap not implemented yet");
@@ -303,6 +308,11 @@ namespace gameboy
 
         int draw_sprites()
         {
+            if (get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED) == false)
+            {
+                return 0;
+            }
+
             u8 spriteHeight = (get_lcd_control_flag(FLAG_OBJ_SIZE) == 0 ? 8 : 16);
             u8* spritePtr = sprite_attr;
             u8 sprite_count = 0;
@@ -513,20 +523,6 @@ namespace gameboy
                 break;
             }
 
-            /*if (*coincidence_scanline == *scanline)
-            {
-                *lcd_status |= (1 << 2); // set bit 2 for coincidence
-
-                if (get_lcd_interrupt_flag(FLAG_COINCIDENCE))
-                {
-                    cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
-                }
-            }
-            else
-            {
-                *lcd_status &= ~(1 << 2); // clear bit 2 for coincidence
-            }*/
-
             return 0;
         }
         
@@ -534,6 +530,17 @@ namespace gameboy
         {
             if (get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED) == false)
             {
+                if (lcd_enabled)
+                {
+                    u32* framebuffer_pixel = (u32*)framebuffer;
+
+                    for (u32 i = 0; i < (width * height); i++)
+                    {
+                        *framebuffer_pixel = get_palette_color(0);
+                        framebuffer_pixel++;
+                    }
+                }
+
                 // lcd not enabled. reset scanline and horz cycle count. lcd mode set to 1 (VBlank)
                 *scanline = 0;
                 set_lcd_status_mode(MODE_HBLANK);
