@@ -262,6 +262,7 @@ namespace gameboy
 				memcpy(rom_ptr->memory_bank_controller->memory_rom, boot_ptr->romdata, 0x100);
 
 				write_memory(0xFF4D, 0xFF); // KEY1 - CGB only
+				write_memory(0xFF41, 0x84); // LCDS
 			}
 			else
 			{
@@ -289,7 +290,7 @@ namespace gameboy
 				write_memory(0xFF25, 0xF3); // NR51
 				write_memory(0xFF26, 0xF1); // GB
 				write_memory(0xFF40, 0x91); // LCDC
-				write_memory(0xFF41, 0x85); // LCDC
+				write_memory(0xFF41, 0x85); // LCDS
 				write_memory(0xFF42, 0x00); // SCY
 				write_memory(0xFF43, 0x00); // SCX
 				write_memory(0xFF45, 0x00); // LYC

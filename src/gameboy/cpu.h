@@ -40,6 +40,7 @@ namespace gameboy
 	namespace gpu
 	{
 		int update(u8 cycles);
+		void check_coincidence_flag();
 	}
 
 	namespace cpu
@@ -761,6 +762,7 @@ namespace gameboy
 		int update_timer(u8 cycles)
 		{
 			gpu::update(cycles);
+			gpu::check_coincidence_flag();
 
 			// update divide register first
 			divide_counter -= cycles;
@@ -844,6 +846,7 @@ namespace gameboy
 			halt_continue_exec = false;
 			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
+			breakpoints.push_back(0x0);
 			
 			return 0;
 		}
@@ -1897,22 +1900,28 @@ namespace gameboy
 			// check for hitting breakpoints to pause
 			if (!breakpoint_disable_one_instr)
 			{
-				auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
-				if (breakpoint_itr != breakpoints.end())
+				if (breakpoints.size() > 0)
 				{
-					paused = true;
-					breakpoint_hit = true;
-					return 0;
+					auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
+					if (breakpoint_itr != breakpoints.end())
+					{
+						paused = true;
+						breakpoint_hit = true;
+						return 0;
+					}
 				}
 
 				// soft breakpoints are used for step over. not visible
-				breakpoint_itr = std::find(soft_breakpoints.begin(), soft_breakpoints.end(), R.pc);
-				if (breakpoint_itr != soft_breakpoints.end())
+				if (soft_breakpoints.size() > 0)
 				{
-					paused = true;
-					breakpoint_hit = true;
-					soft_breakpoints.erase(breakpoint_itr);
-					return 0;
+					auto breakpoint_itr = std::find(soft_breakpoints.begin(), soft_breakpoints.end(), R.pc);
+					if (breakpoint_itr != soft_breakpoints.end())
+					{
+						paused = true;
+						breakpoint_hit = true;
+						soft_breakpoints.erase(breakpoint_itr);
+						return 0;
+					}
 				}
 			}
 

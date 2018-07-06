@@ -26,6 +26,7 @@ namespace gameboy
 		u8 framebuffer[width * height * 4];
 		bool lcd_enabling = false;
 		bool lcd_enabled = false;
+		bool scanline_inc = false;
 		s32 horz_cycle_count = 0;
 				
 		// set and get lcd control flag helpers
@@ -169,7 +170,7 @@ namespace gameboy
 			coincidence_scanline = memory_module::get_memory(0xFF45, true);
 			lcd_control = memory_module::get_memory(0xFF40, true);
 			lcd_status = memory_module::get_memory(0xFF41, true);
-			scrollY = memory_module::get_memory(0xFF42, true);
+			scrollY =  memory_module::get_memory(0xFF42, true);
 			scrollX = memory_module::get_memory(0xFF43, true);
 			windowY = memory_module::get_memory(0xFF4A, true);
 			windowX = memory_module::get_memory(0xFF4B, true);
@@ -387,27 +388,20 @@ namespace gameboy
 
 		int increment_scanline()
 		{
-			(*scanline)++; // inc scanline
-
-			if (*coincidence_scanline == *scanline)
-			{
-				*lcd_status |= (1 << 2); // set bit 2 for coincidence
-
-				if (get_lcd_interrupt_flag(FLAG_COINCIDENCE))
-				{
-					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
-				}
-			}
-			else
-			{
-				*lcd_status &= ~(1 << 2); // clear bit 2 for coincidence
-			}
-
-
 			if (*scanline < 144)
 			{
 				draw_scanline();
 				draw_sprites();
+			}
+
+			(*scanline)++; // inc scanline interrupt
+
+			if (*coincidence_scanline == *scanline)
+			{
+				if (get_lcd_interrupt_flag(FLAG_COINCIDENCE))
+				{
+					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
+				}
 			}
 
 			return 0;
@@ -416,25 +410,17 @@ namespace gameboy
 		int switch_lcd_mode(u8 lcd_mode)
 		{
 			set_lcd_status_mode(lcd_mode);
+			scanline_inc = false;
 
 			switch (lcd_mode)
 			{
 			case MODE_HBLANK:
-				if (lcd_enabling)
+				if (get_lcd_interrupt_flag(FLAG_HBLANK))
 				{
-					lcd_enabling = false;
+					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
 				}
-				else
-				{
-					if (get_lcd_interrupt_flag(FLAG_HBLANK))
-					{
-						cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
-					}
-					else
-					{
-						*lcd_status &= 0xFB; // take all but bit 2. clear coincidence flag
-					}
-				}
+
+				horz_cycle_count += 204;
 				break;
 			case MODE_VBLANK:
 				// draw the scan line
@@ -447,17 +433,49 @@ namespace gameboy
 				{
 					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
 				}
+
+				horz_cycle_count += 456;
 				break;
 			case MODE_OAM_ACCESS:
-				// draw the scan line
-				increment_scanline();
-
 				if (get_lcd_interrupt_flag(FLAG_OAM_ACCESS))
 				{
 					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
 				}
+
+				horz_cycle_count += 80;
 				break;
 			case MODE_VRAM_ACCESS:
+				horz_cycle_count += 172;
+				break;
+			}
+
+			return 0;
+		}
+
+		int update_lcd_scanline_lcd_enabling()
+		{
+			u8 lcd_mode = get_lcd_status_mode();
+			bool req_lcd_interrupt = false;
+
+			switch (lcd_mode)
+			{
+			case MODE_HBLANK:
+				if (horz_cycle_count < 0)
+				{
+					set_lcd_status_mode(MODE_VRAM_ACCESS);
+					horz_cycle_count += 172;
+				}
+				break;
+			case MODE_VRAM_ACCESS:
+				if (horz_cycle_count < 0)
+				{
+					lcd_enabling = false;
+					switch_lcd_mode(MODE_HBLANK);
+				}
+				break;
+			case MODE_VBLANK:
+			case MODE_OAM_ACCESS:
+				warning_assert("lcd mode should not be set when enabling")
 				break;
 			}
 
@@ -472,19 +490,20 @@ namespace gameboy
 			switch (lcd_mode)
 			{
 			case MODE_HBLANK:
-				if (lcd_enabling && horz_cycle_count >= 80)
+				if (!scanline_inc && horz_cycle_count <= 0)
 				{
-					switch_lcd_mode(MODE_VRAM_ACCESS);
-					horz_cycle_count -= 80;
+					// draw the scan line
+					increment_scanline();
+					scanline_inc = true;
 				}
-				else if (horz_cycle_count >= 204)
+
+				if (horz_cycle_count < 0)
 				{
 					switch_lcd_mode(MODE_OAM_ACCESS);
-					horz_cycle_count -= 204;
 				}
 				break;
 			case MODE_VBLANK:
-				if (horz_cycle_count >= 456) // restart screen refresh
+				if (horz_cycle_count < 0) // restart screen refresh
 				{
 					if (*scanline < 153)
 					{
@@ -492,22 +511,21 @@ namespace gameboy
 					}
 					else
 					{
-						*scanline = -1;
+						*scanline = 0;
 						switch_lcd_mode(MODE_OAM_ACCESS);
 					}
 
-					horz_cycle_count -= 456;
+					horz_cycle_count += 456;
 				}
 				break;
 			case MODE_OAM_ACCESS:
-				if (horz_cycle_count >= 80)
+				if (horz_cycle_count < 0)
 				{
 					switch_lcd_mode(MODE_VRAM_ACCESS);
-					horz_cycle_count -= 80;
 				}
 				break;
 			case MODE_VRAM_ACCESS:
-				if (horz_cycle_count >= 172)
+				if (horz_cycle_count < 0)
 				{
 					if (*scanline < 143)
 					{
@@ -517,8 +535,6 @@ namespace gameboy
 					{
 						switch_lcd_mode(MODE_VBLANK);
 					}
-
-					horz_cycle_count -= 172;
 				}
 				break;
 			}
@@ -544,12 +560,6 @@ namespace gameboy
 					}
 				}
 
-				// lcd not enabled. reset scanline and horz cycle count. lcd mode set to 1 (VBlank)
-				*scanline = 0;
-				set_lcd_status_mode(MODE_HBLANK);
-				*lcd_status &= ~(1 << 2); // clear bit 2 for coincidence
-				horz_cycle_count = 0;
-				lcd_enabling = true;
 				lcd_enabled = false;
 
 				return 0;
@@ -557,17 +567,47 @@ namespace gameboy
 
 			if (!lcd_enabled)
 			{
+				// lcd being re enabled. reset scanline and horz cycle count. lcd mode set to hblank
 				lcd_enabled = true;
-				horz_cycle_count = 0;
+				lcd_enabling = true;
+				*scanline = 0;
+				horz_cycle_count = 68;
+				set_lcd_status_mode(MODE_HBLANK);
 			}
 			else
 			{
-				horz_cycle_count += cycles;
+				horz_cycle_count -= cycles;
 			}
 
-			update_lcd_scanline();
+			if (lcd_enabling)
+			{
+				update_lcd_scanline_lcd_enabling();
+			}
+			else
+			{
+				update_lcd_scanline();
+			}
 
 			return 0;
+		}
+
+		void check_coincidence_flag()
+		{
+			if (*coincidence_scanline != *scanline)
+			{
+				*lcd_status &= ~(1 << 2); // clear bit 2 for coincidence
+			}
+
+			if (scanline_inc)
+			{
+				return;
+			}
+
+			// check for coincidence flag
+			if (*coincidence_scanline == *scanline)
+			{
+				*lcd_status |= (1 << 2); // set bit 2 for coincidence
+			}
 		}
 	}
 }
