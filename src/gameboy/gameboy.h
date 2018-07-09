@@ -204,7 +204,11 @@ namespace gameboy
 			window.clear();
 
 			// update the framebuffer
-			framebuffer_texture.update(gpu::framebuffer, gpu::width, gpu::height, 0, 0);
+			if (gpu::vblank_occurred)
+			{
+				framebuffer_texture.update(gpu::framebuffer, gpu::width, gpu::height, 0, 0);
+				gpu::vblank_occurred = false;
+			}
 			
 			// draw framebuffer
 			window.draw(framebuffer_sprite);

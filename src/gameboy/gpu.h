@@ -28,6 +28,7 @@ namespace gameboy
 		bool lcd_enabled = false;
 		bool scanline_inc = false;
 		s32 horz_cycle_count = 0;
+		bool vblank_occurred = false;
 				
 		// set and get lcd control flag helpers
 		inline void set_lcd_control_flag(u8 flag)
@@ -279,16 +280,16 @@ namespace gameboy
 					
 					if (tilesetOffset != 0) // its a signed value
 					{
-						tileId = (s8)memory_module::read_memory(tilemapAddr + tileX + tileY);
+						tileId = (s8)memory_module::read_memory(tilemapAddr + tileX + tileY, true);
 						tileId += tilesetOffset; // apply offset to the id
 					}
 					else
 					{
-						tileId = memory_module::read_memory(tilemapAddr + tileX + tileY);
+						tileId = memory_module::read_memory(tilemapAddr + tileX + tileY, true);
 					}
 
 					// we have the tile id. lets draw pixel
-					u8* tileset = memory_module::get_memory(tilesetAddr + (tileId * tileSize) + (tileYPixel * 2));
+					u8* tileset = memory_module::get_memory(tilesetAddr + (tileId * tileSize) + (tileYPixel * 2), true);
 					u8 dataA = tileset[0];
 					u8 dataB = tileset[1];
 					u8 bit = 7 - tileXPixel; // the bits and pixels are inversed
@@ -441,6 +442,7 @@ namespace gameboy
 				}
 
 				horz_cycle_count += 456;
+				vblank_occurred = true;
 				break;
 			case MODE_OAM_ACCESS:
 				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0);
