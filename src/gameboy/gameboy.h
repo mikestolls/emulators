@@ -12,7 +12,7 @@
 
 #include <map>
 
-#define USE_BOOT_ROM
+//#define USE_BOOT_ROM
 
 namespace gameboy
 {

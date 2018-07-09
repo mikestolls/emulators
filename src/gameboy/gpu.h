@@ -415,6 +415,9 @@ namespace gameboy
 			switch (lcd_mode)
 			{
 			case MODE_HBLANK:
+				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0x3);
+				memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0x3);
+
 				if (get_lcd_interrupt_flag(FLAG_HBLANK))
 				{
 					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
@@ -423,6 +426,9 @@ namespace gameboy
 				horz_cycle_count += 204;
 				break;
 			case MODE_VBLANK:
+				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0x3);
+				memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0x3);
+
 				// draw the scan line
 				draw_scanline();
 				draw_sprites();
@@ -437,6 +443,8 @@ namespace gameboy
 				horz_cycle_count += 456;
 				break;
 			case MODE_OAM_ACCESS:
+				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0);
+
 				if (get_lcd_interrupt_flag(FLAG_OAM_ACCESS))
 				{
 					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
@@ -445,6 +453,9 @@ namespace gameboy
 				horz_cycle_count += 80;
 				break;
 			case MODE_VRAM_ACCESS:
+				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0);
+				memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0);
+
 				horz_cycle_count += 172;
 				break;
 			}
@@ -462,6 +473,9 @@ namespace gameboy
 			case MODE_HBLANK:
 				if (horz_cycle_count < 0)
 				{
+					memory_module::set_memory_access(memory_module::MEMORY_OAM, 0);
+					memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0);
+
 					set_lcd_status_mode(MODE_VRAM_ACCESS);
 					horz_cycle_count += 172;
 				}
@@ -475,7 +489,7 @@ namespace gameboy
 				break;
 			case MODE_VBLANK:
 			case MODE_OAM_ACCESS:
-				warning_assert("lcd mode should not be set when enabling")
+				assert("lcd mode should not be set when enabling");
 				break;
 			}
 
@@ -495,6 +509,7 @@ namespace gameboy
 					// draw the scan line
 					increment_scanline();
 					scanline_inc = true;
+					memory_module::set_memory_access(memory_module::MEMORY_OAM, 0);
 				}
 
 				if (horz_cycle_count < 0)
@@ -519,6 +534,11 @@ namespace gameboy
 				}
 				break;
 			case MODE_OAM_ACCESS:
+				if (horz_cycle_count <= 0)
+				{
+					memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0);
+				}
+
 				if (horz_cycle_count < 0)
 				{
 					switch_lcd_mode(MODE_VRAM_ACCESS);
@@ -572,6 +592,7 @@ namespace gameboy
 				lcd_enabling = true;
 				*scanline = 0;
 				horz_cycle_count = 68;
+
 				set_lcd_status_mode(MODE_HBLANK);
 			}
 			else

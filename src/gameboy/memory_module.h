@@ -10,8 +10,8 @@ namespace gameboy
 {
 	namespace cpu
 	{
-		extern void reset_timer_counter();
-		extern int update_timer(u8 cycles);
+		void reset_timer_counter();
+		int update_timer(u8 cycles);
 	}
 	
 	namespace memory_module
@@ -79,6 +79,9 @@ namespace gameboy
 			printf("Error - memory map not implemented for this range of addr: 0x%X\n", addr);
 			return nullptr;
 		}
+
+		inline void set_memory_access(u8 bank, u8 access) { memory_map[bank].access = access; }
+		inline u8 get_memory_access(u8 bank, u8 access) { return memory_map[bank].access; }
 				
 		u8* get_memory(u16 addr, bool force = false)
 		{
@@ -91,7 +94,7 @@ namespace gameboy
 					{
 						if ((memory_map[i].access & MEMORY_READABLE) == 0)
 						{
-							//printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
+							printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
 							return 0;
 						}
 					}
@@ -118,22 +121,9 @@ namespace gameboy
 				{
 					if (!force)
 					{
-						u8 mode = rom_ptr->memory_bank_controller->memory[0xFF41] & 0x3; // lcd_status
-						if (i == MEMORY_VRAM && mode > 2)
-						{
-							printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
-							return 0xFF;
-						}
-
-						if (i == MEMORY_OAM && mode > 1)
-						{
-							printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
-							return 0xFF;
-						}
-
 						if ((memory_map[i].access & MEMORY_READABLE) == 0)
 						{
-							//printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
+							printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
 							return 0xFF;
 						}
 					}
@@ -199,20 +189,7 @@ namespace gameboy
 				if (addr <= memory_map[i].addr_max)
 				{
 					if (!force)
-					{
-						u8 mode = rom_ptr->memory_bank_controller->memory[0xFF41] & 0x3; // lcd_status
-						if (i == MEMORY_VRAM && mode > 2)
-						{
-							printf("Error - writing to memory during the wrong mode: 0x%X bank: %d mode: %d\n", addr, i, mode);
-							return;
-						}
-
-						if (i == MEMORY_OAM && mode > 1)
-						{
-							printf("Error - writing to memory during the wrong mode: 0x%X bank: %d mode: %d\n", addr, i, mode);
-							return;
-						}
-						
+					{						
 						if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
 						{
 							printf("Error - writing to memory map that is not writable: 0x%X map: %d\n", addr, i);

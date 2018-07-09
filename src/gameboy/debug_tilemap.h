@@ -46,7 +46,7 @@ namespace gameboy
                 addr = 0x9C00;
             }
 
-            u8* tilemap = memory_module::get_memory(addr);
+            u8* tilemap = memory_module::get_memory(addr, true);
 
             // render 32 x 32 tilemap
             for (int i = 0; i < 1024; i++)
@@ -61,7 +61,7 @@ namespace gameboy
 
                 // get tile id
                 s32 tileId = (s8)tilemap[i] + tilesetOffset;
-                u8* tileset = memory_module::get_memory(tilesetAddr + (tileId * 16));
+                u8* tileset = memory_module::get_memory(tilesetAddr + (tileId * 16), true);
 
                 for (int y = 0; y < 8; y++)
                 {

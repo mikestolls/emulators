@@ -73,14 +73,6 @@ namespace gameboy
 		void update()
 		{
 			std::stringstream stream;
-			//stream << "R.a : " << WRITE_HEX_8((int)cpu::R.a) << std::endl;
-			//stream << "R.f : " << WRITE_HEX_8((int)cpu::R.f) << std::endl;
-			//stream << "R.b : " << WRITE_HEX_8((int)cpu::R.b) << std::endl;
-			//stream << "R.c : " << WRITE_HEX_8((int)cpu::R.c) << std::endl;
-			//stream << "R.d : " << WRITE_HEX_8((int)cpu::R.d) << std::endl;
-			//stream << "R.e : " << WRITE_HEX_8((int)cpu::R.e) << std::endl;
-			//stream << "R.h : " << WRITE_HEX_8((int)cpu::R.h) << std::endl;
-			//stream << "R.l : " << WRITE_HEX_8((int)cpu::R.l) << std::endl;
 			stream << "R.af: " << WRITE_HEX_16(cpu::R.af) << std::endl;
 			stream << "R.bc: " << WRITE_HEX_16(cpu::R.bc) << std::endl;
 			stream << "R.de: " << WRITE_HEX_16(cpu::R.de) << std::endl;

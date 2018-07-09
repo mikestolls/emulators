@@ -42,7 +42,7 @@ namespace gameboy
                 addr = 0x8800;
             }
 
-            u8* tileset = memory_module::get_memory(addr);
+            u8* tileset = memory_module::get_memory(addr, true);
 
             // render all 256 tiles
             for (u16 i = 0; i < 256; i++)
