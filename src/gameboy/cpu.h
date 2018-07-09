@@ -846,7 +846,7 @@ namespace gameboy
 			halt_continue_exec = false;
 			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
-			breakpoints.push_back(0x0);
+			//breakpoints.push_back(0x0);
 			
 			return 0;
 		}
