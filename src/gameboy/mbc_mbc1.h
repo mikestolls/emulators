@@ -1,6 +1,7 @@
 #pragma once
 
 #include "defines.h"
+#include "mbc.h"
 
 namespace gameboy
 {	
@@ -9,10 +10,8 @@ namespace gameboy
 		extern void enable_external_ram(bool enable);
 	}
 
-	class mbc_mbc1 : public mbc_base
+	namespace mbc_mbc1
 	{
-	public:
-
 		enum MODE_SELECT
 		{
 			MODE_ROM_BANK = 0,
@@ -27,7 +26,15 @@ namespace gameboy
 
 		int initialize(ROM_SIZE romsize, RAM_SIZE ramsize, u8* romdata, u64 datasize)
 		{
-			reset();
+			mbc::memory_rom = &mbc::memory[0x0000];
+			mbc::memory_switchable_rom = &mbc::memory[0x4000];
+			mbc::memory_vram = &mbc::memory[0x8000];
+			mbc::memory_external_ram = &mbc::memory[0xA000];
+			mbc::memory_working_ram = &mbc::memory[0xC000];
+			mbc::memory_oam = &mbc::memory[0xFE00];
+			mbc::memory_io_registers = &mbc::memory[0xFF00];
+			mbc::memory_zero_page = &mbc::memory[0xFF80];
+			mbc::memory_interrupt_flag = &mbc::memory[0xFFFF];
 
 			u32 banksize = 0x4000;
 
@@ -48,8 +55,8 @@ namespace gameboy
 			// point rom to default bank
 			mode_select = MODE_ROM_BANK;
 			rom_bank_idx = 0x1;
-			memory_rom = rom_banks[0x0];
-			memory_switchable_rom = rom_banks[0x1];
+			mbc::memory_rom = rom_banks[0x0];
+			mbc::memory_switchable_rom = rom_banks[0x1];
 
 			// based on the ram setting. create external ram banks
 			switch (ramsize)
@@ -58,7 +65,7 @@ namespace gameboy
 			case RAM_2KB:
 			case RAM_8KB:
 				ram_bank_idx = 0x0;
-				memory_external_ram = &memory[0xA000];
+				mbc::memory_external_ram = &mbc::memory[0xA000];
 				break;
 			default:
 				banksize = 0x2000;
@@ -70,7 +77,7 @@ namespace gameboy
 				}
 
 				ram_bank_idx = 0x0;
-				memory_external_ram = ram_banks[ram_bank_idx];
+				mbc::memory_external_ram = ram_banks[ram_bank_idx];
 				break;
 			}
 
@@ -79,7 +86,7 @@ namespace gameboy
 
 		int reset()
 		{
-			mbc_base::reset();
+			mbc::reset();
 
 			while (!rom_banks.empty())
 			{
@@ -131,7 +138,7 @@ namespace gameboy
 				rom_bank_idx |= val;
 				
 				//printf("Rom bank: %d\n", rom_bank_idx);
-				memory_switchable_rom = rom_banks[rom_bank_idx];
+				mbc::memory_switchable_rom = rom_banks[rom_bank_idx];
 
 				handled = true;
 			}
@@ -146,7 +153,7 @@ namespace gameboy
 					rom_bank_idx |= (bits << 5);
 
 					//printf("Rom bank: %d\n", rom_bank_idx);
-					memory_switchable_rom = rom_banks[rom_bank_idx];
+					mbc::memory_switchable_rom = rom_banks[rom_bank_idx];
 
 					handled = true;
 				}
@@ -155,7 +162,7 @@ namespace gameboy
 					// two bits are the ram bank
 					ram_bank_idx = bits;
 
-					memory_external_ram = ram_banks[ram_bank_idx];
+					mbc::memory_external_ram = ram_banks[ram_bank_idx];
 
 					handled = true;
 				}
@@ -169,12 +176,12 @@ namespace gameboy
 				{
 					if (mode == MODE_ROM_BANK)
 					{
-						memory_external_ram = ram_banks[0x0];
+						mbc::memory_external_ram = ram_banks[0x0];
 					}
 					else
 					{
 						// in RAM mode only ROM banks 0x0 - 0x1F can be used
-						memory_external_ram = ram_banks[ram_bank_idx];
+						mbc::memory_external_ram = ram_banks[ram_bank_idx];
 					}
 
 					mode_select = mode;
@@ -189,16 +196,6 @@ namespace gameboy
 		int get_rom_bank_idx()
 		{
 			return rom_bank_idx;
-		}
-
-		mbc_mbc1() : mbc_base()
-		{
-
-		}
-
-		~mbc_mbc1()
-		{
-			reset();
 		}
 	};
 }

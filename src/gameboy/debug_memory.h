@@ -3,7 +3,6 @@
 #include "defines.h"
 #include "debug_window.h"
 #include "disassembler.h"
-#include "mbc_base.h"
 
 #include <SFML/Graphics.hpp>
 
@@ -153,7 +152,7 @@ namespace gameboy
 				std::stringstream stream;
 				if (map->map_name.compare("ROMS") == 0)
 				{
-					stream << "ROM" << memory_module::rom_ptr->memory_bank_controller->get_rom_bank_idx();
+					stream << "ROM" << mbc::mbc_get_rom_bank_idx();
 				}
 				else
 				{

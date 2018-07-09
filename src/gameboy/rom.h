@@ -2,7 +2,7 @@
 
 #include "defines.h"
 
-#include "mbc_base.h"
+#include "mbc.h"
 #include "mbc_mbc1.h"
 
 namespace gameboy
@@ -26,7 +26,6 @@ namespace gameboy
 		u64 romsize;
 		std::string filename;
 		rom_header romheader;
-		mbc_base* memory_bank_controller;
 
 		void open(const char* path)
 		{
@@ -62,19 +61,19 @@ namespace gameboy
 			switch (romheader.cartridgeType)
 			{
 			case ROM_ONLY:
-				memory_bank_controller = new mbc_base();
 				break;
 			case ROM_MBC1:
 			case ROM_MBC1_RAM:
 			case ROM_MBC1_RAM_BATTERY:
-				memory_bank_controller = new mbc_mbc1();
+				mbc::mbc_initialize = &mbc_mbc1::initialize;
+				mbc::mbc_get_rom_bank_idx = &mbc_mbc1::get_rom_bank_idx;
+				mbc::mbc_reset = &mbc_mbc1::reset;
+				mbc::mbc_write_memory = &mbc_mbc1::write_memory;
 				break;
 			default:
 				warning_assert("memory bank controller not supported yet");
 				break;
 			}
-
-			memory_bank_controller->initialize(romheader.romSize, romheader.ramSize, romdata, (u64)size);
 		}
 
 		rom()
@@ -96,8 +95,6 @@ namespace gameboy
 			{
 				delete[] romdata;
 			}
-
-			delete memory_bank_controller;
 		}
 	};
 }
