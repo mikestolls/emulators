@@ -583,6 +583,8 @@ namespace gameboy
 				}
 
 				lcd_enabled = false;
+				set_lcd_status_mode(MODE_HBLANK);
+				*scanline = 0;
 
 				return 0;
 			}
