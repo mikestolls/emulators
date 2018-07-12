@@ -74,22 +74,22 @@ solution "emulators"
 
         configuration "Debug*"
             links {
-                "sfml-audio-s-d.lib",
                 "sfml-graphics-s-d.lib",
                 "sfml-main-d.lib",
                 "sfml-network-s-d.lib",
                 "sfml-system-s-d.lib",
-                "sfml-window-s-d.lib"
+                "sfml-window-s-d.lib",
+				"portaudio-d.lib",
             }
 
         configuration "Release*"
             links {
-                "sfml-audio-s.lib",
                 "sfml-graphics-s.lib",
                 "sfml-main.lib",
                 "sfml-network-s.lib",
                 "sfml-system-s.lib",
-                "sfml-window-s.lib"
+                "sfml-window-s.lib",
+				"portaudio.lib",
             }
 
         -- postbuildcommands {

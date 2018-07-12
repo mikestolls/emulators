@@ -46,7 +46,7 @@ namespace gameboy
 	namespace cpu
 	{
 		const u32 cycles_per_sec = 4194304;
-		const u32 fps = 60;
+		const u32 fps = 59.7;
 
 		bool running = true;
 		bool eiOcccurred = false;

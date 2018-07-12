@@ -5,6 +5,7 @@
 #include "cpu.h"
 #include "input.h"
 #include "gpu.h"
+#include "apu.h"
 #include "rom.h"
 #include "boot_rom.h"
 #include "debugger.h"
@@ -12,7 +13,7 @@
 
 #include <map>
 
-//#define USE_BOOT_ROM
+#define USE_BOOT_ROM
 
 namespace gameboy
 {
@@ -99,7 +100,7 @@ namespace gameboy
 		input_map[sf::Keyboard::Up] = { DIRECTION_UP, true };
 		input_map[sf::Keyboard::Down] = { DIRECTION_DOWN, true };
 		input_map[sf::Keyboard::A] = { BUTTON_A, false };
-		input_map[sf::Keyboard::B] = { BUTTON_B, false };
+		input_map[sf::Keyboard::S] = { BUTTON_B, false };
 		input_map[sf::Keyboard::Return] = { BUTTON_START, false };
 		input_map[sf::Keyboard::RShift] = { BUTTON_SELECT, false };
 		
@@ -112,6 +113,7 @@ namespace gameboy
 
 		cpu::initialize();
 		gpu::initialize();
+		apu::initialize();
 		
 		auto cur_time = std::chrono::high_resolution_clock::now();
 		auto last_time = cur_time;
@@ -143,6 +145,7 @@ namespace gameboy
 						{
 							cpu::reset();
 							gpu::reset();
+							apu::reset();
 							cycle_count = 0;
 						}
 						else
