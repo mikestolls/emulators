@@ -156,6 +156,18 @@ namespace gameboy
 
 		int reset()
 		{
+			// setup memory ptrs
+			scanline = memory_module::get_memory(0xFF44, true);
+			coincidence_scanline = memory_module::get_memory(0xFF45, true);
+			lcd_control = memory_module::get_memory(0xFF40, true);
+			lcd_status = memory_module::get_memory(0xFF41, true);
+			scrollY = memory_module::get_memory(0xFF42, true);
+			scrollX = memory_module::get_memory(0xFF43, true);
+			windowY = memory_module::get_memory(0xFF4A, true);
+			windowX = memory_module::get_memory(0xFF4B, true);
+			palette_bg = memory_module::get_memory(0xFF47, true);
+			sprite_attr = memory_module::get_memory(0xFE00, true);
+
 			horz_cycle_count = 0;
 			lcd_enabling = false;
 			lcd_enabled = false;
@@ -166,18 +178,6 @@ namespace gameboy
 
 		int initialize()
 		{
-			// setup memory ptrs
-			scanline = memory_module::get_memory(0xFF44, true);
-			coincidence_scanline = memory_module::get_memory(0xFF45, true);
-			lcd_control = memory_module::get_memory(0xFF40, true);
-			lcd_status = memory_module::get_memory(0xFF41, true);
-			scrollY =  memory_module::get_memory(0xFF42, true);
-			scrollX = memory_module::get_memory(0xFF43, true);
-			windowY = memory_module::get_memory(0xFF4A, true);
-			windowX = memory_module::get_memory(0xFF4B, true);
-			palette_bg = memory_module::get_memory(0xFF47, true);
-			sprite_attr = memory_module::get_memory(0xFE00, true);
-
 			reset();
 
 			return 0;

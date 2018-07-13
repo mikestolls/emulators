@@ -117,8 +117,6 @@ namespace gameboy
 		
 		auto cur_time = std::chrono::high_resolution_clock::now();
 		auto last_time = cur_time;
-
-		const u32 cycles_per_frame = cpu::cycles_per_sec / cpu::fps;
 		u32 cycle_count = 0;
 
 		while (window.isOpen())
@@ -184,8 +182,16 @@ namespace gameboy
 					}
 				}
 			}
+
+			// wait for audio sync
+			if (!apu::tick_frame)
+			{
+				continue;
+			}
+
+			apu::tick_frame = false;
 			
-			while (cycle_count < cycles_per_frame)
+			while (cycle_count < cpu::num_cycles_per_frame)
 			{
 				// update the cpu emulation
 				u8 cpu_cycles = cpu::check_interrupts();
@@ -201,7 +207,7 @@ namespace gameboy
 			if (!cpu::paused && cpu::running)
 			{
 				// once we have passed cycles per frame reset cycle count
-				cycle_count -= cycles_per_frame;
+				cycle_count -= cpu::num_cycles_per_frame;
 			}
 
 			window.clear();
@@ -224,7 +230,6 @@ namespace gameboy
 				window.draw(debugger.window_sprite);
 			}
 
-			// show profliler stats
 			std::stringstream stream;
 			stream << "FPS: " << fps << "\n";
 
@@ -237,22 +242,7 @@ namespace gameboy
 			// limit fps
 			cur_time = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<double, std::milli> delta = cur_time - last_time;
-			std::chrono::duration<double, std::milli> min_frame_time(1000.0 / (float)cpu::fps);
-
-			if (delta < min_frame_time)
-			{
-				std::this_thread::sleep_for(min_frame_time - delta);
-			}
-
-			// recalculate fps
-			cur_time = std::chrono::high_resolution_clock::now();
-			delta = cur_time - last_time;
-
-			if (delta.count() != 0)
-			{
-				fps = (u32)(1000 / delta.count());
-			}
-
+			fps = (u32)(1000.0 / delta.count());
 			last_time = cur_time;
 		}
 

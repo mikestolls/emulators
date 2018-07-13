@@ -43,10 +43,16 @@ namespace gameboy
 		void check_coincidence_flag();
 	}
 
+	namespace apu
+	{
+		int update(u8 cycles);
+	}
+
 	namespace cpu
 	{
 		const u32 cycles_per_sec = 4194304;
-		const u32 fps = 59.7;
+		const u32 fps = 50;
+		const u32 num_cycles_per_frame = cycles_per_sec / fps;
 
 		bool running = true;
 		bool eiOcccurred = false;
@@ -762,6 +768,8 @@ namespace gameboy
 		int update_timer(u8 cycles)
 		{
 			gpu::update(cycles);
+			apu::update(cycles);
+
 			gpu::check_coincidence_flag();
 
 			// update divide register first
