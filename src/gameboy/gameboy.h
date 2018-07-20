@@ -171,6 +171,16 @@ namespace gameboy
 					}
 					else
 					{
+						if (event.key.code == sf::Keyboard::LBracket)
+						{
+							apu::change_frequency(-50);
+						}
+
+						if (event.key.code == sf::Keyboard::RBracket)
+						{
+							apu::change_frequency(50);
+						}
+
 						// check for joypad input
 						auto itr = input_map.find(event.key.code);
 
@@ -182,14 +192,6 @@ namespace gameboy
 					}
 				}
 			}
-
-			// wait for audio sync
-			if (!apu::tick_frame)
-			{
-				continue;
-			}
-
-			apu::tick_frame = false;
 			
 			while (cycle_count < cpu::num_cycles_per_frame)
 			{
@@ -242,7 +244,22 @@ namespace gameboy
 			// limit fps
 			cur_time = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<double, std::milli> delta = cur_time - last_time;
-			fps = (u32)(1000.0 / delta.count());
+			std::chrono::duration<double, std::milli> min_frame_time(1000.0 / (float)cpu::fps);
+
+			if (delta < min_frame_time)
+			{
+				std::this_thread::sleep_for(min_frame_time - delta);
+			}
+
+			// recalculate fps
+			cur_time = std::chrono::high_resolution_clock::now();
+			delta = cur_time - last_time;
+
+			if (delta.count() != 0)
+			{
+				fps = (u32)(1000 / delta.count());
+			}
+
 			last_time = cur_time;
 		}
 

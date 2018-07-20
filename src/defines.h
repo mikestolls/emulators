@@ -35,8 +35,9 @@ typedef long s64;
 #define WRITE_HEX_16(x) "0x" << std::setfill('0') << std::setw(4) << std::uppercase << std::hex << (s32)(x)
 #define WRITE_HEX_8(x) "0x" << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << (s32)(x)
 
-template <typename T> T sgn(T val) {
-	return T((T(0) < val) - (val < T(0)));
+float sgnf(float val) 
+{
+	return (float)(0.0f < val) - (val < 0.0f);
 }
 
 namespace string_helpers

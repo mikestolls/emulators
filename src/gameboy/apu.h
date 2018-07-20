@@ -13,6 +13,16 @@ namespace gameboy
 {
 	namespace apu
 	{
+		namespace square_wave
+		{
+			s16 generate_sample(s32 frequency);
+		}
+
+		namespace square_wave_bandlimited
+		{
+			s16 generate_sample(s32 frequency);
+		}
+
 		struct sound_channel
 		{
 			u8* on_off;
@@ -33,7 +43,6 @@ namespace gameboy
 		};
 
 		bool is_started = false;
-		std::atomic<bool> tick_frame;
 
 		// gameboy channels and control info
 		sound_channel channels[CHANNEL_COUNT];
@@ -59,11 +68,10 @@ namespace gameboy
 		s16* sound_buffer = 0;
 		s16* play_buffer;
 		s16* fill_buffer;
+		float* samples;
+		float* coefficients;
 
-		inline s16 generate_sample();
-
-		auto cur_time = std::chrono::high_resolution_clock::now();
-		auto last_time = cur_time;
+		s32 frequency = 250;
 
 		static int audio_callback(const void *inputBuffer, void *outputBuffer, unsigned long framesPerBuffer, const PaStreamCallbackTimeInfo* timeInfo, PaStreamCallbackFlags statusFlags, void *userData)
 		{
@@ -72,10 +80,9 @@ namespace gameboy
 			s16* buffer = play_buffer;
 			for (unsigned int i = 0; i < framesPerBuffer; i++)
 			{
-				*out++ = (*buffer)++;
-				buffer++;
+				*out++ = square_wave::generate_sample(frequency);
 			}
-
+			
 			return 0;
 		}
 
@@ -132,7 +139,6 @@ namespace gameboy
 				return -1;
 			}
 
-			tick_frame = true;
 			is_started = true;
 
 			return 0;
@@ -162,23 +168,6 @@ namespace gameboy
 		inline u8 get_power_flag(u8 flag)
 		{
 			return ((*power & (1 << flag)) >> flag);
-		}
-
-		s32 frequency = 3000;
-		float time = 0.0f;
-		inline s16 generate_sample()
-		{
-			float time_inc = (float)(frequency / cpu::fps) / num_samples_per_frame;
-
-			float val = sgn<float>(sinf(time * 2 * (float)M_PI));
-			time += time_inc;
-
-			if (time >= 1.0f)
-			{
-				time -= 1.0f;
-			}
-
-			return (s32)(val * volume);
 		}
 
 		int reset()
@@ -227,7 +216,7 @@ namespace gameboy
 			power = memory_module::get_memory(0xFF26);
 
 			is_sound_on = false;
-			volume = 500;
+			volume = 1000;
 
 			// initialize sounds buffer
 			if (sound_buffer)
@@ -240,7 +229,7 @@ namespace gameboy
 			memset(sound_buffer, 0x0, sizeof(s16) * num_samples_per_frame * 2);
 			play_buffer = sound_buffer;
 			fill_buffer = &sound_buffer[num_samples_per_frame];
-			
+
 			return 0;
 		}
 
@@ -280,7 +269,7 @@ namespace gameboy
 				if (cycle_count <= 0)
 				{
 					// put the next sample into the buffer
-					fill_buffer[fill_buffer_pos++] = generate_sample();
+					fill_buffer[fill_buffer_pos++] = square_wave::generate_sample(frequency);
 
 					cycle_count += num_cycles_per_sample;
 				}
@@ -296,6 +285,86 @@ namespace gameboy
 			}
 
 			return 0;
+		}
+
+		void change_frequency(s32 mod)
+		{
+			frequency += mod;
+			frequency = (frequency < 0 ? 0 : frequency);
+			frequency = (frequency > 50000 ? 50000 : frequency);
+		}
+
+		namespace square_wave
+		{
+			float duty_cycle = 0.5;
+			float sample_time = 0.0f;
+
+			s16 generate_sample(s32 frequency)
+			{
+				float time_inc = (float)(frequency / cpu::fps) / apu::num_samples_per_frame;
+				float val = sgnf(sinf(sample_time * 2 * (float)M_PI) * 100);
+
+				sample_time += time_inc;
+
+				if (sample_time >= 1.0f)
+				{
+					sample_time -= 1.0f;
+				}
+
+				return (s32)(val * apu::volume);
+			}
+		}
+
+		namespace square_wave_bandlimited
+		{
+			s32 last_frequency = 0;
+			float* coefficients = 0;
+			u32 sample_idx = 0;
+			float duty_cycle = 0.5f;
+			float sample_time = 0.0f;
+
+			s16 generate_sample(s32 frequency)
+			{
+				int num_harmonics = (int)(apu::sample_rate / (frequency * 2));
+				int num_coefficients = num_harmonics;
+
+				if (frequency != last_frequency)
+				{
+					if (coefficients)
+					{
+						delete[] coefficients;
+					}
+
+					// Calculate harmonic amplitudes
+					coefficients = new float[num_harmonics];
+					for (int i = 1; i <= num_coefficients; i++)
+					{
+						coefficients[i - 1] = sinf(i * duty_cycle * (float)M_PI) * 2.0f / (i * (float)M_PI);
+					}
+
+					last_frequency = frequency;
+				}
+
+				float scaler = frequency * (float)M_PI * 2.0f / apu::sample_rate;
+				float duty_cycle_offset = duty_cycle - 0.5f;
+
+				float temp = scaler * sample_idx;
+				float val = duty_cycle_offset;
+				for (int i = 1; i <= num_coefficients; i++)
+				{
+					val += cosf(i * temp) * coefficients[i - 1];
+				}
+
+				// increase the sample idx
+				sample_idx++;
+
+				if (sample_idx > apu::sample_rate)
+				{
+					sample_idx = 0;
+				}
+
+				return (s32)(val * apu::volume);
+			}
 		}
 	}
 }
