@@ -8,7 +8,7 @@ solution "emulators"
 	system "Windows"
 	architecture "x64"
 	configurations { "Debug", "Debug - Assembler", "Debug - Disassembler", "Release" }
-	location("../prj/" .. _ACTION)
+	location("../_prj/" .. _ACTION)
     debugdir "../data"
     characterset "MBCS"
 
@@ -39,9 +39,9 @@ solution "emulators"
 
 	-- Projects
 	project("emulators")
-		location("../prj/" .. _ACTION)
-		targetdir "../build/%{cfg.buildcfg}/%{prj.name}"
-		objdir "../obj/%{cfg.buildcfg}/%{prj.name}"
+		location("../_prj/" .. _ACTION)
+		targetdir "../_build/%{cfg.buildcfg}/%{prj.name}"
+		objdir "../_obj/%{cfg.buildcfg}/%{prj.name}"
         kind "ConsoleApp"
 		
 		flags {
