@@ -464,7 +464,11 @@ namespace gameboy
 			{
 				// resume the cpu
 				cpu::paused = false;
-				cpu::breakpoint_disable_one_instr = true;
+
+				if (cpu::memory_breakpoint_last_addr == 0x0) // not a memory breakpoint. yes i know. 0x0 is a valid addr, but no one needs to watch it
+				{
+					cpu::breakpoint_disable_one_instr = true;
+				}
 			}
 			else if (key == sf::Keyboard::F6)
 			{
