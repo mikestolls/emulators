@@ -850,8 +850,6 @@ namespace gameboy
 			breakpoint_disable_one_instr = false;
 			memory_breakpoint_last_addr = -1;
 
-			//memory_breakpoints.push_back(0x9860);
-
 			return 0;
 		}
 

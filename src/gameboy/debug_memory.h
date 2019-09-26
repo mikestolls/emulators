@@ -50,7 +50,6 @@ namespace gameboy
 
 		s16 active_line;
 		s16 active_column;
-		u16 active_addr;
 		u16 mem_start;
 
 		s32 memory_breakpoint_last_addr;
@@ -439,6 +438,57 @@ namespace gameboy
 				goto_input_stream << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << val << " ";
 
 				is_mem_prompt = true;
+			}
+			else if (key == sf::Keyboard::F9) // handle debugging. same as the handlers in disassembly
+			{
+				u16 addr = mem_start + (active_line * MEM_PER_LINE) + active_column;
+				auto itr = std::find(cpu::memory_breakpoints.begin(), cpu::memory_breakpoints.end(), addr);
+
+				if (itr != cpu::memory_breakpoints.end())
+				{
+					cpu::memory_breakpoints.erase(itr);
+				}
+				else
+				{
+					cpu::memory_breakpoints.push_back(addr);
+				}
+			}
+			else if (key == sf::Keyboard::F5)
+			{
+				// resume the cpu
+				cpu::paused = false;
+
+				if (cpu::memory_breakpoint_last_addr == 0x0) // not a memory breakpoint. yes i know. 0x0 is a valid addr, but no one needs to watch it
+				{
+					cpu::breakpoint_disable_one_instr = true;
+				}
+			}
+			else if (key == sf::Keyboard::F10)
+			{
+				/*if (cpu::paused)
+				{
+					disassembler::symbol sym;
+					disassembler::disassemble_instr(cpu::R.pc, sym);
+
+					if (sym.mnemonic.compare("CALL") == 0)
+					{
+						cpu::soft_breakpoints.push_back(find_next_instr(cpu::R.pc));
+						cpu::paused = false;
+						cpu::breakpoint_disable_one_instr = true;
+					}
+					else
+					{
+						cpu::breakpoint_disable_one_instr = true;
+					}
+				}*/
+			}
+			else if (key == sf::Keyboard::F11)
+			{
+				if (cpu::paused)
+				{
+					//cpu::paused = false;
+					cpu::breakpoint_disable_one_instr = true;
+				}
 			}
 
 			if (active_line > MEM_LINE_COUNT - 1)
