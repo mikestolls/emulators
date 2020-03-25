@@ -361,14 +361,14 @@ namespace gameboy
 
 				int ret = run_emulator_rom(test.filename, false, test.abort_pc, test.checksum);
 
-				if (ret == 0)
-				{
-					printf("Test Passed: %s\n", test.filename.c_str());
-				}
-				else
+				if (ret)
 				{
 					all_passed = false;
 					printf("Test Failed: %s\n", test.filename.c_str());
+				}
+				else
+				{
+					printf("Test Passed: %s\n", test.filename.c_str());
 				}
 			}
 
