@@ -7,7 +7,7 @@ solution "emulators"
 	language "C++"
 	system "Windows"
 	architecture "x64"
-	configurations { "Debug", "Debug - Assembler", "Debug - Disassembler", "Release" }
+	configurations { "Debug", "Debug - Assembler", "Debug - Disassembler", "Debug - Unit Test", "Release" }
 	location("../prj/" .. _ACTION)
     debugdir "../data"
     characterset "MBCS"
@@ -33,6 +33,9 @@ solution "emulators"
 	configuration "Debug - Disassembler"
 		debugargs "-d"
 		
+	configuration "Debug - Unit Test"
+		debugargs "-unittest"
+		
 	configuration "Release*"
 		defines { "NDEBUG" }
 		optimize "full"
@@ -52,11 +55,16 @@ solution "emulators"
             "../src/**.h",
 			"../src/**.cpp",
 			"../data/**",
+			"../lib/rapidjson/include/**"
+		}
+		excludes {
+			"../data/**.s" 
 		}
         includedirs {
             "../src",
             "../src/emulators",
 			"../include",
+			"../lib/rapidjson/include"
         }
         links {
             "opengl32.lib",

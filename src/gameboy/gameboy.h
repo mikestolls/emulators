@@ -2,6 +2,8 @@
 
 #include <SFML/Graphics.hpp>
 
+#include "defines.h"
+
 #include "cpu.h"
 #include "input.h"
 #include "gpu.h"
@@ -10,7 +12,9 @@
 #include "debugger.h"
 #include "disassembler.h"
 
-#include <map>
+#include <rapidjson/document.h>
+#include <rapidjson/istreamwrapper.h>
+#include <fstream>
 
 //#define USE_BOOT_ROM
 
@@ -24,49 +28,24 @@ namespace gameboy
 		bool is_directional;
 	};
 
-	std::map<sf::Keyboard::Key, input_binding> input_map;
-	
-	int run_emulator(int argc, char** argv)
+	struct unit_test
 	{
-		std::string filename = "";
-		bool disassemble = false;
+	public:
+		std::string filename;
+		u16 abort_pc;
+		std::string checksum;
+	};
 
-		if (argc < 2)
-		{
-			printf("Error - arguments: [options] rom_filename\noptions:\n\t-d\tdisassemble rom\n\t-a\tassemle rom\n");
-			return -1;
-		}
-		else if (argc < 3)
-		{
-			filename = argv[1];
-		}
-		else if (argc < 4)
-		{
-			filename = argv[2];
-			if (strcmp("-d", argv[1]) == 0)
-			{
-				rom rom(filename.c_str());
-				memory_module::initialize(nullptr, &rom);
-
-				// export disassembler to file and close
-				std::string outfilename = rom.filename.substr(0, rom.filename.rfind("."));
-				outfilename.append(".gbasm");
-
-				disassembler::disassemble_to_file(outfilename.c_str());
-
-				return 0;
-			}
-			else if (strcmp("-a", argv[1]) == 0)
-			{
-				return -1;
-			}
-		}
-
+	std::map<sf::Keyboard::Key, input_binding> input_map;
+	std::list<unit_test> unit_test_list;
+	
+	int run_emulator_rom(std::string filename, s32 abort_pc = -1, std::string vram_checksum = "")
+	{
 		// load and run the rom
 		rom rom(filename.c_str());
 
 		// load the boot rom file
-		boot_rom boot("gameboy\\boot.gb");
+		boot_rom boot("gameboy/boot.gb");
 
 		// init sfml
 		sf::RenderWindow window(sf::VideoMode(gpu::width * pixelSize, gpu::height * pixelSize), "Emulator");
@@ -145,6 +124,16 @@ namespace gameboy
 							gpu::reset();
 							cycle_count = 0;
 						}
+						else if (event.key.code == sf::Keyboard::F2)
+						{
+							u8* ptr = memory_module::get_memory(0x9800, true);
+							u8* buffer = new u8[0x401];
+							memset(buffer, 0x0, 0x401);
+							memcpy(buffer, ptr, 0x400);
+							//std::string checksum = buffer;
+
+							printf("Checksum: %s", buffer);
+						}
 						else
 						{
 							debugger.on_keypressed(event.key.code);
@@ -189,6 +178,26 @@ namespace gameboy
 				cpu_cycles += cpu::execute_opcode();
 				cycle_count += cpu_cycles;
 				
+				// used for unit testing
+				if (cpu::R.pc == abort_pc)
+				{
+					debugger.destroy();
+					window.close();
+
+					// need to check the checksum
+					u8* vram = memory_module::get_memory(0x9800, true);
+					if (memcmp(vram_checksum.c_str(), vram, vram_checksum.length()) == 0)
+					{
+						printf("Test Passed\n");
+						return 0;
+					}
+					else
+					{
+						printf("Test Failed\n");
+						return -1;
+					}
+				}
+
 				if (cpu::paused || !cpu::running)
 				{
 					break;
@@ -256,6 +265,77 @@ namespace gameboy
 		// cleanup
 		debugger.destroy();
 		window.close();
+
+		return 0;
+	}
+
+	int run_emulator(int argc, char** argv)
+	{
+		if (argc < 2)
+		{
+			printf("Error - arguments: [options] rom_filename\noptions:\n\t-d\tdisassemble rom\n\t-a\tassemle rom\n\t-unittest\tUnit Tests\n");
+			return -1;
+		}
+
+		if (strcmp("-d", argv[1]) == 0)
+		{
+			rom rom(argv[2]);
+			memory_module::initialize(nullptr, &rom);
+
+			// export disassembler to file and close
+			std::string outfilename = rom.filename.substr(0, rom.filename.rfind("."));
+			outfilename.append(".gbasm");
+
+			disassembler::disassemble_to_file(outfilename.c_str());
+
+			return 0;
+		}
+		else if (strcmp("-a", argv[1]) == 0)
+		{
+			// not supported
+			return -1;
+		}
+		else if (strcmp("-unittest", argv[1]) == 0)
+		{
+			std::ifstream ifs("gameboy/unit_test.json");
+			rapidjson::IStreamWrapper isw(ifs);
+
+			if (ifs.is_open() == false)
+			{
+				return -1;
+			}
+
+			rapidjson::Document doc;
+			doc.ParseStream(isw);
+			rapidjson::Value array = doc.GetArray();
+			assert(doc.IsArray()); // attributes is an array
+			for (auto itr = array.Begin(); itr != array.End(); ++itr)
+			{
+				const rapidjson::Value& json = *itr;
+				assert(json.IsObject()); // each attribute is an object
+
+				unit_test test;
+				test.filename = json["filename"].GetString();
+				test.abort_pc = std::stoi(json["abort_pc"].GetString(), 0, 16);
+				test.checksum = json["checksum"].GetString();
+
+				unit_test_list.push_back(test);
+			}
+
+			// close the stream
+			ifs.close();
+
+			for (auto itr = unit_test_list.begin(); itr != unit_test_list.end(); itr++)
+			{
+				unit_test test = (*itr);
+
+				run_emulator_rom(test.filename, test.abort_pc, test.checksum);
+			}
+		}
+		else if (argc < 3)
+		{
+			run_emulator_rom(argv[1]);
+		}
 
 		return 0;
 	}
