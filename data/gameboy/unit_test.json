@@ -1,5 +1,10 @@
 [
     {
+        "filename" : "gameboy/blargg_tests/halt_bug.gb",
+        "abort_pc" : "0xC818",
+        "checksum" : "halt bug                                                        IE IF IF DE                     01 10 F1 0C04                   01 00 E1 0C04                   01 01 E1 0411                   11 00 E1 0C04                   11 10 F1 0411                   11 11 F1 0411                   E1 00 E1 0C04                   E1 E0 E1 0C04                   E1 E1 E1 0411                                                   Passed"
+    },
+    {
         "filename" : "gameboy/blargg_tests/mem_timing-2/mem_timing.gb",
         "abort_pc" : "0x2BDD",
         "checksum" : "mem_timing                                                      01:ok  02:ok  03:ok                                             Passed"

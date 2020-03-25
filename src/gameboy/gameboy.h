@@ -196,7 +196,7 @@ namespace gameboy
 					// used to get vram of test passed
 					//u8* test = new u8[0xF0];
 					//memset(test, 0x0, 0xF0);
-					//u8* vram_test = memory_module::get_memory(0x9800);
+					//u8* vram_test = memory_module::get_memory(0x9800, true);
 					//memcpy(test, vram_test, 0xEF);
 
 					running = false;
@@ -358,7 +358,7 @@ namespace gameboy
 			{
 				unit_test test = (*itr);
 
-				int ret = run_emulator_rom(test.filename, true, test.abort_pc, test.checksum);
+				int ret = run_emulator_rom(test.filename, false, test.abort_pc, test.checksum);
 
 				if (ret == 0)
 				{
