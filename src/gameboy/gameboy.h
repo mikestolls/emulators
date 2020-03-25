@@ -354,6 +354,7 @@ namespace gameboy
 			// close the stream
 			ifs.close();
 
+			bool all_passed = true;
 			for (auto itr = unit_test_list.begin(); itr != unit_test_list.end(); itr++)
 			{
 				unit_test test = (*itr);
@@ -366,8 +367,18 @@ namespace gameboy
 				}
 				else
 				{
+					all_passed = false;
 					printf("Test Failed: %s\n", test.filename.c_str());
 				}
+			}
+
+			if (all_passed)
+			{
+				return 0;
+			}
+			else
+			{
+				return -1;
 			}
 		}
 		else if (argc < 3)
