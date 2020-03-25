@@ -1,5 +1,10 @@
 [
     {
+        "filename" : "gameboy/blargg_tests/mem_timing/mem_timing.gb",
+        "abort_pc" : "0x06F1",
+        "checksum" : "mem_timing                                                      01:ok  02:ok  03:ok                                             Passed all tests"
+    },
+    {
         "filename" : "gameboy/blargg_tests/instr_timing/instr_timing.gb",
         "abort_pc" : "0xC8B0",
         "checksum" : "instr_timing                                                                                    Passed"

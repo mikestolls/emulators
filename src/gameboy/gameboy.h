@@ -205,12 +205,10 @@ namespace gameboy
 					u8* vram = memory_module::get_memory(0x9800, true);
 					if (memcmp(vram_checksum.c_str(), vram, vram_checksum.length()) == 0)
 					{
-						printf("Test Passed\n");
 						return 0;
 					}
 					else
 					{
-						printf("Test Failed\n");
 						return -1;
 					}
 				}
@@ -360,7 +358,16 @@ namespace gameboy
 			{
 				unit_test test = (*itr);
 
-				run_emulator_rom(test.filename, false, test.abort_pc, test.checksum);
+				int ret = run_emulator_rom(test.filename, true, test.abort_pc, test.checksum);
+
+				if (ret == 0)
+				{
+					printf("Test Passed: %s\n", test.filename.c_str());
+				}
+				else
+				{
+					printf("Test Failed: %s\n", test.filename.c_str());
+				}
 			}
 		}
 		else if (argc < 3)
