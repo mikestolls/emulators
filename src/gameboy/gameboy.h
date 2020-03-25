@@ -39,36 +39,44 @@ namespace gameboy
 	std::map<sf::Keyboard::Key, input_binding> input_map;
 	std::list<unit_test> unit_test_list;
 	
-	int run_emulator_rom(std::string filename, s32 abort_pc = -1, std::string vram_checksum = "")
+	int run_emulator_rom(std::string filename, bool show_window = true, s32 abort_pc = -1, std::string vram_checksum = "")
 	{
 		// load and run the rom
 		rom rom(filename.c_str());
 
 		// load the boot rom file
 		boot_rom boot("gameboy/boot.gb");
-
-		// init sfml
-		sf::RenderWindow window(sf::VideoMode(gpu::width * pixelSize, gpu::height * pixelSize), "Emulator");
+		bool is_window_enabled = false;
+		sf::RenderWindow window;
 		sf::Texture framebuffer_texture;
 		sf::Sprite framebuffer_sprite;
-		framebuffer_texture.create(gpu::width, gpu::height);
-		framebuffer_sprite.setTexture(framebuffer_texture);
-		framebuffer_sprite.setScale(pixelSize, pixelSize);
-
-		// fps counter and profiler
 		sf::Font font;
-		font.loadFromFile("courbd.ttf");
-
 		sf::Text fps_text;
-		fps_text.setFont(font);
-		fps_text.setFillColor(sf::Color::White);
-		fps_text.setPosition(10, 10);
-		fps_text.setOutlineColor(sf::Color::Black);
-		fps_text.setOutlineThickness(2);
-		fps_text.setCharacterSize(18);
-
 		debugger debugger;
-		debugger.initialize(window.getSize().x, window.getSize().y);
+
+		if (show_window)
+		{
+			// init sfml
+			window.create(sf::VideoMode(gpu::width * pixelSize, gpu::height * pixelSize), "Emulator");
+			framebuffer_texture.create(gpu::width, gpu::height);
+			framebuffer_sprite.setTexture(framebuffer_texture);
+			framebuffer_sprite.setScale(pixelSize, pixelSize);
+
+			// fps counter and profiler
+			font.loadFromFile("courbd.ttf");
+
+			fps_text.setFont(font);
+			fps_text.setFillColor(sf::Color::White);
+			fps_text.setPosition(10, 10);
+			fps_text.setOutlineColor(sf::Color::Black);
+			fps_text.setOutlineThickness(2);
+			fps_text.setCharacterSize(18);
+
+			debugger.initialize(window.getSize().x, window.getSize().y);
+
+			is_window_enabled = true;
+		}
+
 		bool show_debugger = false;
 		u32 fps = 0;
 
@@ -97,75 +105,79 @@ namespace gameboy
 
 		const u32 cycles_per_frame = cpu::cycles_per_sec / cpu::fps;
 		u32 cycle_count = 0;
+		bool running = true;
 
-		while (window.isOpen())
+		while (running)
 		{
 			// poll for window events
-			sf::Event event;
-			while (window.pollEvent(event))
+			if (is_window_enabled)
 			{
-				if (event.type == sf::Event::Closed)
+				sf::Event event;
+				while (window.pollEvent(event))
 				{
-					debugger.destroy();
-					window.close();
-				}
-				else if (event.type == sf::Event::KeyPressed)
-				{
-					if (event.key.code == sf::Keyboard::F1)
+					if (event.type == sf::Event::Closed)
 					{
-						show_debugger = !show_debugger;
+						debugger.destroy();
+						window.close();
 					}
-
-					if (show_debugger)
+					else if (event.type == sf::Event::KeyPressed)
 					{
-						if (event.key.code == sf::Keyboard::Space)
+						if (event.key.code == sf::Keyboard::F1)
 						{
-							cpu::reset();
-							gpu::reset();
-							cycle_count = 0;
+							show_debugger = !show_debugger;
 						}
-						else if (event.key.code == sf::Keyboard::F2)
-						{
-							u8* ptr = memory_module::get_memory(0x9800, true);
-							u8* buffer = new u8[0x401];
-							memset(buffer, 0x0, 0x401);
-							memcpy(buffer, ptr, 0x400);
-							//std::string checksum = buffer;
 
-							printf("Checksum: %s", buffer);
+						if (show_debugger)
+						{
+							if (event.key.code == sf::Keyboard::Space)
+							{
+								cpu::reset();
+								gpu::reset();
+								cycle_count = 0;
+							}
+							else if (event.key.code == sf::Keyboard::F2)
+							{
+								u8* ptr = memory_module::get_memory(0x9800, true);
+								u8* buffer = new u8[0x401];
+								memset(buffer, 0x0, 0x401);
+								memcpy(buffer, ptr, 0x400);
+								//std::string checksum = buffer;
+
+								printf("Checksum: %s", buffer);
+							}
+							else
+							{
+								debugger.on_keypressed(event.key.code);
+							}
 						}
 						else
 						{
-							debugger.on_keypressed(event.key.code);
+							// check for joypad input
+							auto itr = input_map.find(event.key.code);
+
+							if (itr != input_map.end())
+							{
+								// handle joypad input
+								set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
+							}
 						}
 					}
-					else
+					else if (event.type == sf::Event::KeyReleased)
 					{
-						// check for joypad input
-						auto itr = input_map.find(event.key.code);
-
-						if (itr != input_map.end())
+						if (show_debugger)
 						{
-							// handle joypad input
-							set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
+
 						}
-					}
-				}
-				else if (event.type == sf::Event::KeyReleased)
-				{
-					if (show_debugger)
-					{
-
-					}
-					else
-					{
-						// check for joypad input
-						auto itr = input_map.find(event.key.code);
-
-						if (itr != input_map.end())
+						else
 						{
-							// handle joypad input
-							set_button_released(itr->second.joypad_map, itr->second.is_directional);
+							// check for joypad input
+							auto itr = input_map.find(event.key.code);
+
+							if (itr != input_map.end())
+							{
+								// handle joypad input
+								set_button_released(itr->second.joypad_map, itr->second.is_directional);
+							}
 						}
 					}
 				}
@@ -181,8 +193,13 @@ namespace gameboy
 				// used for unit testing
 				if (cpu::R.pc == abort_pc)
 				{
-					debugger.destroy();
-					window.close();
+					// used to get vram of test passed
+					//u8* test = new u8[0xF0];
+					//memset(test, 0x0, 0xF0);
+					//u8* vram_test = memory_module::get_memory(0x9800);
+					//memcpy(test, vram_test, 0xEF);
+
+					running = false;
 
 					// need to check the checksum
 					u8* vram = memory_module::get_memory(0x9800, true);
@@ -210,61 +227,75 @@ namespace gameboy
 				cycle_count -= cycles_per_frame;
 			}
 
-			window.clear();
+			if (is_window_enabled)
+			{
+				window.clear();
+			}
 
 			// update the framebuffer
 			if (gpu::vblank_occurred)
 			{
-				framebuffer_texture.update(gpu::framebuffer, gpu::width, gpu::height, 0, 0);
+				if (is_window_enabled)
+				{
+					framebuffer_texture.update(gpu::framebuffer, gpu::width, gpu::height, 0, 0);
+				}
+
 				gpu::vblank_occurred = false;
 			}
 			
-			// draw framebuffer
-			window.draw(framebuffer_sprite);
-
-			// draw debugger if shown
-			if (show_debugger)
+			if (is_window_enabled)
 			{
-				debugger.update();
+				// draw framebuffer
+				window.draw(framebuffer_sprite);
 
-				window.draw(debugger.window_sprite);
+				// draw debugger if shown
+				if (show_debugger)
+				{
+					debugger.update();
+
+					window.draw(debugger.window_sprite);
+				}
+
+				// show profliler stats
+				std::stringstream stream;
+				stream << "FPS: " << fps << "\n";
+
+				fps_text.setString(stream.str());
+				window.draw(fps_text);
+
+				// display on windows
+				window.display();
+				running = window.isOpen();
+
+				// limit fps
+				cur_time = std::chrono::high_resolution_clock::now();
+				std::chrono::duration<double, std::milli> delta = cur_time - last_time;
+				std::chrono::duration<double, std::milli> min_frame_time(1000.0 / (float)cpu::fps);
+
+				if (delta < min_frame_time)
+				{
+					std::this_thread::sleep_for(min_frame_time - delta);
+				}
+
+				// recalculate fps
+				cur_time = std::chrono::high_resolution_clock::now();
+				delta = cur_time - last_time;
+
+				if (delta.count() != 0)
+				{
+					fps = (u32)(1000 / delta.count());
+				}
+
+				last_time = cur_time;
 			}
-
-			// show profliler stats
-			std::stringstream stream;
-			stream << "FPS: " << fps << "\n";
-
-			fps_text.setString(stream.str());
-			window.draw(fps_text);
-
-			// display on windows
-			window.display();
-			
-			// limit fps
-			cur_time = std::chrono::high_resolution_clock::now();
-			std::chrono::duration<double, std::milli> delta = cur_time - last_time;
-			std::chrono::duration<double, std::milli> min_frame_time(1000.0 / (float)cpu::fps);
-
-			if (delta < min_frame_time)
-			{
-				std::this_thread::sleep_for(min_frame_time - delta);
-			}
-
-			// recalculate fps
-			cur_time = std::chrono::high_resolution_clock::now();
-			delta = cur_time - last_time;
-
-			if (delta.count() != 0)
-			{
-				fps = (u32)(1000 / delta.count());
-			}
-
-			last_time = cur_time;
 		}
 
-		// cleanup
-		debugger.destroy();
-		window.close();
+		if (is_window_enabled)
+		{
+			// cleanup
+			debugger.destroy();
+			window.close();
+		}
 
 		return 0;
 	}
@@ -329,7 +360,7 @@ namespace gameboy
 			{
 				unit_test test = (*itr);
 
-				run_emulator_rom(test.filename, test.abort_pc, test.checksum);
+				run_emulator_rom(test.filename, false, test.abort_pc, test.checksum);
 			}
 		}
 		else if (argc < 3)
