@@ -5,11 +5,20 @@ version: 2.1
 orbs:
   win: circleci/windows@1.0.0
 
+jobs:
+  build_windows:
+    executor: win/vs2019
+    steps:
+      - checkout
+  unit_test:
+    executor: win/vs2019
+    steps:
+      - checkout
+
 workflows:
   # Name the workflow "build_unittest"
-  build_unittest:
+  build_and_test:
     jobs:
-      build-windows:
-        executor: win/vs2019
-        steps:
-          - checkout
+      - build_windows
+      - unit_test
+    
