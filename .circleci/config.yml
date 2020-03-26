@@ -19,10 +19,7 @@ jobs:
           shell: cmd.exe
           command: call make/build_vs2019.bat
       - persist_to_workspace:
-          # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is 
-          # taken to be the root directory of the workspace.
           root: ./
-          # Must be relative path from root
           paths:
             - ./data
             - ./make
@@ -31,12 +28,11 @@ jobs:
     executor: win/vs2019
     steps:
       - attach_workspace:
-          # Must be absolute path or relative path from working_directory
           at: ./
       - run:
-          name: "Running premake"
+          name: "Running unit test"
           shell: cmd.exe
-          command: call make/premake5_vs2017.bat
+          command: call make/run_unittest.bat
 
 workflows:
   version: 2
