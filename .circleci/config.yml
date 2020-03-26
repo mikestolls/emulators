@@ -16,11 +16,11 @@ jobs:
       - checkout
 
 workflows:
-  # Name the workflow "build_unittest"
+  version: 2
   build_and_test:
     jobs:
       - build_windows
       - unit_test:
-        requires: 
-          - build_windows
+          requires:
+            - build_windows
     
