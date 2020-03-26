@@ -10,6 +10,7 @@ jobs:
     executor: win/vs2019
     steps:
       - checkout
+      - msbuild
   unit_test:
     executor: win/vs2019
     steps:
