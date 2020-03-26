@@ -11,9 +11,12 @@ jobs:
     steps:
       - run: mkdir -p workspace
       - persist_to_workspace:
-        root: workspace
-        paths:
-          - workspace
+          # Must be an absolute path, or relative path from working_directory. This is a directory on the container which is 
+          # taken to be the root directory of the workspace.
+          root: workspace
+          # Must be relative path from root
+          paths:
+            - ./
       - checkout
       - run:
           name: "Running premake"
