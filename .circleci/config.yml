@@ -10,7 +10,10 @@ jobs:
     executor: win/vs2019
     steps:
       - run: mkdir -p workspace
-      - persist_to_workspace: workspace
+      - persist_to_workspace:
+        root: workspace
+        paths:
+          - workspace
       - checkout
       - run:
           name: "Running premake"
