@@ -3,7 +3,7 @@ version: 2.1
 
 # Use a package of configuration called an orb.
 orbs:
-  welcome: win: circleci/windows@1.0.0
+  win: circleci/windows@1.0.0
 
 jobs:
   build-windows:
