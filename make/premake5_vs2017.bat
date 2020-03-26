@@ -1,5 +1,7 @@
 @echo OFF
 
-call .\premake5 vs2017
+pushd %~dp0
 
-pause
+call premake5 vs2017
+
+popd
