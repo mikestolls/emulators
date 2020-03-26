@@ -37,6 +37,12 @@
 
 namespace gameboy
 {
+	namespace gpu
+	{
+		int update(u8 cycles);
+		void check_coincidence_flag();
+	}
+
 	namespace cpu
 	{
 		const u32 cycles_per_sec = 4194304;
@@ -51,8 +57,10 @@ namespace gameboy
 
 		std::vector<u16> breakpoints;
 		std::vector<u16> soft_breakpoints;
+		std::vector<u16> memory_breakpoints;
 		bool breakpoint_hit;
 		bool breakpoint_disable_one_instr;
+		s32 memory_breakpoint_last_addr;
 
 		bool interrupt_master;
 		u8* interrupt_enable_flag;
@@ -755,6 +763,9 @@ namespace gameboy
 
 		int update_timer(u8 cycles)
 		{
+			gpu::update(cycles);
+			gpu::check_coincidence_flag();
+
 			// update divide register first
 			divide_counter -= cycles;
 
@@ -837,7 +848,8 @@ namespace gameboy
 			halt_continue_exec = false;
 			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
-			
+			memory_breakpoint_last_addr = -1;
+
 			return 0;
 		}
 
@@ -846,6 +858,32 @@ namespace gameboy
 			reset();
 
 			return 0;
+		}
+
+		bool check_memory_breakpoint(u16 pc, u16 addr)
+		{
+			if (addr == memory_breakpoint_last_addr)
+			{
+				memory_breakpoint_last_addr = -1;
+				return false;
+			}
+
+			if (memory_breakpoints.size() > 0)
+			{
+				auto memory_breakpoint_itr = std::find(memory_breakpoints.begin(), memory_breakpoints.end(), addr);
+				if (memory_breakpoint_itr != memory_breakpoints.end())
+				{
+					paused = true;
+					breakpoint_hit = true;
+					memory_breakpoint_last_addr = addr;
+
+					R.pc = pc; // assuming we back 1 byte to previous opcode. assuming non prefix dont write memory
+					soft_breakpoints.push_back(R.pc);
+					return true;
+				}
+			}
+
+			return false;
 		}
 
 		int decode_nonprefixed(u8 opcode)
@@ -878,6 +916,11 @@ namespace gameboy
 					{
 						// LD mem NN with SP
 						u16 addr = readpc_u16();
+						if (check_memory_breakpoint(R.pc - 3, addr))
+						{
+							return 0;
+						}
+
 						memory_module::write_memory(addr, (const u8*)&R.sp, 2);
 						cycles = 20;
 						update_timer(20);
@@ -971,18 +1014,33 @@ namespace gameboy
 						{
 						case 0x0:
 							// LD (BC) with A
+							if (check_memory_breakpoint(R.pc - 1, R.bc))
+							{
+								return 0;
+							}
+
 							memory_module::write_memory(R.bc, &R.a, 1);
 							cycles = 8;
 							update_timer(8);
 							break;
 						case 0x1:
 							// LD (DE) with A
+							if (check_memory_breakpoint(R.pc - 1, R.de))
+							{
+								return 0;
+							}
+
 							memory_module::write_memory(R.de, &R.a, 1);
 							cycles = 8;
 							update_timer(8);
 							break;
 						case 0x2:
 							// LDI (HL) with A. inc HL
+							if (check_memory_breakpoint(R.pc - 1, R.hl))
+							{
+								return 0;
+							}
+
 							memory_module::write_memory(R.hl, &R.a, 1);
 							R.hl++;
 							cycles = 8;
@@ -990,6 +1048,11 @@ namespace gameboy
 							break;
 						case 0x3:
 							// LDD (HL) with A. decr HL
+							if (check_memory_breakpoint(R.pc - 1, R.hl))
+							{
+								return 0;
+							}
+
 							memory_module::write_memory(R.hl, &R.a, 1);
 							R.hl--;
 							cycles = 8;
@@ -1397,6 +1460,11 @@ namespace gameboy
 					{
 						// LD mem(FF00 + n) with A
 						u8 addr = readpc_u8();
+						
+						if (check_memory_breakpoint(R.pc - 2, addr))
+						{
+							return 0;
+						}
 
 						cycles = 4;
 						update_timer(4);
@@ -1577,7 +1645,13 @@ namespace gameboy
 					}
 					case 0x4:
 						// LD mem(FF00 + C) with A
+						if (check_memory_breakpoint(R.pc - 1, 0xFF00 + R.c))
+						{
+							return 0;
+						}
+
 						memory_module::write_memory(0xFF00 + R.c, &R.a, 1);
+
 						cycles = 8;
 						update_timer(8);
 						break;
@@ -1585,6 +1659,11 @@ namespace gameboy
 					{
 						// LD mem(nn) with A
 						u16 addr = readpc_u16();
+						
+						if (check_memory_breakpoint(R.pc - 3, addr))
+						{
+							return 0;
+						}
 
 						cycles = 4;
 						update_timer(4);
@@ -1890,28 +1969,38 @@ namespace gameboy
 			// check for hitting breakpoints to pause
 			if (!breakpoint_disable_one_instr)
 			{
-				auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
-				if (breakpoint_itr != breakpoints.end())
+				if (breakpoints.size() > 0)
 				{
-					paused = true;
-					breakpoint_hit = true;
-					return 0;
+					auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
+					if (breakpoint_itr != breakpoints.end())
+					{
+						paused = true;
+						breakpoint_hit = true;
+						return 0;
+					}
 				}
 
 				// soft breakpoints are used for step over. not visible
-				breakpoint_itr = std::find(soft_breakpoints.begin(), soft_breakpoints.end(), R.pc);
-				if (breakpoint_itr != soft_breakpoints.end())
+				if (soft_breakpoints.size() > 0)
 				{
-					paused = true;
-					breakpoint_hit = true;
-					soft_breakpoints.erase(breakpoint_itr);
-					return 0;
+					auto breakpoint_itr = std::find(soft_breakpoints.begin(), soft_breakpoints.end(), R.pc);
+					if (breakpoint_itr != soft_breakpoints.end())
+					{
+						if (memory_breakpoint_last_addr == -1) // hacky to get mem breakpoints working
+						{
+							paused = true;
+							breakpoint_hit = true;
+						}
+
+						soft_breakpoints.erase(breakpoint_itr);
+						return 0;
+					}
 				}
 			}
 
 			if (breakpoint_disable_one_instr)
 			{
-				cpu::breakpoint_hit = true;
+				breakpoint_hit = true;
 				breakpoint_disable_one_instr = false;
 			}
 			

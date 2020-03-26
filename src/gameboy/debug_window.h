@@ -13,7 +13,7 @@ namespace gameboy
     {
     public:
         sf::RenderTexture window_texture;
-        sf::Sprite window_sprite;
+		sf::Sprite window_sprite;
 
         sf::RectangleShape outer_border;
 

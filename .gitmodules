@@ -1,0 +1,9 @@
+[submodule "data/gameboy/blargg_tests"]
+	path = data/gameboy/blargg_tests
+	url = https://github.com/retrio/gb-test-roms.git
+[submodule "lib/rapidjson"]
+	path = lib/rapidjson
+	url = https://github.com/Tencent/rapidjson.git
+[submodule "lib/wla-dx"]
+	path = lib/wla-dx
+	url = https://github.com/vhelin/wla-dx.git

@@ -34,10 +34,8 @@ namespace gameboy
 		RAM_32KB,
 	};
 
-	struct mbc_base
+	namespace mbc
 	{
-	public:
-
 		u8 memory[0x10000]; // cover memory maps up to index 0xFFFF
 
 		u8* memory_rom;
@@ -50,7 +48,7 @@ namespace gameboy
 		u8* memory_zero_page;
 		u8* memory_interrupt_flag;
 		
-		virtual int initialize(ROM_SIZE romsize, RAM_SIZE ramsize, u8* romdata, u64 datasize)
+		int initialize(ROM_SIZE romsize, RAM_SIZE ramsize, u8* romdata, u64 datasize)
 		{
 			memset(memory, 0x0, sizeof(memory));
 
@@ -59,28 +57,6 @@ namespace gameboy
 			
 			memcpy(memory, romdata, datasize);
 
-			return 0;
-		}
-
-		virtual int reset()
-		{
-			memset(memory, 0x0, sizeof(memory));
-
-			return 0;
-		}
-
-		virtual bool write_memory(u16 addr, u8 value)
-		{
-			return false;
-		}
-
-		virtual int get_rom_bank_idx()
-		{
-			return 1;
-		}
-
-		mbc_base()
-		{
 			memory_rom = &memory[0x0000];
 			memory_switchable_rom = &memory[0x4000];
 			memory_vram = &memory[0x8000];
@@ -90,11 +66,32 @@ namespace gameboy
 			memory_io_registers = &memory[0xFF00];
 			memory_zero_page = &memory[0xFF80];
 			memory_interrupt_flag = &memory[0xFFFF];
+			
+			return 0;
 		}
 
-		virtual ~mbc_base()
+		int reset()
 		{
+			memset(memory, 0x0, sizeof(memory));
 
+			return 0;
 		}
+
+		bool write_memory(u16 addr, u8 value)
+		{
+			return false;
+		}
+
+		int get_rom_bank_idx()
+		{
+			return 1;
+		}
+
+
+		// function pointers for mbc
+		int(*mbc_initialize)(ROM_SIZE romsize, RAM_SIZE ramsize, u8* romdata, u64 datasize) = &initialize;
+		int(*mbc_reset)() = &reset;
+		bool(*mbc_write_memory)(u16 addr, u8 value) = &write_memory;
+		int(*mbc_get_rom_bank_idx)() = &get_rom_bank_idx;
 	};
 }

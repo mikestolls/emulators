@@ -4,14 +4,14 @@
 #include "rom.h"
 #include "boot_rom.h"
 
-#include "mbc_base.h"
+//#include "mbc_base.h"
 
 namespace gameboy
 {
 	namespace cpu
 	{
-		extern void reset_timer_counter();
-		extern int update_timer(u8 cycles);
+		void reset_timer_counter();
+		int update_timer(u8 cycles);
 	}
 	
 	namespace memory_module
@@ -79,6 +79,9 @@ namespace gameboy
 			printf("Error - memory map not implemented for this range of addr: 0x%X\n", addr);
 			return nullptr;
 		}
+
+		inline void set_memory_access(u8 bank, u8 access) { memory_map[bank].access = access; }
+		inline u8 get_memory_access(u8 bank, u8 access) { return memory_map[bank].access; }
 				
 		u8* get_memory(u16 addr, bool force = false)
 		{
@@ -91,7 +94,7 @@ namespace gameboy
 					{
 						if ((memory_map[i].access & MEMORY_READABLE) == 0)
 						{
-							//printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
+							printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
 							return 0;
 						}
 					}
@@ -118,22 +121,9 @@ namespace gameboy
 				{
 					if (!force)
 					{
-						u8 mode = rom_ptr->memory_bank_controller->memory[0xFF41] & 0x3; // lcd_status
-						if (i == MEMORY_VRAM && mode > 2)
-						{
-							printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
-							return 0xFF;
-						}
-
-						if (i == MEMORY_OAM && mode > 1)
-						{
-							printf("Error - reading from memory during the wrong mode: 0x%X\n", addr);
-							return 0xFF;
-						}
-
 						if ((memory_map[i].access & MEMORY_READABLE) == 0)
 						{
-							//printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
+							printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
 							return 0xFF;
 						}
 					}
@@ -153,25 +143,25 @@ namespace gameboy
 
 		void write_memory(const u16 addr, const u8* value, const u8 size, bool force = false)
 		{
-			if (rom_ptr->memory_bank_controller->write_memory(addr, *value)) // if memory controller handles addr, return here
+			if (mbc::mbc_write_memory(addr, *value)) // if memory controller handles addr, return here
 			{
 				return;
 			}
 
 			if (addr == 0xFF44) // current scanline. if anyone tries to write to this value we reset to 0
 			{
-				rom_ptr->memory_bank_controller->memory[addr] = 0x0;
+				mbc::memory[addr] = 0x0;
 				return;
 			}
 			else if (addr == 0xFF04) // divide register is reset if someone tries to write to it
 			{
-				rom_ptr->memory_bank_controller->memory[addr] = 0x0;
+				mbc::memory[addr] = 0x0;
 				return;
 			}
 			else if (addr == 0xFF07) // timer controller. check if frequency has changed and reset timer if so
 			{
-				u8 timer_controller = rom_ptr->memory_bank_controller->memory[addr];
-				memcpy(&rom_ptr->memory_bank_controller->memory[addr], value, size);
+				u8 timer_controller = mbc::memory[addr];
+				memcpy(&mbc::memory[addr], value, size);
 
 				if ((timer_controller & 0x3) != (*value & 0x3)) // not equal
 				{
@@ -182,7 +172,7 @@ namespace gameboy
 			else if (addr == 0xFF50)
 			{
 				// unload the boot rom
-				memcpy(rom_ptr->memory_bank_controller->memory_rom, rom_ptr->romdata, 0x100);
+				memcpy(mbc::memory_rom, rom_ptr->romdata, 0x100);
 				return;
 			}
 			else if (addr == 0xFF46)
@@ -190,7 +180,7 @@ namespace gameboy
 				// transfer OAM data
 				u16 src_addr = *value;
 				src_addr *= 0x100;
-				memcpy(&rom_ptr->memory_bank_controller->memory[0xFE00], &rom_ptr->memory_bank_controller->memory[src_addr], 0x9F);
+				memcpy(&mbc::memory[0xFE00], &mbc::memory[src_addr], 0x9F);
 			}
 
 			// loop though memory map
@@ -199,20 +189,7 @@ namespace gameboy
 				if (addr <= memory_map[i].addr_max)
 				{
 					if (!force)
-					{
-						u8 mode = rom_ptr->memory_bank_controller->memory[0xFF41] & 0x3; // lcd_status
-						if (i == MEMORY_VRAM && mode > 2)
-						{
-							printf("Error - writing to memory during the wrong mode: 0x%X bank: %d mode: %d\n", addr, i, mode);
-							return;
-						}
-
-						if (i == MEMORY_OAM && mode > 1)
-						{
-							printf("Error - writing to memory during the wrong mode: 0x%X bank: %d mode: %d\n", addr, i, mode);
-							return;
-						}
-						
+					{						
 						if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
 						{
 							printf("Error - writing to memory map that is not writable: 0x%X map: %d\n", addr, i);
@@ -242,26 +219,28 @@ namespace gameboy
 
 		int reset()
 		{
-			rom_ptr->memory_bank_controller->initialize(rom_ptr->romheader.romSize, rom_ptr->romheader.ramSize, rom_ptr->romdata, (u64)rom_ptr->romsize);
+			mbc::mbc_reset();
+			mbc::mbc_initialize(rom_ptr->romheader.romSize, rom_ptr->romheader.ramSize, rom_ptr->romdata, (u64)rom_ptr->romsize);
 
-			memory_map[MEMORY_CARTRIDGE_ROM].memory_ptr = &rom_ptr->memory_bank_controller->memory_rom;
-			memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].memory_ptr = &rom_ptr->memory_bank_controller->memory_switchable_rom;
-			memory_map[MEMORY_VRAM].memory_ptr = &rom_ptr->memory_bank_controller->memory_vram;
-			memory_map[MEMORY_EXTERNAL_RAM].memory_ptr = &rom_ptr->memory_bank_controller->memory_external_ram;
-			memory_map[MEMORY_WORKING_RAM].memory_ptr = &rom_ptr->memory_bank_controller->memory_working_ram;
-			memory_map[MEMORY_ECHO_RAM].memory_ptr = &rom_ptr->memory_bank_controller->memory_working_ram;
-			memory_map[MEMORY_OAM].memory_ptr = &rom_ptr->memory_bank_controller->memory_oam;
+			memory_map[MEMORY_CARTRIDGE_ROM].memory_ptr = &mbc::memory_rom;
+			memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].memory_ptr = &mbc::memory_switchable_rom;
+			memory_map[MEMORY_VRAM].memory_ptr = &mbc::memory_vram;
+			memory_map[MEMORY_EXTERNAL_RAM].memory_ptr = &mbc::memory_external_ram;
+			memory_map[MEMORY_WORKING_RAM].memory_ptr = &mbc::memory_working_ram;
+			memory_map[MEMORY_ECHO_RAM].memory_ptr = &mbc::memory_working_ram;
+			memory_map[MEMORY_OAM].memory_ptr = &mbc::memory_oam;
 			memory_map[MEMORY_NOTUSED].memory_ptr = nullptr;
-			memory_map[MEMORY_IO_REGISTERS].memory_ptr = &rom_ptr->memory_bank_controller->memory_io_registers;
-			memory_map[MEMORY_ZERO_PAGE].memory_ptr = &rom_ptr->memory_bank_controller->memory_zero_page;
-			memory_map[MEMORY_INTERRUPT_FLAG].memory_ptr = &rom_ptr->memory_bank_controller->memory_interrupt_flag;
+			memory_map[MEMORY_IO_REGISTERS].memory_ptr = &mbc::memory_io_registers;
+			memory_map[MEMORY_ZERO_PAGE].memory_ptr = &mbc::memory_zero_page;
+			memory_map[MEMORY_INTERRUPT_FLAG].memory_ptr = &mbc::memory_interrupt_flag;
 
 			// copy boot rom
 			if (boot_ptr)
 			{
-				memcpy(rom_ptr->memory_bank_controller->memory_rom, boot_ptr->romdata, 0x100);
+				memcpy(mbc::memory_rom, boot_ptr->romdata, 0x100);
 
 				write_memory(0xFF4D, 0xFF); // KEY1 - CGB only
+				write_memory(0xFF41, 0x84); // LCDS
 			}
 			else
 			{
@@ -289,7 +268,7 @@ namespace gameboy
 				write_memory(0xFF25, 0xF3); // NR51
 				write_memory(0xFF26, 0xF1); // GB
 				write_memory(0xFF40, 0x91); // LCDC
-				write_memory(0xFF41, 0x85); // LCDC
+				write_memory(0xFF41, 0x85); // LCDS
 				write_memory(0xFF42, 0x00); // SCY
 				write_memory(0xFF43, 0x00); // SCX
 				write_memory(0xFF45, 0x00); // LYC

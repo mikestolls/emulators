@@ -12,10 +12,12 @@
 #include <algorithm>
 #include <vector>
 #include <map>
+#include <list>
 #include <cctype>
 #include <functional>
 #include <iostream>
 #include <iomanip>
+#include <fstream>
 
 typedef unsigned char u8;
 typedef unsigned short u16;

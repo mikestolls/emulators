@@ -3,7 +3,6 @@
 #include "defines.h"
 #include "debug_window.h"
 #include "disassembler.h"
-#include "mbc_base.h"
 
 #include <SFML/Graphics.hpp>
 
@@ -19,6 +18,9 @@ namespace gameboy
 		#define MEM_LINE_COLUMN_WIDTH			26
 		#define MEM_LINE_COLUMN_GAP				30
 
+		#define MEM_BREAKPOINT_MARKER_OFFSET_X	1
+		#define MEM_BREAKPOINT_MARKER_OFFSET_Y	1
+
 		#define GOTO_PROMPT_X				256
 		#define GOTO_PROMPT_Y				128
 		#define GOTO_PROMPT_WIDTH			188
@@ -32,10 +34,11 @@ namespace gameboy
 		#define MEM_PER_LINE				16
 
 		sf::Text memory_text;
-
+		
 		sf::RectangleShape inner_border;
 		sf::RectangleShape line_border;
 		sf::RectangleShape active_border;
+		sf::CircleShape breakpoint_marker;
 		
 		sf::RectangleShape goto_outer_border;
 		sf::RectangleShape goto_inner_border;
@@ -47,8 +50,9 @@ namespace gameboy
 
 		s16 active_line;
 		s16 active_column;
-		u16 active_addr;
 		u16 mem_start;
+
+		s32 memory_breakpoint_last_addr;
 
 		bool is_goto_prompt;
 		bool is_mem_prompt;
@@ -71,6 +75,9 @@ namespace gameboy
 			active_border.setSize(sf::Vector2f(MEM_LINE_COLUMN_WIDTH, LINE_HEIGHT));
 			active_border.setFillColor(sf::Color(200, 200, 200, 200));
 			active_border.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
+
+			breakpoint_marker.setFillColor(sf::Color(255, 0, 0, 255));
+			breakpoint_marker.setRadius(5);
 
 			title_text.setString("Memory Viewer");
 
@@ -110,8 +117,29 @@ namespace gameboy
 			active_column = 0;
 			mem_start = 0xFF00;
 
+			memory_breakpoint_last_addr = -1;
+
 			is_goto_prompt = false;
 			is_mem_prompt = false;
+		}
+
+		void goto_memory_address(u16 address)
+		{
+			u16 addr = address;
+			u16 max_addr = 0xFFFF - ((MEM_LINE_COUNT - 1) * MEM_PER_LINE);
+
+			if (addr > max_addr)
+			{
+				addr = max_addr;
+			}
+
+			mem_start = addr - (addr % MEM_PER_LINE);
+
+			// select addr
+			addr = address;
+			addr -= mem_start;
+			active_column = addr % MEM_PER_LINE;
+			active_line = (addr - active_column) / MEM_PER_LINE;
 		}
 		
 		void update_goto_prompt()
@@ -133,6 +161,16 @@ namespace gameboy
 
 		void update()
 		{
+			if (cpu::paused && cpu::memory_breakpoint_last_addr != memory_breakpoint_last_addr)
+			{
+				memory_breakpoint_last_addr = cpu::memory_breakpoint_last_addr;
+				goto_memory_address(cpu::memory_breakpoint_last_addr);
+			}
+			else if (!cpu::paused)
+			{
+				memory_breakpoint_last_addr = -1;
+			}
+
 			// draw to the window texture. 
 			window_texture.draw(outer_border);
 			window_texture.draw(inner_border);
@@ -145,6 +183,23 @@ namespace gameboy
 			u8 color = 30;
 			for (unsigned int i = 0; i < LINE_COUNT; i++)
 			{
+				// draw the background line
+				if (i == active_line)
+				{
+					// draw active border
+					sf::Vector2f pos = memory_text.getPosition();
+					pos.x = (float)(MEM_LINE_COLUMN_XPOS + (active_column * (MEM_LINE_COLUMN_GAP)));
+					active_border.setPosition(pos);
+
+					line_border.setFillColor(sf::Color(150, 150, 150, 255));
+					window_texture.draw(line_border);
+					window_texture.draw(active_border);
+				}
+				else
+				{
+					window_texture.draw(line_border);
+				}
+
 				u16 addr = mem_start + (i * MEM_PER_LINE);
 
 				// draw memory line
@@ -153,7 +208,7 @@ namespace gameboy
 				std::stringstream stream;
 				if (map->map_name.compare("ROMS") == 0)
 				{
-					stream << "ROM" << memory_module::rom_ptr->memory_bank_controller->get_rom_bank_idx();
+					stream << "ROM" << mbc::mbc_get_rom_bank_idx();
 				}
 				else
 				{
@@ -182,27 +237,21 @@ namespace gameboy
 						stream << (char)val;
 					}
 
-					if (j == active_column)
+					// check if memory breakpoint is set
+					auto memory_breakpoint_itr = std::find(cpu::memory_breakpoints.begin(), cpu::memory_breakpoints.end(), addr + j);
+					if (memory_breakpoint_itr != cpu::memory_breakpoints.end())
 					{
 						sf::Vector2f pos = memory_text.getPosition();
-						pos.x = (float)(MEM_LINE_COLUMN_XPOS + (j * (MEM_LINE_COLUMN_GAP)));
-						active_border.setPosition(pos);
+						pos.x = (float)(MEM_LINE_COLUMN_XPOS + (j * (MEM_LINE_COLUMN_GAP))) + MEM_BREAKPOINT_MARKER_OFFSET_X;
+						pos.y += MEM_BREAKPOINT_MARKER_OFFSET_Y;
+
+						breakpoint_marker.setPosition(pos);
+						window_texture.draw(breakpoint_marker);
 					}
+					
 				}
 
 				memory_text.setString(stream.str());
-				
-				// draw the background line
-				if (i == active_line)
-				{
-					line_border.setFillColor(sf::Color(150, 150, 150, 255));
-					window_texture.draw(line_border);
-					window_texture.draw(active_border);
-				}
-				else
-				{
-					window_texture.draw(line_border);
-				}
 
 				// draw the line
 				window_texture.draw(memory_text);
@@ -264,20 +313,8 @@ namespace gameboy
 
 				//get the instruction int
 				u16 addr = (u16)std::stoul(goto_input_stream.str(), nullptr, 16);
-				u16 max_addr = 0xFFFF - ((MEM_LINE_COUNT - 1) * MEM_PER_LINE);
-
-				if (addr > max_addr)
-				{
-					addr = max_addr;
-				}
-
-				mem_start = addr - (addr % MEM_PER_LINE);
-
-				// select addr
-				addr = (u16)std::stoul(goto_input_stream.str(), nullptr, 16);
-				addr -= mem_start;
-				active_column = addr % MEM_PER_LINE;
-				active_line = (addr - active_column) / MEM_PER_LINE;
+				
+				goto_memory_address(addr);
 			}
 			else if (key == sf::Keyboard::Escape)
 			{
@@ -401,6 +438,57 @@ namespace gameboy
 				goto_input_stream << std::setfill('0') << std::setw(2) << std::uppercase << std::hex << val << " ";
 
 				is_mem_prompt = true;
+			}
+			else if (key == sf::Keyboard::F9) // handle debugging. same as the handlers in disassembly
+			{
+				u16 addr = mem_start + (active_line * MEM_PER_LINE) + active_column;
+				auto itr = std::find(cpu::memory_breakpoints.begin(), cpu::memory_breakpoints.end(), addr);
+
+				if (itr != cpu::memory_breakpoints.end())
+				{
+					cpu::memory_breakpoints.erase(itr);
+				}
+				else
+				{
+					cpu::memory_breakpoints.push_back(addr);
+				}
+			}
+			else if (key == sf::Keyboard::F5)
+			{
+				// resume the cpu
+				cpu::paused = false;
+
+				if (cpu::memory_breakpoint_last_addr == 0x0) // not a memory breakpoint. yes i know. 0x0 is a valid addr, but no one needs to watch it
+				{
+					cpu::breakpoint_disable_one_instr = true;
+				}
+			}
+			else if (key == sf::Keyboard::F10)
+			{
+				/*if (cpu::paused)
+				{
+					disassembler::symbol sym;
+					disassembler::disassemble_instr(cpu::R.pc, sym);
+
+					if (sym.mnemonic.compare("CALL") == 0)
+					{
+						cpu::soft_breakpoints.push_back(find_next_instr(cpu::R.pc));
+						cpu::paused = false;
+						cpu::breakpoint_disable_one_instr = true;
+					}
+					else
+					{
+						cpu::breakpoint_disable_one_instr = true;
+					}
+				}*/
+			}
+			else if (key == sf::Keyboard::F11)
+			{
+				if (cpu::paused)
+				{
+					//cpu::paused = false;
+					cpu::breakpoint_disable_one_instr = true;
+				}
 			}
 
 			if (active_line > MEM_LINE_COUNT - 1)
