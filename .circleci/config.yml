@@ -8,16 +8,17 @@ orbs:
 jobs:
   build_windows:
     executor: win/vs2019
+    working_directory: make
     steps:
       - checkout
       - run:
           name: "Running premake"
           shell: cmd.exe
-          command: "cd make & call premake_vs2019.bat & cd .."
+          command: call premake5_vs2019.bat
       - run:
           name: "Building executable"
           shell: cmd.exe
-          command: "cd make & call build_vs2019.bat & cd .."
+          command: call build_vs2019.bat
   unit_test:
     executor: win/vs2019
     steps:
