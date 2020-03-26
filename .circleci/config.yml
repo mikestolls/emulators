@@ -10,8 +10,7 @@ jobs:
     executor: win/vs2019
     steps:
       - run: mkdir -p workspace
-      - persist_to_workspace:
-          root: workspace
+      - persist_to_workspace: workspace
       - checkout
       - run:
           name: "Running premake"
@@ -24,9 +23,7 @@ jobs:
   unit_test:
     executor: win/vs2019
     steps:
-      - attach_workspace:
-          # Must be absolute path or relative path from working_directory
-          at: workspace
+      - attach_workspace: workspace
       - run:
           name: "Running premake"
           shell: cmd.exe
