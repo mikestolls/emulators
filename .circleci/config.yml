@@ -11,12 +11,13 @@ jobs:
     steps:
       - checkout
       - run:
+          shell: cmd.exe
           name: "Running premake"
           command: cmd "./make/premake_vs2019.bat"
       - run:
-          name: "Building executable"
           shell: cmd.exe
-          command: cmd "dir prj"
+          name: "Building executable"
+          command: cmd "./make/build_vs2019.bat"
   unit_test:
     executor: win/vs2019
     steps:
