@@ -9,6 +9,9 @@ jobs:
   build_windows:
     executor: win/vs2019
     steps:
+      - run: mkdir -p workspace
+      - persist_to_workspace:
+          root: workspace
       - checkout
       - run:
           name: "Running premake"
@@ -21,7 +24,13 @@ jobs:
   unit_test:
     executor: win/vs2019
     steps:
-      - checkout
+      - attach_workspace:
+          # Must be absolute path or relative path from working_directory
+          at: workspace
+      - run:
+          name: "Running premake"
+          shell: cmd.exe
+          command: call make/premake5_vs2017.bat
 
 workflows:
   version: 2
