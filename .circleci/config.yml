@@ -10,6 +10,8 @@ jobs:
     executor: win/vs2019
     steps:
       - checkout
+      - run: git submodule sync
+      - run: git submodule update --init
       - run:
           name: "Running premake"
           shell: cmd.exe
