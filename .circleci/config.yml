@@ -13,13 +13,12 @@ jobs:
       - run:
           name: "Running premake"
           shell: cmd.exe
-          working_directory: "./make"
-          command: cmd "call premake_vs2019.bat"
+          command: cmd "cd make & call premake_vs2019.bat & cd .."
       - run:
           name: "Building executable"
           shell: cmd.exe
           working_directory: "./make"
-          command: cmd "call build_vs2019.bat"
+          command: cmd "cd make & call build_vs2019.bat & cd .."
   unit_test:
     executor: win/vs2019
     steps:
