@@ -29,7 +29,9 @@ jobs:
   unit_test:
     executor: win/vs2019
     steps:
-      - attach_workspace: workspace
+      - attach_workspace:
+          # Must be absolute path or relative path from working_directory
+          at: workspace
       - run:
           name: "Running premake"
           shell: cmd.exe
