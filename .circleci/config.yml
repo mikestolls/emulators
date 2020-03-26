@@ -8,7 +8,6 @@ orbs:
 jobs:
   build_windows:
     executor: win/vs2019
-    shell: cmd.exe
     steps:
       - checkout
       - run:
