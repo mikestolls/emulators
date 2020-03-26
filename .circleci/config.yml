@@ -11,7 +11,8 @@ jobs:
     steps:
       - checkout
   unit_test:
-    requires: build_windows
+    requires: 
+      - build_windows
     executor: win/vs2019
     steps:
       - checkout
