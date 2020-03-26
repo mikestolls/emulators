@@ -12,10 +12,10 @@ jobs:
       - checkout
       - run:
           name: "Running premake"
-          command: call /make/premake_vs2019.bat
+          command: cmd "/make/premake_vs2019.bat"
       - run:
           name: "Building executable"
-          command: msbuild /prj/vs2019/emulators.sln -property:Configuration=Release
+          command: msbuild "/prj/vs2019/emulators.sln" -property:Configuration=Release
   unit_test:
     executor: win/vs2019
     steps:
