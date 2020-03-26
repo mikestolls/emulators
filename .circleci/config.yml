@@ -15,6 +15,7 @@ jobs:
           command: cmd "./make/premake_vs2019.bat"
       - run:
           name: "Building executable"
+          shell: cmd.exe
           command: cmd "dir prj"
   unit_test:
     executor: win/vs2019
