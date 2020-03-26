@@ -9,10 +9,10 @@ jobs:
   build_windows:
     executor: win/vs2019
     steps:
+      - checkout
       - add_ssh_keys:
         fingerprints:
           - "0d:c9:07:1e:64:9d:7e:b8:05:e6:3c:eb:8d:9f:44:ea"
-      - checkout
       - run:
           name: "Running premake"
           shell: cmd.exe
