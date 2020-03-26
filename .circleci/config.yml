@@ -8,6 +8,7 @@ orbs:
 jobs:
   build_windows:
     executor: win/vs2019
+    shell: cmd.exe
     steps:
       - checkout
       - run:
@@ -15,7 +16,7 @@ jobs:
           command: cmd "/make/premake_vs2019.bat"
       - run:
           name: "Building executable"
-          command: msbuild "/prj/vs2019/emulators.sln" -property:Configuration=Release
+          command: msbuild "/prj/vs2019/emulators.sln"
   unit_test:
     executor: win/vs2019
     steps:
