@@ -46,6 +46,8 @@ solution "emulators"
 		targetdir "../build/%{cfg.buildcfg}/%{prj.name}"
 		objdir "../obj/%{cfg.buildcfg}/%{prj.name}"
         kind "ConsoleApp"
+	
+		cppdialect "c++17"
 		
 		flags {
 			"NoRuntimeChecks",

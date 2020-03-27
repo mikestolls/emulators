@@ -14,7 +14,6 @@
 
 #include <rapidjson/document.h>
 #include <rapidjson/istreamwrapper.h>
-#include <fstream>
 
 //#define USE_BOOT_ROM
 
@@ -300,6 +299,8 @@ namespace gameboy
 
 	int run_emulator(int argc, char** argv)
 	{
+		//std::cout << "Current path is " << std::filesystem::current_path() << '\n';
+
 		if (argc < 2)
 		{
 			printf("Error - arguments: [options] rom_filename\noptions:\n\t-d\tdisassemble rom\n\t-a\tassemle rom\n\t-unittest\tUnit Tests\n");
@@ -333,6 +334,8 @@ namespace gameboy
 			{
 				return -1;
 			}
+
+			memory_module::disable_warnings();
 
 			rapidjson::Document doc;
 			doc.ParseStream(isw);
@@ -374,10 +377,12 @@ namespace gameboy
 
 			if (all_passed)
 			{
+				printf("Unit Test Passed\n");
 				return 0;
 			}
 			else
 			{
+				printf("Unit Test Failed\n");
 				return -1;
 			}
 		}

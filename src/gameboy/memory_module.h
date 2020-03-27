@@ -4,6 +4,8 @@
 #include "rom.h"
 #include "boot_rom.h"
 
+#include <cstdarg>
+
 //#include "mbc_base.h"
 
 namespace gameboy
@@ -82,7 +84,22 @@ namespace gameboy
 
 		inline void set_memory_access(u8 bank, u8 access) { memory_map[bank].access = access; }
 		inline u8 get_memory_access(u8 bank, u8 access) { return memory_map[bank].access; }
-				
+
+		bool show_warnings = true;
+		void disable_warnings() { show_warnings = false; }
+		void enable_warnings() { show_warnings = true; }
+		
+		void print_warning(const char* str, ...)
+		{
+			if (show_warnings)
+			{
+				va_list args{};
+				va_start(args, str);
+
+				vprintf(str, args);
+			}
+		}
+
 		u8* get_memory(u16 addr, bool force = false)
 		{
 			// loop though memory map
@@ -94,7 +111,7 @@ namespace gameboy
 					{
 						if ((memory_map[i].access & MEMORY_READABLE) == 0)
 						{
-							printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
+							print_warning("Warning - reading from memory map that is not readable: 0x%X\n", addr);
 							return 0;
 						}
 					}
@@ -123,7 +140,7 @@ namespace gameboy
 					{
 						if ((memory_map[i].access & MEMORY_READABLE) == 0)
 						{
-							printf("Error - reading from memory map that is not readable: 0x%X\n", addr);
+							print_warning("Warning - reading from memory map that is not readable: 0x%X\n", addr);
 							return 0xFF;
 						}
 					}
@@ -192,7 +209,7 @@ namespace gameboy
 					{						
 						if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
 						{
-							printf("Error - writing to memory map that is not writable: 0x%X map: %d\n", addr, i);
+							print_warning("Warning - writing to memory map that is not writable: 0x%X map: %d\n", addr, i);
 							return;
 						}
 					}
