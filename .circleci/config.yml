@@ -26,6 +26,10 @@ jobs:
             - ./data
             - ./make
             - ./build
+      - store_artifacts:
+          path:
+            - ./data
+            - ./build
   unit_test:
     executor: win/vs2019
     steps:
