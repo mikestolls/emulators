@@ -31,7 +31,7 @@ jobs:
           shell: cmd.exe
           command: call make/package_vs2019.bat
       - store_artifacts:
-          path: ./artifact
+          path: ./artifacts
   unit_test:
     executor: win/vs2019
     steps:
