@@ -2,11 +2,16 @@
 
 pushd %~dp0
 
-if not exist ..\test_results (
-	mkdir ..\test_results
-)
-
+rmdir /s /q ..\test_results
+mkdir ..\test_results
+	
 start /B /WAIT /D ..\data ..\build\Release\emulators\emulators.exe -unittest
 
-popd
+cd ..\data
 
+for %%i in (*.txt) do (
+	mkdir ..\test_results\%%~ni
+	copy %%i ..\test_results\%%~ni\
+)
+
+popd

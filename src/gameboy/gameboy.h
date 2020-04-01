@@ -357,7 +357,6 @@ namespace gameboy
 			// close the stream
 			ifs.close();
 
-			FILE* file = fopen("../test_results/results.txt", "w");
 			bool all_passed = true;
 			for (auto itr = unit_test_list.begin(); itr != unit_test_list.end(); itr++)
 			{
@@ -365,6 +364,10 @@ namespace gameboy
 
 				int ret = run_emulator_rom(test.filename, false, test.abort_pc, test.checksum);
 
+				size_t start = test.filename.rfind("/") + 1;
+				std::string testname = test.filename.substr(start, test.filename.rfind(".") - start);
+				testname.append(".txt");
+				FILE* file = fopen(testname.c_str(), "w");
 
 				if (ret)
 				{
@@ -385,11 +388,11 @@ namespace gameboy
 						fprintf(file, "Test Passed: %s\n", test.filename.c_str());
 					}
 				}
-			}
 
-			if (file)
-			{
-				fclose(file);
+				if (file)
+				{
+					fclose(file);
+				}
 			}
 
 			if (all_passed)
