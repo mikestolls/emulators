@@ -7,3 +7,6 @@
 [submodule "lib/wla-dx"]
 	path = lib/wla-dx
 	url = https://github.com/vhelin/wla-dx.git
+[submodule "lib/argparse"]
+	path = lib/argparse
+	url = https://github.com/jamolnng/argparse.git
