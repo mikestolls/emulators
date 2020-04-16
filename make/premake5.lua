@@ -56,8 +56,7 @@ solution "emulators"
 		files {
             "../src/**.h",
 			"../src/**.cpp",
-			"../data/**",
-			"../lib/rapidjson/include/**"
+			"../data/**"
 		}
 		excludes {
 			"../data/**.s" 
@@ -66,7 +65,7 @@ solution "emulators"
             "../src",
             "../src/emulators",
 			"../include",
-			"../lib/rapidjson/include"
+			"../lib/argparse"
         }
         links {
             "opengl32.lib",

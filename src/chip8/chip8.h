@@ -1,6 +1,8 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include <argparse.h>
+
 
 #include "cpu.h"
 #include "rom.h"
@@ -27,34 +29,45 @@ namespace chip8
 									sf::Keyboard::V, 0xF,
 	};
 
-	int run_emulator(int argc, char** argv)
+	int run_emulator(int argc, const char* argv[])
 	{
-		std::string filename = "";
 
-		if (argc < 2)
+		// do some arg parsing
+		argparse::ArgumentParser parser("Argument parser for Chip8");
+		parser.add_argument("-d", "--disassemble", "Disassemble the rom", false);
+		parser.add_argument("-a", "--assemble", "Assemble the rom", false);
+		parser.add_argument("-r", "--rom_file", "Rom file", true);
+
+		parser.enable_help();
+		auto err = parser.parse(argc, argv);
+		if (err)
 		{
-			printf("Error - arguments: [options] rom_filename\noptions:\n\t-d\tdisassemble rom\n\t-a\tassemle rom\n");
+			std::cout << err << std::endl;
 			return -1;
 		}
-		else if (argc < 3)
+
+		if (parser.exists("help"))
 		{
-			filename = argv[1];
+			parser.print_help();
+			return 0;
 		}
-		else if (argc < 4)
+		else if (parser.exists("d"))
 		{
-			filename = argv[2];
-			if (strcmp("-d", argv[1]) == 0)
-			{
-				return chip8::disassemble(filename.c_str());
-			}
-			else if (strcmp("-a", argv[1]) == 0)
-			{
-				return chip8::assemble(filename.c_str());
-			}
+			std::string rom_filename = parser.get<std::string>("r");
+
+			return chip8::disassemble(rom_filename.c_str());
 		}
-		
+		else if (parser.exists("a"))
+		{
+			std::string rom_filename = parser.get<std::string>("r");
+
+			return chip8::assemble(rom_filename.c_str());
+		}
+
+		std::string rom_filename = parser.get<std::string>("r");
+
 		// load and run the rom
-		chip8::rom rom(filename.c_str());
+		chip8::rom rom(rom_filename.c_str());
 
 		// init sfml
 		u8 pixelSize = 16;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include <argparse.h>
 
 #include "defines.h"
 
@@ -11,9 +12,6 @@
 #include "boot_rom.h"
 #include "debugger.h"
 #include "disassembler.h"
-
-#include <rapidjson/document.h>
-#include <rapidjson/istreamwrapper.h>
 
 //#define USE_BOOT_ROM
 
@@ -297,19 +295,34 @@ namespace gameboy
 		return 0;
 	}
 
-	int run_emulator(int argc, char** argv)
+	int run_emulator(int argc, const char* argv[])
 	{
-		//std::cout << "Current path is " << std::filesystem::current_path() << '\n';
+		// do some arg parsing
+		argparse::ArgumentParser parser("Argument parser for Gameboy");
+		parser.add_argument("-d", "--disassemble", "Disassemble the rom", false);
+		parser.add_argument("-a", "--assemble", "Assemble the rom", false);
+		parser.add_argument("-u", "--unit_test", "Unit test the rom", false);
+		parser.add_argument("-p", "--unit_test_abortpc", "Unit test abort pc (required with unit_test)", false);
+		parser.add_argument("-c", "--unit_test_check", "Unit test check (required with unit_test)", false);
+		parser.add_argument("-r", "--rom_file", "Rom file", true);
 
-		if (argc < 2)
+		parser.enable_help();
+		auto err = parser.parse(argc, argv);
+		if (err) 
 		{
-			printf("Error - arguments: [options] rom_filename\noptions:\n\t-d\tdisassemble rom\n\t-a\tassemle rom\n\t-unittest\tUnit Tests\n");
+			std::cout << err << std::endl;
 			return -1;
 		}
 
-		if (strcmp("-d", argv[1]) == 0)
+		if (parser.exists("help")) 
 		{
-			rom rom(argv[2]);
+			parser.print_help();
+			return 0;
+		}
+		else if (parser.exists("d"))
+		{
+			std::string rom_filename = parser.get<std::string>("r");
+			rom rom(rom_filename.c_str());
 			memory_module::initialize(nullptr, &rom);
 
 			// export disassembler to file and close
@@ -320,95 +333,36 @@ namespace gameboy
 
 			return 0;
 		}
-		else if (strcmp("-a", argv[1]) == 0)
+		else if (parser.exists("a"))
 		{
 			// not supported
 			return -1;
 		}
-		else if (strcmp("-unittest", argv[1]) == 0)
+		else if (parser.exists("u"))
 		{
-			std::ifstream ifs("gameboy/unit_test.json");
-			rapidjson::IStreamWrapper isw(ifs);
-
-			if (ifs.is_open() == false)
+			if (parser.exists("p") == false || parser.exists("c") == false)
 			{
+				parser.print_help();
 				return -1;
 			}
+
+			std::string rom_filename = parser.get<std::string>("r");
+			std::string checksum = parser.get<std::string>("c");
+			s32 abort_pc = std::stoi(parser.get<std::string>("p"), 0, 16);
 
 			memory_module::disable_warnings();
 
-			rapidjson::Document doc;
-			doc.ParseStream(isw);
-			rapidjson::Value array = doc.GetArray();
-			assert(doc.IsArray()); // attributes is an array
-			for (auto itr = array.Begin(); itr != array.End(); ++itr)
-			{
-				const rapidjson::Value& json = *itr;
-				assert(json.IsObject()); // each attribute is an object
+			int ret = run_emulator_rom(rom_filename, false, abort_pc, checksum);
 
-				unit_test test;
-				test.filename = json["filename"].GetString();
-				test.abort_pc = std::stoi(json["abort_pc"].GetString(), 0, 16);
-				test.checksum = json["checksum"].GetString();
-
-				unit_test_list.push_back(test);
-			}
-
-			// close the stream
-			ifs.close();
-
-			bool all_passed = true;
-			for (auto itr = unit_test_list.begin(); itr != unit_test_list.end(); itr++)
-			{
-				unit_test test = (*itr);
-
-				int ret = run_emulator_rom(test.filename, false, test.abort_pc, test.checksum);
-
-				size_t start = test.filename.rfind("/") + 1;
-				std::string testname = test.filename.substr(start, test.filename.rfind(".") - start);
-				testname.append(".txt");
-				FILE* file = fopen(testname.c_str(), "w");
-
-				if (ret)
-				{
-					all_passed = false;
-					printf("Test Failed: %s\n", test.filename.c_str());
-
-					if (file)
-					{
-						fprintf(file, "Test Failed: %s\n", test.filename.c_str());
-					}
-				}
-				else
-				{
-					printf("Test Passed: %s\n", test.filename.c_str());
-
-					if (file)
-					{
-						fprintf(file, "Test Passed: %s\n", test.filename.c_str());
-					}
-				}
-
-				if (file)
-				{
-					fclose(file);
-				}
-			}
-
-			if (all_passed)
-			{
-				printf("Unit Test Passed\n");
-				return 0;
-			}
-			else
-			{
-				printf("Unit Test Failed\n");
-				return -1;
-			}
+			return ret;
 		}
-		else if (argc < 3)
+		else
 		{
-			run_emulator_rom(argv[1]);
+			std::string rom_filename = parser.get<std::string>("r");
+
+			int ret = run_emulator_rom(rom_filename);
+
+			return ret;
 		}
 
 		return 0;

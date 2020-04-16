@@ -19,6 +19,7 @@
 #include <functional>
 #include <iomanip>
 #include <fstream>
+#include <iterator>
 
 typedef unsigned char u8;
 typedef unsigned short u16;
