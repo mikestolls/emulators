@@ -2,7 +2,7 @@
 
 pushd %~dp0
 
-msbuild "..\prj\vs2019\emulators.sln" -p:Configuration=Release
+msbuild "..\_prj\vs2019\emulators.sln" -p:Configuration=Release
 
 popd
 

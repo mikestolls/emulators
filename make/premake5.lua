@@ -7,8 +7,8 @@ solution "emulators"
 	language "C++"
 	system "Windows"
 	architecture "x64"
-	configurations { "Debug", "Debug - Assembler", "Debug - Disassembler", "Debug - Unit Test", "Release" }
-	location("../prj/" .. _ACTION)
+	configurations { "Debug", "Release" }
+	location("../_prj/" .. _ACTION)
     debugdir "../data"
     characterset "MBCS"
 
@@ -26,25 +26,16 @@ solution "emulators"
 		defines { "_DEBUG" }
 		-- flags { "FatalWarnings" }
 		symbols "on"
-		
-	configuration "Debug - Assembler"
-		debugargs "-a"
-
-	configuration "Debug - Disassembler"
-		debugargs "-d"
-		
-	configuration "Debug - Unit Test"
-		debugargs "-unittest"
-		
+				
 	configuration "Release*"
 		defines { "NDEBUG" }
 		optimize "full"
 
 	-- Projects
 	project("emulators")
-		location("../prj/" .. _ACTION)
-		targetdir "../build/%{cfg.buildcfg}/%{prj.name}"
-		objdir "../obj/%{cfg.buildcfg}/%{prj.name}"
+		location("../_prj/" .. _ACTION)
+		targetdir "../_build/%{cfg.buildcfg}/%{prj.name}"
+		objdir "../_obj/%{cfg.buildcfg}/%{prj.name}"
         kind "ConsoleApp"
 	
 		cppdialect "c++17"
