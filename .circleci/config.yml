@@ -49,8 +49,6 @@ workflows:
     jobs:
       - build_windows
       - unit_test:
-          docker:
-            - image: circleci/python:3.7.4
           requires:
             - build_windows
     
