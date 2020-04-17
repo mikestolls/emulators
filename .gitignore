@@ -286,9 +286,11 @@ __pycache__/
 *.btm.cs
 *.odx.cs
 *.xsd.cs
-prj/
-build/
 tools/visualboy_emulator/vba.ini
 tools/bgb/bgb.ini
 *.gbasm
 *.sav
+_artifacts/
+_prj/
+_build/
+_obj/

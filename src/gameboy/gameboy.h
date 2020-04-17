@@ -42,7 +42,6 @@ namespace gameboy
 		rom rom(filename.c_str());
 
 		// load the boot rom file
-		boot_rom boot("gameboy/boot.gb");
 		bool is_window_enabled = false;
 		sf::RenderWindow window;
 		sf::Texture framebuffer_texture;
@@ -88,7 +87,10 @@ namespace gameboy
 		input_map[sf::Keyboard::RShift] = { BUTTON_SELECT, false };
 		
 		// init cpu and load rom
+		warning("fix boot rom loading")
+
 #ifdef USE_BOOT_ROM
+		boot_rom boot("gameboy/boot.gb");
 		memory_module::initialize(&boot, &rom);
 #else
 		memory_module::initialize(nullptr, &rom);
@@ -206,7 +208,7 @@ namespace gameboy
 					}
 					else
 					{
-						return -1;
+						return 2;
 					}
 				}
 
@@ -311,7 +313,7 @@ namespace gameboy
 		if (err) 
 		{
 			std::cout << err << std::endl;
-			return -1;
+			return 1;
 		}
 
 		if (parser.exists("help")) 
@@ -336,14 +338,14 @@ namespace gameboy
 		else if (parser.exists("a"))
 		{
 			// not supported
-			return -1;
+			return 1;
 		}
 		else if (parser.exists("u"))
 		{
 			if (parser.exists("p") == false || parser.exists("c") == false)
 			{
 				parser.print_help();
-				return -1;
+				return 1;
 			}
 
 			std::string rom_filename = parser.get<std::string>("r");

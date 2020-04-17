@@ -4,7 +4,7 @@ pushd %~dp0
 
 rmdir /s /q ..\_test_results
 mkdir ..\_test_results
-	
-start /B /WAIT /D ..\data ..\_build\Release\emulators\emulators.exe
+
+python run_unittest.py --emulator ..\_build\Release\emulators\emulators.exe --unit_test_filename ..\data\gameboy\unit_test.json
 
 popd
