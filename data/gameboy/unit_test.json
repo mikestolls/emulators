@@ -1,27 +1,29 @@
-[
-    {
-        "filename" : "blargg_tests/halt_bug.gb",
-        "abort_pc" : "0xC818",
-        "checksum" : "halt bug                                                        IE IF IF DE                     01 10 F1 0C04                   01 00 E1 0C04                   01 01 E1 0411                   11 00 E1 0C04                   11 10 F1 0411                   11 11 F1 0411                   E1 00 E1 0C04                   E1 E0 E1 0C04                   E1 E1 E1 0411                                                   Passed"
-    },
-    {
-        "filename" : "blargg_tests/mem_timing-2/mem_timing.gb",
-        "abort_pc" : "0x2BDD",
-        "checksum" : "mem_timing                                                      01:ok  02:ok  03:ok                                             Passed"
-    },
-    {
-        "filename" : "blargg_tests/mem_timing/mem_timing.gb",
-        "abort_pc" : "0x06F1",
-        "checksum" : "mem_timing                                                      01:ok  02:ok  03:ok                                             Passed all tests"
-    },
-    {
-        "filename" : "blargg_tests/instr_timing/instr_timing.gb",
-        "abort_pc" : "0xC8B0",
-        "checksum" : "instr_timing                                                                                    Passed"
-    },
-    {
-        "filename" : "blargg_tests/cpu_instrs/cpu_instrs.gb",
-        "abort_pc" : "0x06F1",
-        "checksum" : "cpu_instrs                                                      01:ok  02:ok  03:ok             04:ok  05:ok  06:ok             07:ok  08:ok  09:ok             10:ok  11:ok                                                    Passed all tests"
-    }
-]
+{
+    "gameboy": [
+      {
+        "filename": "blargg_tests/halt_bug.gb",
+        "abort_pc": "0xC818",
+        "checksum": "halt bug                                                        IE IF IF DE                     01 10 F1 0C04                   01 00 E1 0C04                   01 01 E1 0411                   11 00 E1 0C04                   11 10 F1 0411                   11 11 F1 0411                   E1 00 E1 0C04                   E1 E0 E1 0C04                   E1 E1 E1 0411                                                   Passed"
+      },
+      {
+        "filename": "blargg_tests/mem_timing-2/mem_timing.gb",
+        "abort_pc": "0x2BDD",
+        "checksum": "mem_timing                                                      01:ok  02:ok  03:ok                                             Passed"
+      },
+      {
+        "filename": "blargg_tests/mem_timing/mem_timing.gb",
+        "abort_pc": "0x06F1",
+        "checksum": "mem_timing                                                      01:ok  02:ok  03:ok                                             Passed all tests"
+      },
+      {
+        "filename": "blargg_tests/instr_timing/instr_timing.gb",
+        "abort_pc": "0xC8B0",
+        "checksum": "instr_timing                                                                                    Passed"
+      },
+      {
+        "filename": "blargg_tests/cpu_instrs/cpu_instrs.gb",
+        "abort_pc": "0x06F1",
+        "checksum": "cpu_instrs                                                      01:ok  02:ok  03:ok             04:ok  05:ok  06:ok             07:ok  08:ok  09:ok             10:ok  11:ok                                                    Passed all tests"
+      }
+    ]
+  }
