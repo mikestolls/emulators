@@ -3,7 +3,7 @@
       {
         "filename": "blargg_tests/halt_bug.gb",
         "abort_pc": "0xC818",
-        "checksum": "halt bug    asaa                                                    IE IF IF DE                     01 10 F1 0C04                   01 00 E1 0C04                   01 01 E1 0411                   11 00 E1 0C04                   11 10 F1 0411                   11 11 F1 0411                   E1 00 E1 0C04                   E1 E0 E1 0C04                   E1 E1 E1 0411                                                   Passed"
+        "checksum": "halt bug         sds                                               IE IF IF DE                     01 10 F1 0C04                   01 00 E1 0C04                   01 01 E1 0411                   11 00 E1 0C04                   11 10 F1 0411                   11 11 F1 0411                   E1 00 E1 0C04                   E1 E0 E1 0C04                   E1 E1 E1 0411                                                   Passed"
       },
       {
         "filename": "blargg_tests/mem_timing-2/mem_timing.gb",

@@ -43,13 +43,16 @@ if __name__ == "__main__":
 			cmd = '"%s" -u -p %s -c "%s" -r %s' % (emulator_exe, test['abort_pc'], test['checksum'], rom_filename)
 			ret = subprocess.run(cmd)
 
+			# generate test case
+			tc = TestCase(test_name, elapsed_sec=(time.time() - start_time), status=ret.returncode)
+
 			if ret.returncode == 0:
 				print('Test Passed')
 			else:
 				print('Test Failed')
+				tc.add_failure_info('Test Failed')
 
-			# generate test case
-			test_cases.append(TestCase(test_name, elapsed_sec=(time.time() - start_time), status=ret.returncode))
+			test_cases.append(tc)
 
 		# generate test report
 		ts = TestSuite(platform, test_cases)
