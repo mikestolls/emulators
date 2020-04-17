@@ -33,8 +33,6 @@ jobs:
       - store_artifacts:
           path: ./_artifacts
   unit_test:
-    docker:
-      - image: circleci/python:3.7.4
     executor: win/vs2019
     steps:
       - attach_workspace:
@@ -48,6 +46,8 @@ jobs:
 workflows:
   version: 2
   build_and_test:
+    docker:
+      - image: circleci/python:3.7.4
     jobs:
       - build_windows
       - unit_test:
