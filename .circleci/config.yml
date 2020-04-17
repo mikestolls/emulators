@@ -33,7 +33,7 @@ jobs:
       - store_artifacts:
           path: ./_artifacts
   unit_test:
-    executor: win/vs2019
+    executor: win/default
     steps:
       - attach_workspace:
           at: ./
