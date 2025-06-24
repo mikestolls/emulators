@@ -31,7 +31,6 @@ namespace chip8
 
 	int run_emulator(int argc, const char* argv[])
 	{
-
 		// do some arg parsing
 		argparse::ArgumentParser parser("Argument parser for Chip8");
 		parser.add_argument("-d", "--disassemble", "Disassemble the rom", false);
