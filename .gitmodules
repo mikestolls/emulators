@@ -7,3 +7,6 @@
 [submodule "lib/argparse"]
 	path = lib/argparse
 	url = https://github.com/jamolnng/argparse.git
+[submodule "lib/imgui"]
+	path = lib/imgui
+	url = https://github.com/ocornut/imgui.git
