@@ -17,6 +17,12 @@ namespace chip8
 			FILE* file = 0;
 			fopen_s(&file, filename.c_str(), "rb");
 
+			if (!file)
+			{
+				printf("Error - Failed to open ROM file: %s\n", filename.c_str());
+				return;
+			}
+
 			// get size
 			fseek(file, 0, SEEK_END);
 			romsize = ftell(file);

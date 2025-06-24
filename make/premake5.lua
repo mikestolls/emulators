@@ -22,12 +22,12 @@ solution "emulators"
     rtti "off"
     exceptionhandling "off"
 	
-	configuration "Debug*"
+	filter "configurations:Debug*"
 		defines { "_DEBUG" }
 		-- flags { "FatalWarnings" }
 		symbols "on"
-				
-	configuration "Release*"
+	
+	filter "configurations:Release*"
 		defines { "NDEBUG" }
 		optimize "full"
 
@@ -71,8 +71,8 @@ solution "emulators"
             "../lib/msvc",
             "../lib/Exts/msvc"
         }
-
-        configuration "Debug*"
+		
+		filter "configurations:Debug*"
             links {
                 "sfml-audio-s-d.lib",
                 "sfml-graphics-s-d.lib",
@@ -82,7 +82,7 @@ solution "emulators"
                 "sfml-window-s-d.lib"
             }
 
-        configuration "Release*"
+		filter "configurations:Release*"
             links {
                 "sfml-audio-s.lib",
                 "sfml-graphics-s.lib",
@@ -97,7 +97,7 @@ solution "emulators"
         --         path.translate(path.join(rootdir, "_Bin", "%{cfg.platform}", "%{cfg.buildcfg}", "%{prj.name}")) .. '"'
         -- }
 
-		configuration "Win*"
+		filter "configurations:Win*"
 			defines {
 				"WIN32",
 			}
