@@ -19,16 +19,16 @@ namespace gameboy
 		#define GPU_REG_X			138
 		#define GPU_REG_Y			132
 
-		sf::Text registers_text;
+		sf::Text registers_text = sf::Text(font);
 
 		sf::RectangleShape inner_border;
 		
 		sf::RectangleShape checkbox_outer_border;
 		sf::RectangleShape checkbox_inner_border;
 		sf::RectangleShape checkbox_inner_check;
-		sf::Text flag_text;
+		sf::Text flag_text = sf::Text(font);
 
-		sf::Text gpu_registers_text;
+		sf::Text gpu_registers_text = sf::Text(font);
 
 		const char* flag_title[8] = { "", "", "", "", "C", "H", "N", "Z" };
 
@@ -37,37 +37,34 @@ namespace gameboy
 			is_selectable = false;
 
 			registers_text.setString("");
-			registers_text.setFont(font);
 			registers_text.setCharacterSize(16);
-			registers_text.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
+			registers_text.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE));
 
 			inner_border.setSize(sf::Vector2f(256, 256));
 			inner_border.setFillColor(sf::Color(0, 0, 0, 255));
-			inner_border.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
+			inner_border.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE));
 
 			title_text.setString("Registers");
 
 			checkbox_outer_border.setSize(sf::Vector2f(CHECKBOX_SIZE + BORDER_SIZE * 2, CHECKBOX_SIZE + BORDER_SIZE * 2));
 			checkbox_outer_border.setFillColor(sf::Color(200, 200, 200, 255));
-			checkbox_outer_border.setPosition(0, 0);
+			checkbox_outer_border.setPosition(sf::Vector2f(0, 0));
 
 			checkbox_inner_border.setSize(sf::Vector2f(CHECKBOX_SIZE, CHECKBOX_SIZE));
 			checkbox_inner_border.setFillColor(sf::Color(0, 0, 0, 255));
-			checkbox_inner_border.setPosition(BORDER_SIZE, BORDER_SIZE);
+			checkbox_inner_border.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE));
 
 			checkbox_inner_check.setSize(sf::Vector2f(CHECKBOX_SIZE - BORDER_SIZE * 2, CHECKBOX_SIZE - BORDER_SIZE * 2));
 			checkbox_inner_check.setFillColor(sf::Color(200, 200, 200, 255));
-			checkbox_inner_check.setPosition(BORDER_SIZE * 2, BORDER_SIZE * 2);
+			checkbox_inner_check.setPosition(sf::Vector2f(BORDER_SIZE * 2, BORDER_SIZE * 2));
 
 			flag_text.setString("");
-			flag_text.setFont(font);
 			flag_text.setCharacterSize(16);
-			flag_text.setPosition(0, 0);
+			flag_text.setPosition(sf::Vector2f(0, 0));
 
 			gpu_registers_text.setString("");
-			gpu_registers_text.setFont(font);
 			gpu_registers_text.setCharacterSize(16);
-			gpu_registers_text.setPosition(GPU_REG_X, GPU_REG_Y);
+			gpu_registers_text.setPosition(sf::Vector2f(GPU_REG_X, GPU_REG_Y));
 		}
 
 		void update()
@@ -93,12 +90,12 @@ namespace gameboy
 			float y = FLAG_Y;
 			for (unsigned i = cpu::FLAG_CARRY; i <= cpu::FLAG_ZERO; i++)
 			{
-				checkbox_outer_border.setPosition(x, y);
-				checkbox_inner_border.setPosition(x + BORDER_SIZE, y + BORDER_SIZE);
-				checkbox_inner_check.setPosition(x + BORDER_SIZE * 2, y + BORDER_SIZE * 2);
+				checkbox_outer_border.setPosition(sf::Vector2f(x, y));
+				checkbox_inner_border.setPosition(sf::Vector2f(x + BORDER_SIZE, y + BORDER_SIZE));
+				checkbox_inner_check.setPosition(sf::Vector2f(x + BORDER_SIZE * 2, y + BORDER_SIZE * 2));
 
 				flag_text.setString(flag_title[i]);
-				flag_text.setPosition(x + CHECKBOX_SIZE + BORDER_SIZE * 2 + 2, y - 1);
+				flag_text.setPosition(sf::Vector2f(x + CHECKBOX_SIZE + BORDER_SIZE * 2 + 2, y - 1));
 
 				window_texture.draw(checkbox_outer_border);
 				window_texture.draw(checkbox_inner_border);

@@ -11,7 +11,7 @@
 
 namespace chip8
 {
-	static const u8 keyboard[] = { sf::Keyboard::Num1, 0x0,
+	/*static const u8 keyboard[] = {sf::Keyboard::Key::Num0, 0x0,
 									sf::Keyboard::Num2, 0x1,
 									sf::Keyboard::Num3, 0x2,
 									sf::Keyboard::Num4, 0x3,
@@ -27,6 +27,25 @@ namespace chip8
 									sf::Keyboard::X, 0xD,
 									sf::Keyboard::C, 0xE,
 									sf::Keyboard::V, 0xF,
+	};*/
+
+	static const std::pair<sf::Keyboard::Key, u8> keyboard[] = {
+		{sf::Keyboard::Key::Num0, 0x0},
+		{sf::Keyboard::Key::Num2, 0x1},
+		{sf::Keyboard::Key::Num3, 0x2},
+		{sf::Keyboard::Key::Num4, 0x3},
+		{sf::Keyboard::Key::Q, 0x4},
+		{sf::Keyboard::Key::W, 0x5},
+		{sf::Keyboard::Key::E, 0x6},
+		{sf::Keyboard::Key::R, 0x7},
+		{sf::Keyboard::Key::A, 0x8},
+		{sf::Keyboard::Key::S, 0x9},
+		{sf::Keyboard::Key::D, 0xA},
+		{sf::Keyboard::Key::F, 0xB},
+		{sf::Keyboard::Key::Z, 0xC},
+		{sf::Keyboard::Key::X, 0xD},
+		{sf::Keyboard::Key::C, 0xE},
+		{sf::Keyboard::Key::V, 0xF},
 	};
 
 	int run_emulator(int argc, const char* argv[])
@@ -70,18 +89,17 @@ namespace chip8
 
 		// init sfml
 		u8 pixelSize = 16;
-		sf::RenderWindow window(sf::VideoMode(cpu::width * pixelSize, cpu::height * pixelSize), "Emulator");
+		sf::RenderWindow window(sf::VideoMode(sf::Vector2u(cpu::width * pixelSize, cpu::height * pixelSize)), "Emulator");
 		sf::RectangleShape whiteRect(sf::Vector2f(pixelSize, pixelSize));
 		whiteRect.setFillColor(sf::Color::White);
 	
 		// fps counter and profiler
 		sf::Font font;
-		font.loadFromFile("courbd.ttf");
+		bool success = font.openFromFile("courbd.ttf");
 
-		sf::Text fps_text;
-		fps_text.setFont(font);
+		sf::Text fps_text(font);
 		fps_text.setFillColor(sf::Color::White);
-		fps_text.setPosition(10, 10);
+		fps_text.setPosition(sf::Vector2f(10, 10));
 		fps_text.setOutlineColor(sf::Color::Black);
 		fps_text.setOutlineThickness(2);
 		fps_text.setCharacterSize(18);
@@ -97,7 +115,45 @@ namespace chip8
 		while (window.isOpen())
 		{
 			// poll for window events
-			sf::Event event;
+			while (std::optional event = window.pollEvent())
+			{
+				if (event->is<sf::Event::Closed>())
+				{
+					window.close();
+				}
+				else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
+				{
+					// check if key is pressed and set the corresponding key in the cpu
+					for (const auto& key : keyboard)
+					{
+						if (keyPressed->code == key.first)
+						{
+							cpu::set_keys(key.second, true);
+							break;
+						}
+					}
+
+					if (keyPressed->code == sf::Keyboard::Key::Space)
+					{
+						cpu::reset();
+					}
+				}
+				else if (const auto* keyReleased = event->getIf<sf::Event::KeyReleased>())
+				{
+					// check if key is released and unset the corresponding key in the cpu
+					for (const auto& key : keyboard)
+					{
+						if (keyReleased->code == key.first)
+						{
+							cpu::set_keys(key.second, false);
+							break;
+						}
+					}
+				}
+			}
+
+			// poll for window events
+			/*sf::Event event;
 			while (window.pollEvent(event))
 			{
 				if (event.type == sf::Event::Closed)
@@ -119,7 +175,7 @@ namespace chip8
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
 			{
 				cpu::reset();
-			}
+			}*/
 
 			// update the cpu emulation
 			cpu::update_cycle();
@@ -137,7 +193,7 @@ namespace chip8
 					{
 						if (cpu::gfx[pixel++] != 0)
 						{
-							whiteRect.setPosition((float)(x * pixelSize), (float)(y * pixelSize));
+							whiteRect.setPosition(sf::Vector2f((float)(x * pixelSize), (float)(y * pixelSize)));
 							window.draw(whiteRect);
 						}
 					}

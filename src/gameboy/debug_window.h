@@ -13,14 +13,14 @@ namespace gameboy
     {
     public:
         sf::RenderTexture window_texture;
-		sf::Sprite window_sprite;
+		sf::Sprite window_sprite = sf::Sprite(window_texture.getTexture());
 
         sf::RectangleShape outer_border;
 
         sf::Font font;
-        sf::Text title_text;
+        sf::Text title_text = sf::Text(font);
 
-        sf::Text bottom_text;
+        sf::Text bottom_text = sf::Text(font);
 
         bool is_active;
 
@@ -29,20 +29,19 @@ namespace gameboy
         debug_window(u32 width, u32 height)
         {
             // create window texture and sprite
-            window_texture.create(width + BORDER_SIZE * 2, height + BORDER_SIZE * 2 + TITLEBAR_SIZE);
-            window_sprite.setTexture(window_texture.getTexture());
+            bool success = window_texture.resize(sf::Vector2u(width + BORDER_SIZE * 2, height + BORDER_SIZE * 2 + TITLEBAR_SIZE));
 
             // create window border
             outer_border.setSize(sf::Vector2f(window_texture.getSize()));
 
             // title text
-            font.loadFromFile("courbd.ttf");
+            success = font.openFromFile("courbd.ttf");
 
             title_text.setString("");
             title_text.setFillColor(sf::Color(0, 0, 0, 255));
             title_text.setFont(font);
             title_text.setCharacterSize(16);
-            title_text.setPosition(BORDER_SIZE, 0);
+            title_text.setPosition(sf::Vector2f(BORDER_SIZE, 0));
 
             bottom_text.setFont(font);
             bottom_text.setCharacterSize(16);
@@ -60,12 +59,12 @@ namespace gameboy
 
         virtual void set_position(float x, float y)
         {
-            window_sprite.setPosition(x, y);
+            window_sprite.setPosition(sf::Vector2f(x, y));
         }
 
         virtual void set_scale(float scale)
         {
-            window_sprite.setScale(scale, scale);
+            window_sprite.setScale(sf::Vector2f(scale, scale));
         }
 
         virtual void update()

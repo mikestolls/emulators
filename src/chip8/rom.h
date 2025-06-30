@@ -13,6 +13,8 @@ namespace chip8
 		rom(const char* path)
 		{
 			filename = path;
+			romsize = 0;
+			romdata = nullptr;
 
 			FILE* file = 0;
 			fopen_s(&file, filename.c_str(), "rb");

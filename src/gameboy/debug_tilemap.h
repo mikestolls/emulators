@@ -14,7 +14,7 @@ namespace gameboy
         #define TILEMAP_TEXTURE_SIZE		256
         
         sf::Texture tilemap_texture;
-        sf::Sprite tilemap_sprite;
+        sf::Sprite tilemap_sprite = sf::Sprite(tilemap_texture);
         u8 tilemap_texture_data[256 * 256 * 4]; // texture will 128 x 128 with 4 bpp
 
         u8 tilemap_index;
@@ -26,9 +26,9 @@ namespace gameboy
             tileset_debug = tileset;
 
             // create tilemap
-            tilemap_texture.create(256, 256);
+            bool success = tilemap_texture.resize(sf::Vector2u(256, 256));
             tilemap_sprite.setTexture(tilemap_texture);
-            tilemap_sprite.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
+            tilemap_sprite.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE));
 
             title_text.setString("Tilemap: 0x9800");
 
@@ -90,7 +90,7 @@ namespace gameboy
                 }
             }
 
-            tilemap_texture.update(tilemap_texture_data, 256, 256, 0, 0);
+            tilemap_texture.update(tilemap_texture_data, sf::Vector2u(256, 256), sf::Vector2u(0, 0));
 
             // draw to the window texture
             window_texture.draw(outer_border);
@@ -102,7 +102,7 @@ namespace gameboy
 
         void on_keypressed(sf::Keyboard::Key key)
         {
-            if (key == sf::Keyboard::Left || key == sf::Keyboard::Right)
+            if (key == sf::Keyboard::Key::Left || key == sf::Keyboard::Key::Right)
             {
                 tilemap_index ^= 1;
 

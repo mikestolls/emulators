@@ -27,7 +27,7 @@ namespace gameboy
 		
 		#define BREAKPOINT_PAUSE_TRIANGLE_SIZE		10
 
-		sf::Text disassembler_text;
+		sf::Text disassembler_text = sf::Text(font);
 
 		sf::RectangleShape inner_border;
 		sf::RectangleShape line_border;
@@ -39,8 +39,8 @@ namespace gameboy
 		sf::RectangleShape goto_inner_border;
 		sf::RectangleShape goto_outer_input_border;
 		sf::RectangleShape goto_inner_input_border;
-		sf::Text goto_title_text;
-		sf::Text goto_input_text;
+		sf::Text goto_title_text = sf::Text(font);
+		sf::Text goto_input_text = sf::Text(font);
 		std::stringstream goto_input_stream;
 
 		s16 active_line;
@@ -53,17 +53,16 @@ namespace gameboy
 		debug_disassembler() : debug_window(916, 320)
 		{
 			disassembler_text.setString("");
-			disassembler_text.setFont(font);
 			disassembler_text.setCharacterSize(16);
-			disassembler_text.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
+			disassembler_text.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE));
 
 			inner_border.setSize(sf::Vector2f(916, 320));
 			inner_border.setFillColor(sf::Color(0, 0, 0, 255));
-			inner_border.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
+			inner_border.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE));
 
 			line_border.setSize(sf::Vector2f(916, LINE_HEIGHT));
 			line_border.setFillColor(sf::Color(100, 100, 100, 255));
-			line_border.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
+			line_border.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE));
 			
 			title_text.setString("Disassembler");
 
@@ -271,10 +270,10 @@ namespace gameboy
 			window_texture.draw(inner_border);
 			window_texture.draw(title_text);
 			
-			line_border.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
-			disassembler_text.setPosition(BORDER_SIZE + LINE_XPOS, BORDER_SIZE + TITLEBAR_SIZE);
-			breakpoint_marker.setPosition(BORDER_SIZE + 10, BORDER_SIZE + TITLEBAR_SIZE + 5);
-			breakpoint_paused_marker.setPosition(BORDER_SIZE + 5, BORDER_SIZE + TITLEBAR_SIZE + 10);
+			line_border.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE));
+			disassembler_text.setPosition(sf::Vector2f(BORDER_SIZE + LINE_XPOS, BORDER_SIZE + TITLEBAR_SIZE));
+			breakpoint_marker.setPosition(sf::Vector2f(BORDER_SIZE + 10, BORDER_SIZE + TITLEBAR_SIZE + 5));
+			breakpoint_paused_marker.setPosition(sf::Vector2f(BORDER_SIZE + 5, BORDER_SIZE + TITLEBAR_SIZE + 10));
 
 			// draw foreground of each line
 			u16 pc = pc_start;
@@ -366,21 +365,21 @@ namespace gameboy
 
 		void on_keypressed_goto(sf::Keyboard::Key key)
 		{
-			if (key >= sf::Keyboard::Num0 && key <= sf::Keyboard::Num9)
+			if (key >= sf::Keyboard::Key::Num0 && key <= sf::Keyboard::Key::Num9)
 			{
 				// add the number to the input stream
-				goto_input_stream << (int)(key - sf::Keyboard::Num0);
+				goto_input_stream << (int)key - (int)sf::Keyboard::Key::Num0;
 			}
-			else if (key >= sf::Keyboard::Numpad0 && key <= sf::Keyboard::Numpad9)
+			else if (key >= sf::Keyboard::Key::Numpad0 && key <= sf::Keyboard::Key::Numpad9)
 			{
 				// add the number to the input stream
-				goto_input_stream << (int)(key - sf::Keyboard::Numpad0);
+				goto_input_stream << (int)key - (int)sf::Keyboard::Key::Numpad0;
 			}
-			else if (key >= sf::Keyboard::A && key <= sf::Keyboard::F)
+			else if (key >= sf::Keyboard::Key::A && key <= sf::Keyboard::Key::F)
 			{
-				goto_input_stream << (char)(0x41 + (int)(key - sf::Keyboard::A));
+				goto_input_stream << (char)(0x41 + (int)key - (int)sf::Keyboard::Key::A);
 			}
-			else if (key == sf::Keyboard::BackSpace)
+			else if (key == sf::Keyboard::Key::Backspace)
 			{
 				if (goto_input_stream.str().length() > 0)
 				{
@@ -389,7 +388,7 @@ namespace gameboy
 					goto_input_stream << temp;
 				}
 			}
-			else if (key == sf::Keyboard::Return)
+			else if (key == sf::Keyboard::Key::Enter)
 			{
 				is_goto_prompt = false;
 
@@ -403,7 +402,7 @@ namespace gameboy
 
 				goto_instr(addr);
 			}
-			else if (key == sf::Keyboard::Escape)
+			else if (key == sf::Keyboard::Key::Escape)
 			{
 				is_goto_prompt = false;
 			}
@@ -426,11 +425,11 @@ namespace gameboy
 			}
 
 			// handle up and down
-			if (key == sf::Keyboard::Down)
+			if (key == sf::Keyboard::Key::Down)
 			{
 				active_line++;
 			}
-			else if (key == sf::Keyboard::Up)
+			else if (key == sf::Keyboard::Key::Up)
 			{
 				active_line--;
 			}
@@ -447,7 +446,7 @@ namespace gameboy
 			}
 
 			// handle breakpoint
-			if (key == sf::Keyboard::F9)
+			if (key == sf::Keyboard::Key::F9)
 			{
 				auto itr = std::find(cpu::breakpoints.begin(), cpu::breakpoints.end(), active_addr);
 				
@@ -460,7 +459,7 @@ namespace gameboy
 					cpu::breakpoints.push_back(active_addr);
 				}
 			}
-			else if (key == sf::Keyboard::F5)
+			else if (key == sf::Keyboard::Key::F5)
 			{
 				// resume the cpu
 				cpu::paused = false;
@@ -470,12 +469,12 @@ namespace gameboy
 					cpu::breakpoint_disable_one_instr = true;
 				}
 			}
-			else if (key == sf::Keyboard::F6)
+			else if (key == sf::Keyboard::Key::F6)
 			{
 				cpu::paused = true;
 				goto_instr(cpu::R.pc);
 			}
-			else if (key == sf::Keyboard::F10)
+			else if (key == sf::Keyboard::Key::F10)
 			{
 				if (cpu::paused)
 				{
@@ -494,7 +493,7 @@ namespace gameboy
 					}
 				}
 			}
-			else if (key == sf::Keyboard::F11)
+			else if (key == sf::Keyboard::Key::F11)
 			{
 				if (cpu::paused)
 				{
@@ -502,7 +501,7 @@ namespace gameboy
 					cpu::breakpoint_disable_one_instr = true;
 				}
 			}
-			else if (key == sf::Keyboard::G)
+			else if (key == sf::Keyboard::Key::G)
 			{
 				is_goto_prompt = true;
 				goto_input_stream.str("");

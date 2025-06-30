@@ -56,7 +56,8 @@ solution "emulators"
             "../src",
             "../src/emulators",
 			"../include",
-			"../lib/argparse"
+			"../lib/argparse",
+			"../lib/sfml/include"
         }
         links {
             "opengl32.lib",
@@ -68,11 +69,14 @@ solution "emulators"
         }
 
         libdirs {
-            "../lib/msvc",
             "../lib/Exts/msvc"
         }
 		
 		filter "configurations:Debug*"
+			libdirs {
+				"../lib/sfml/build/lib/Debug",
+			}
+			
             links {
                 "sfml-audio-s-d.lib",
                 "sfml-graphics-s-d.lib",
@@ -83,6 +87,10 @@ solution "emulators"
             }
 
 		filter "configurations:Release*"
+			libdirs {
+				"../lib/sfml/build/lib/Release",
+			}
+			
             links {
                 "sfml-audio-s.lib",
                 "sfml-graphics-s.lib",

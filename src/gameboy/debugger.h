@@ -19,7 +19,7 @@ namespace gameboy
     public:
         // render target for debugger
         sf::RenderTexture window_texture;
-        sf::Sprite window_sprite;
+        sf::Sprite window_sprite = sf::Sprite(window_texture.getTexture());
 
         // debug windows
         std::vector<debug_window*> debug_windows;
@@ -29,46 +29,56 @@ namespace gameboy
 
         const float bottom_bar_height = 24;
 
+        debugger()
+        {
+
+        }
+
+		~debugger()
+		{
+			destroy();
+		}
+
         int initialize(u32 width, u32 height)
         {
             // create window texture and sprite
-            window_texture.create(width, height);
+            bool success = window_texture.resize(sf::Vector2u(width, height));
             window_sprite.setTexture(window_texture.getTexture());
 
             // add bottom bar
             bottom_bar.setFillColor(sf::Color(100, 100, 100, 255));
-            bottom_bar.setPosition(0, height - bottom_bar_height);
+            bottom_bar.setPosition(sf::Vector2f(0, height - bottom_bar_height));
             bottom_bar.setSize(sf::Vector2f((float)width, bottom_bar_height));
 
             // create debug window
             debug_window* window = new debug_tileset();
             window->set_position(16, 16);
-            window->bottom_text.setPosition(0, height - bottom_bar_height);
+            window->bottom_text.setPosition(sf::Vector2f(0, height - bottom_bar_height));
             debug_windows.push_back(window);
 
             window = new debug_tilemap((debug_tileset*)window);
             window->set_position(316, 16);
-            window->bottom_text.setPosition(0, height - bottom_bar_height);
+            window->bottom_text.setPosition(sf::Vector2f(0, height - bottom_bar_height));
             debug_windows.push_back(window);
 
             window = new debug_palette();
             window->set_position(616, 16);
-            window->bottom_text.setPosition(0, height - bottom_bar_height);
+            window->bottom_text.setPosition(sf::Vector2f(0, height - bottom_bar_height));
             debug_windows.push_back(window);
 
             window = new debug_registers();
             window->set_position(916, 16);
-            window->bottom_text.setPosition(0, height - bottom_bar_height);
+            window->bottom_text.setPosition(sf::Vector2f(0, height - bottom_bar_height));
             debug_windows.push_back(window);
             
             window = new debug_memory();
             window->set_position(16, 678);
-            window->bottom_text.setPosition(0, height - bottom_bar_height);
+            window->bottom_text.setPosition(sf::Vector2f(0, height - bottom_bar_height));
             debug_windows.push_back(window);
 
             window = new debug_disassembler();
             window->set_position(16, 314);
-            window->bottom_text.setPosition(0, height - bottom_bar_height);
+            window->bottom_text.setPosition(sf::Vector2f(0, height - bottom_bar_height));
             debug_windows.push_back(window);
 
             debug_window_index = (u16)debug_windows.size() - 1;
@@ -91,7 +101,7 @@ namespace gameboy
 
         void on_keypressed(sf::Keyboard::Key key)
         {
-            if (key == sf::Keyboard::Tab)
+            if (key == sf::Keyboard::Key::Tab)
             {
                 u16 prev_index = debug_window_index;
                 do

@@ -13,7 +13,7 @@ namespace gameboy
         #define TILESET_TEXTURE_SIZE		128
         
         sf::Texture tileset_texture;
-        sf::Sprite tileset_sprite;
+        sf::Sprite tileset_sprite = sf::Sprite(tileset_texture);
         u8 tileset_texture_data[TILESET_TEXTURE_SIZE * TILESET_TEXTURE_SIZE * 4]; // texture will 128 x 128 with 4 bpp
                 
         u8 tileset_index;
@@ -21,10 +21,10 @@ namespace gameboy
         debug_tileset() : debug_window((TILESET_TEXTURE_SIZE * 2), (TILESET_TEXTURE_SIZE * 2))
         {
             // tileset sprite
-            tileset_texture.create(TILESET_TEXTURE_SIZE, TILESET_TEXTURE_SIZE);
+            bool success = tileset_texture.resize(sf::Vector2u(TILESET_TEXTURE_SIZE, TILESET_TEXTURE_SIZE));
             tileset_sprite.setTexture(tileset_texture);
-            tileset_sprite.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
-            tileset_sprite.setScale(2, 2);
+            tileset_sprite.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE));
+            tileset_sprite.setScale(sf::Vector2f(2, 2));
             
             title_text.setString("Tileset: 8000");
 
@@ -87,7 +87,7 @@ namespace gameboy
                 }
             }
 
-            tileset_texture.update(tileset_texture_data, TILESET_TEXTURE_SIZE, TILESET_TEXTURE_SIZE, 0, 0);
+            tileset_texture.update(tileset_texture_data, sf::Vector2u(TILESET_TEXTURE_SIZE, TILESET_TEXTURE_SIZE), sf::Vector2u(0, 0));
 
             // draw to the window texture
             window_texture.draw(outer_border);
@@ -99,7 +99,7 @@ namespace gameboy
 
         void on_keypressed(sf::Keyboard::Key key)
         {
-            if (key == sf::Keyboard::Left || key == sf::Keyboard::Right)
+            if (key == sf::Keyboard::Key::Left || key == sf::Keyboard::Key::Right)
             {
                 tileset_index ^= 1;
 

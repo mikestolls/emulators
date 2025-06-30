@@ -30,17 +30,17 @@ namespace gameboy
 
             inner_border.setSize(sf::Vector2f(256, 256));
             inner_border.setFillColor(sf::Color(0, 0, 0, 255));
-            inner_border.setPosition(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE);
+            inner_border.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE));
 
             title_text.setString("Palette");
 
             box_outer_border.setSize(sf::Vector2f(BOX_SIZE + BORDER_SIZE * 2, BOX_SIZE + BORDER_SIZE * 2));
             box_outer_border.setFillColor(sf::Color(200, 200, 200, 255));
-            box_outer_border.setPosition(0, 0);
+            box_outer_border.setPosition(sf::Vector2f(0, 0));
 
             box_inner_border.setSize(sf::Vector2f(BOX_SIZE, BOX_SIZE));
             box_inner_border.setFillColor(sf::Color(0, 0, 0, 255));
-            box_inner_border.setPosition(BORDER_SIZE, BORDER_SIZE);
+            box_inner_border.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE));
 
             bottom_text.setString("");
         }
@@ -59,8 +59,8 @@ namespace gameboy
             {
                 u32 color = gpu::get_palette_color(i);
 
-                box_outer_border.setPosition(x, y);
-                box_inner_border.setPosition(x + BORDER_SIZE, y + BORDER_SIZE);
+                box_outer_border.setPosition(sf::Vector2f(x, y));
+                box_inner_border.setPosition(sf::Vector2f(x + BORDER_SIZE, y + BORDER_SIZE));
                 box_inner_border.setFillColor(sf::Color(color));
 
                 window_texture.draw(box_outer_border);
