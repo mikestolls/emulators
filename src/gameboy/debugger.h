@@ -43,7 +43,7 @@ namespace gameboy
         {
             // create window texture and sprite
             bool success = window_texture.resize(sf::Vector2u(width, height));
-            window_sprite.setTexture(window_texture.getTexture());
+            window_sprite.setTexture(window_texture.getTexture(), true);
 
             // add bottom bar
             bottom_bar.setFillColor(sf::Color(100, 100, 100, 255));

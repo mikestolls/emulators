@@ -11,24 +11,6 @@
 
 namespace chip8
 {
-	/*static const u8 keyboard[] = {sf::Keyboard::Key::Num0, 0x0,
-									sf::Keyboard::Num2, 0x1,
-									sf::Keyboard::Num3, 0x2,
-									sf::Keyboard::Num4, 0x3,
-									sf::Keyboard::Q, 0x4,
-									sf::Keyboard::W, 0x5,
-									sf::Keyboard::E, 0x6,
-									sf::Keyboard::R, 0x7,
-									sf::Keyboard::A, 0x8,
-									sf::Keyboard::S, 0x9,
-									sf::Keyboard::D, 0xA,
-									sf::Keyboard::F, 0xB,
-									sf::Keyboard::Z, 0xC,
-									sf::Keyboard::X, 0xD,
-									sf::Keyboard::C, 0xE,
-									sf::Keyboard::V, 0xF,
-	};*/
-
 	static const std::pair<sf::Keyboard::Key, u8> keyboard[] = {
 		{sf::Keyboard::Key::Num0, 0x0},
 		{sf::Keyboard::Key::Num2, 0x1},
@@ -151,31 +133,6 @@ namespace chip8
 					}
 				}
 			}
-
-			// poll for window events
-			/*sf::Event event;
-			while (window.pollEvent(event))
-			{
-				if (event.type == sf::Event::Closed)
-					window.close();
-			}
-
-			for (u8 i = 0; i < sizeof(chip8::keyboard); i+=2)
-			{
-				if (sf::Keyboard::isKeyPressed(static_cast<sf::Keyboard::Key>(chip8::keyboard[i])))
-				{
-					cpu::set_keys(chip8::keyboard[i + 1], true);
-				}
-				else
-				{
-					cpu::set_keys(chip8::keyboard[i + 1], false);
-				}
-			}
-		
-			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
-			{
-				cpu::reset();
-			}*/
 
 			// update the cpu emulation
 			cpu::update_cycle();

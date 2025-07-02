@@ -27,7 +27,7 @@ namespace gameboy
 
             // create tilemap
             bool success = tilemap_texture.resize(sf::Vector2u(256, 256));
-            tilemap_sprite.setTexture(tilemap_texture);
+            tilemap_sprite.setTexture(tilemap_texture, true);
             tilemap_sprite.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE));
 
             title_text.setString("Tilemap: 0x9800");

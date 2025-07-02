@@ -30,6 +30,7 @@ namespace gameboy
         {
             // create window texture and sprite
             bool success = window_texture.resize(sf::Vector2u(width + BORDER_SIZE * 2, height + BORDER_SIZE * 2 + TITLEBAR_SIZE));
+			window_sprite.setTexture(window_texture.getTexture(), true);
 
             // create window border
             outer_border.setSize(sf::Vector2f(window_texture.getSize()));

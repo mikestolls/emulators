@@ -22,9 +22,9 @@ namespace gameboy
         {
             // tileset sprite
             bool success = tileset_texture.resize(sf::Vector2u(TILESET_TEXTURE_SIZE, TILESET_TEXTURE_SIZE));
-            tileset_sprite.setTexture(tileset_texture);
             tileset_sprite.setPosition(sf::Vector2f(BORDER_SIZE, BORDER_SIZE + TITLEBAR_SIZE));
             tileset_sprite.setScale(sf::Vector2f(2, 2));
+            tileset_sprite.setTexture(tileset_texture, true);
             
             title_text.setString("Tileset: 8000");
 

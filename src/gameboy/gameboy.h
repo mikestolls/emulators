@@ -56,6 +56,7 @@ namespace gameboy
 			window.create(sf::VideoMode(sf::Vector2u(gpu::width * pixelSize, gpu::height * pixelSize)), "Emulator");
 			bool success = framebuffer_texture.resize(sf::Vector2u(gpu::width, gpu::height));
 			framebuffer_sprite.setScale(sf::Vector2f(pixelSize, pixelSize));
+			framebuffer_sprite.setTexture(framebuffer_texture, true);
 
 			// fps counter and profiler
 			success = font.openFromFile("courbd.ttf");
