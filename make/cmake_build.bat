@@ -2,6 +2,6 @@
 
 pushd %~dp0
 
-cmake ..\lib\sfml
+cmake -S ..\ -B ..\_prj
 
 popd
