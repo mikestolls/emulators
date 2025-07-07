@@ -1,7 +1,3 @@
 @echo OFF
 
-pushd %~dp0
-
-premake5 vs2022
-
-popd
+premake5_generate vs2022

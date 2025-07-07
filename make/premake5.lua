@@ -47,7 +47,11 @@ solution "emulators"
 		files {
             "../src/**.h",
 			"../src/**.cpp",
-			"../data/**"
+			"../data/**",
+			"../make/**",
+			"../lib/imgui/*.cpp",
+			"../lib/imgui/*.h"
+
 		}
 		excludes {
 			"../data/**.s" 
@@ -57,7 +61,8 @@ solution "emulators"
             "../src/emulators",
 			"../include",
 			"../lib/argparse",
-			"../lib/sfml/include"
+			"../lib/sfml/include",
+			"../lib/imgui"
         }
         links {
             "opengl32.lib",
