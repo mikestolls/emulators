@@ -16,3 +16,6 @@
 [submodule "lib/sfml"]
 	path = lib/sfml
 	url = https://github.com/SFML/SFML.git
+[submodule "lib/imguifiledialog"]
+	path = lib/imguifiledialog
+	url = https://github.com/aiekick/ImGuiFileDialog.git

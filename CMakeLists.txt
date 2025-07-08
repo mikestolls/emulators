@@ -15,6 +15,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../_build/$<CONFIG>)
 set(BUILD_SHARED_LIBS OFF)
 add_subdirectory(lib/sfml)
 
+# Build ImGuiFileDialog
+set(IMGUI_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui)
+add_subdirectory(lib/imguifiledialog)
+target_include_directories(ImGuiFileDialog PRIVATE ${IMGUI_INCLUDE_DIR})
+
 # Include directories
 include_directories(include)
 include_directories(lib/argparse)
@@ -58,4 +63,5 @@ target_link_libraries(emulators
     SFML::Graphics
     SFML::Window
     SFML::System
+    ImGuiFileDialog
 )
