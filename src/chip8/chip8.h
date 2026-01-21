@@ -30,6 +30,12 @@ namespace chip8
 		{sf::Keyboard::Key::V, 0xF},
 	};
 
+	rom loaded_rom;
+
+	// init sfml
+	u8 pixelSize = 16;
+	sf::RectangleShape whiteRect(sf::Vector2f(pixelSize, pixelSize));
+	/*
 	int run_emulator(int argc, const char* argv[])
 	{
 		// do some arg parsing
@@ -86,7 +92,7 @@ namespace chip8
 		fps_text.setOutlineThickness(2);
 		fps_text.setCharacterSize(18);
 
-		// init scpu and load rom
+		// init cpu and load rom
 		cpu::initialize();
 		cpu::load_rom(rom.romdata, rom.romsize & 0xFFFF);
 
@@ -190,5 +196,83 @@ namespace chip8
 		}
 
 		return 0;
+	}
+	*/
+	int init_emulator(std::string rom_filename)
+	{
+		// init cpu and load rom
+		cpu::initialize();
+		loaded_rom.load(rom_filename);
+		cpu::load_rom(loaded_rom.romdata, loaded_rom.romsize & 0xFFFF);
+
+		whiteRect.setFillColor(sf::Color::White);
+
+		return 0;
+	}
+
+	int process_event(const sf::Event* event)
+	{
+		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
+		{
+			// check if key is pressed and set the corresponding key in the cpu
+			for (const auto& key : keyboard)
+			{
+				if (keyPressed->code == key.first)
+				{
+					cpu::set_keys(key.second, true);
+					break;
+				}
+			}
+
+			if (keyPressed->code == sf::Keyboard::Key::Space)
+			{
+				cpu::reset();
+			}
+		}
+		else if (const auto* keyReleased = event->getIf<sf::Event::KeyReleased>())
+		{
+			// check if key is released and unset the corresponding key in the cpu
+			for (const auto& key : keyboard)
+			{
+				if (keyReleased->code == key.first)
+				{
+					cpu::set_keys(key.second, false);
+					break;
+				}
+			}
+		}
+
+		return 0;
+	}
+
+	bool update(sf::RenderWindow& window)
+	{
+		// update the cpu emulation
+		cpu::update_cycle();
+
+		if (cpu::drawFlag)
+		{
+			// clear window
+			window.clear();
+
+			// draw screen
+			u16 pixel = 0;
+			for (u8 y = 0; y < cpu::height; y++)
+			{
+				for (u8 x = 0; x < cpu::width; x++)
+				{
+					if (cpu::gfx[pixel++] != 0)
+					{
+						whiteRect.setPosition(sf::Vector2f((float)(x * pixelSize), (float)(y * pixelSize)));
+						window.draw(whiteRect);
+					}
+
+				}
+			}
+
+			return true;
+		}
+
+		return false;
 	}
 }

@@ -10,9 +10,18 @@ namespace chip8
 		u64 romsize;
 		std::string filename;
 
-		rom(const char* path)
+		rom()
 		{
-			filename = path;
+
+		}
+
+		rom(std::string& filename)
+		{
+			load(filename);
+		}
+
+		int load(std::string& filename)
+		{
 			romsize = 0;
 			romdata = nullptr;
 
@@ -22,7 +31,7 @@ namespace chip8
 			if (!file)
 			{
 				printf("Error - Failed to open ROM file: %s\n", filename.c_str());
-				return;
+				return -1;
 			}
 
 			// get size
@@ -35,6 +44,8 @@ namespace chip8
 			fread(romdata, 1, romsize, file);
 
 			fclose(file);
+
+			return 0;
 		}
 
 		~rom()

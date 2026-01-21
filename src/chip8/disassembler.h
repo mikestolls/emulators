@@ -33,7 +33,7 @@ namespace chip8
 		return 0;
 	}
 
-	int disassemble(const char* filename)
+	int disassemble(std::string& filename)
 	{
 		chip8::rom rom(filename);
 

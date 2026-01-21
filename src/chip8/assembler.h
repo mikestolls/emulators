@@ -185,18 +185,16 @@ namespace chip8
 	static const u16 instructionCount = sizeof(instructions) / sizeof(instructions[0]);
 	//end - instruction list for chip8
 
-	int assemble(const char* filename)
+	int assemble(std::string& filename)
 	{
-		std::string outfilename = filename;
-
 		// create a texst file with asa extension
-		outfilename = outfilename.substr(0, outfilename.rfind("."));
-		outfilename.append(".c8");
+		filename = filename.substr(0, filename.rfind("."));
+		filename.append(".c8");
 
 		std::ifstream infile(filename);
 
 		// open out binary file
-		FILE* file = fopen(outfilename.c_str(), "wb");
+		FILE* file = fopen(filename.c_str(), "wb");
 
 		// assemble the rom data
 		std::string line;

@@ -20,6 +20,11 @@ set(IMGUI_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/imgui)
 add_subdirectory(lib/imguifiledialog)
 target_include_directories(ImGuiFileDialog PRIVATE ${IMGUI_INCLUDE_DIR})
 
+# gorup the external libs together
+set_target_properties(ImGuiFileDialog PROPERTIES FOLDER "External Libraries")
+set_target_properties(sfml-graphics sfml-window sfml-system sfml-audio sfml-network sfml-main 
+    PROPERTIES FOLDER "External Libraries/SFML")
+
 # Include directories
 include_directories(include)
 include_directories(lib/argparse)
