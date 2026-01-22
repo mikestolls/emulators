@@ -27,10 +27,21 @@ namespace gameboy
 		std::string filename;
 		rom_header romheader;
 
-		void open(const char* path)
+		rom()
 		{
-			filename = path;
+			filename = "";
+			romsize = 0x0;
+			romdata = nullptr;
+			memset(&romheader, 0x0, sizeof(rom_header));
+		}
 
+		rom(std::string& filename)
+		{
+			load(filename);
+		}
+
+		void load(std::string& filename)
+		{
 			FILE* file = 0;
 			fopen_s(&file, filename.c_str(), "rb");
 
@@ -80,19 +91,6 @@ namespace gameboy
 				warning_assert("memory bank controller not supported yet");
 				break;
 			}
-		}
-
-		rom()
-		{
-			filename = "";
-			romsize = 0x0;
-			romdata = nullptr;
-			memset(&romheader, 0x0, sizeof(rom_header));
-		}
-
-		rom(const char* path)
-		{
-			open(path);
 		}
 
 		~rom()

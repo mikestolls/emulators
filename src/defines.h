@@ -15,10 +15,10 @@
 #include <vector>
 #include <map>
 #include <list>
+#include <queue>
 #include <cctype>
 #include <functional>
 #include <iomanip>
-#include <fstream>
 #include <iterator>
 
 typedef unsigned char u8;

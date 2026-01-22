@@ -34,12 +34,14 @@ namespace gameboy
 	};
 
 	std::map<sf::Keyboard::Key, input_binding> input_map;
-	std::list<unit_test> unit_test_list;
+	rom loaded_rom;
+	
+	/*std::list<unit_test> unit_test_list;
 	
 	int run_emulator_rom(std::string filename, bool show_window = true, s32 abort_pc = -1, std::string vram_checksum = "")
 	{
 		// load and run the rom
-		rom rom(filename.c_str());
+		rom rom(filename);
 
 		// load the boot rom file
 		bool is_window_enabled = false;
@@ -324,7 +326,7 @@ namespace gameboy
 		else if (parser.exists("d"))
 		{
 			std::string rom_filename = parser.get<std::string>("r");
-			rom rom(rom_filename.c_str());
+			rom rom(rom_filename);
 			memory_module::initialize(nullptr, &rom);
 
 			// export disassembler to file and close
@@ -367,6 +369,23 @@ namespace gameboy
 			return ret;
 		}
 
+		return 0;
+	}
+	*/
+
+
+	int init_emulator(const std::string& rom_filename)
+	{
+		return 0;
+	}
+
+	int process_event(const sf::Event* event)
+	{
+		return 0;
+	}
+
+	int update()
+	{
 		return 0;
 	}
 }

@@ -650,10 +650,10 @@ namespace gameboy
 			return 0;
 		}
 
-		int disassemble_to_file(const char* filename)
+		int disassemble_to_file(const std::string& filename)
 		{
 			// export to file
-			FILE* file = fopen(filename, "w");
+			FILE* file = fopen(filename.c_str(), "w");
 
 			// disasseble the rom data
 			PC = 0x0;

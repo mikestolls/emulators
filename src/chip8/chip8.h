@@ -33,8 +33,10 @@ namespace chip8
 	rom loaded_rom;
 
 	// init sfml
-	u8 pixelSize = 16;
-	sf::RectangleShape whiteRect(sf::Vector2f(pixelSize, pixelSize));
+	u8 pixel_size = 16;
+	sf::RectangleShape white_rect(sf::Vector2f(pixel_size, pixel_size));
+	sf::RenderTexture render_texture;
+
 	/*
 	int run_emulator(int argc, const char* argv[])
 	{
@@ -198,14 +200,19 @@ namespace chip8
 		return 0;
 	}
 	*/
-	int init_emulator(std::string rom_filename)
+
+	int init_emulator(const std::string& rom_filename)
 	{
 		// init cpu and load rom
 		cpu::initialize();
 		loaded_rom.load(rom_filename);
 		cpu::load_rom(loaded_rom.romdata, loaded_rom.romsize & 0xFFFF);
 
-		whiteRect.setFillColor(sf::Color::White);
+		white_rect.setFillColor(sf::Color::White);
+
+		// init main screen texture
+		render_texture.resize(sf::Vector2u(cpu::width * pixel_size, cpu::height * pixel_size));
+		render_texture.clear(sf::Color::Black);
 
 		return 0;
 	}
@@ -245,15 +252,24 @@ namespace chip8
 		return 0;
 	}
 
-	bool update(sf::RenderWindow& window)
+	int update()
 	{
 		// update the cpu emulation
-		cpu::update_cycle();
+		const int INSTRUCTIONS_PER_FRAME = 10;
+
+		for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++)
+		{
+			cpu::update_cycle();
+		}
+
+		cpu::update_timers();
 
 		if (cpu::drawFlag)
 		{
+			cpu::drawFlag = false;
+
 			// clear window
-			window.clear();
+			render_texture.clear(sf::Color::Black);
 
 			// draw screen
 			u16 pixel = 0;
@@ -263,16 +279,24 @@ namespace chip8
 				{
 					if (cpu::gfx[pixel++] != 0)
 					{
-						whiteRect.setPosition(sf::Vector2f((float)(x * pixelSize), (float)(y * pixelSize)));
-						window.draw(whiteRect);
+						white_rect.setPosition(sf::Vector2f((float)(x * pixel_size), (float)(y * pixel_size)));
+						render_texture.draw(white_rect);
 					}
 
 				}
 			}
 
-			return true;
+			render_texture.display();
+
+			return 1;
 		}
 
-		return false;
+		return 0;
+	}
+
+	sf::RenderTexture* get_render_texture()
+	{
+		// TODO: maybe switch to smart ptr
+		return &render_texture;
 	}
 }

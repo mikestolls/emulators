@@ -12,15 +12,17 @@ namespace chip8
 
 		rom()
 		{
-
+			filename = "";
+			romsize = 0x0;
+			romdata = nullptr;
 		}
 
-		rom(std::string& filename)
+		rom(const std::string& filename)
 		{
 			load(filename);
 		}
 
-		int load(std::string& filename)
+		int load(const std::string& filename)
 		{
 			romsize = 0;
 			romdata = nullptr;
