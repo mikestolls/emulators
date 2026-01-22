@@ -43,32 +43,16 @@ namespace common
     EmulatorDisassemblerFunction emulator_function_disassembler = nullptr;
 
     sf::RenderTexture* emulator_render_texture = nullptr;
-    std::unique_ptr<sf::Sprite> emulator_sprite;
 
     // debug variables
     namespace debug
     {
-        bool debug_fps = true;
         u32 fps = 0;
         u32 frame_count = 0;
         sf::Clock fps_clock;
 
-        // fps counter and profiler
-        sf::Font font;
-        sf::Text fps_text(font);
-
         int init()
         {
-            // init the debug text
-            bool success = font.openFromFile("courbd.ttf");
-            sf::Text fps_text(font);
-
-            fps_text.setFillColor(sf::Color::White);
-            fps_text.setPosition(sf::Vector2f(10, 10));
-            fps_text.setOutlineColor(sf::Color::Black);
-            fps_text.setOutlineThickness(2);
-            fps_text.setCharacterSize(18);
-
             return 0;
         }
 
@@ -82,23 +66,6 @@ namespace common
                 fps = frame_count;
                 frame_count = 0;
                 fps_clock.restart();
-            }
-
-            return 0;
-        }
-
-        int draw(sf::RenderWindow& window)
-        {
-            if (debug_fps)
-            {
-                // show profliler stats
-                std::stringstream stream;
-                stream << "FPS: " << fps << "\n";
-
-                fps_text.setString(stream.str());
-                fps_text.setPosition(sf::Vector2f(0.0f, 16.0f));
-
-                window.draw(fps_text);
             }
 
             return 0;
@@ -133,7 +100,7 @@ namespace common
         return -1;
     }
 
-    int setup_emulator(u8 emulator_type, const std::string& rom_filename)
+    int setup_emulator(u8 emulator_type)
     {
         switch (emulator_type)
         {
@@ -157,14 +124,6 @@ namespace common
             break;
         default:
             return -1;
-        }
-
-        // run the emulator init with the rom and setup sprite texture
-        emulator_function_init(rom_filename);
-
-        if (emulator_render_texture != nullptr)
-        {
-            emulator_sprite = std::make_unique<sf::Sprite>(emulator_render_texture->getTexture());
         }
 
         return 0;
@@ -245,7 +204,8 @@ namespace common
                 std::string filePath = ImGuiFileDialog::Instance()->GetFilePathName();
                 std::cout << "Selected Chip8 Rom: " << filePath << std::endl;
 
-                setup_emulator(EMULATOR_TYPE_CHIP8, filePath);
+                setup_emulator(EMULATOR_TYPE_CHIP8);
+                emulator_function_init(filePath);
             }
 
             // close
@@ -258,7 +218,8 @@ namespace common
                 std::string filePath = ImGuiFileDialog::Instance()->GetFilePathName();
                 std::cout << "Selected Gameboy Rom: " << filePath << std::endl;
 
-                setup_emulator(EMULATOR_TYPE_GAMEBOY, filePath);
+                setup_emulator(EMULATOR_TYPE_GAMEBOY);
+                emulator_function_init(filePath);
             }
 
             // close
@@ -308,9 +269,16 @@ namespace common
         // TODO - need to add support for the unit tests from gameboy
 
 		// init sfml window
-        sf::RenderWindow window(sf::VideoMode({ 1024, 768 }), "Emulators");
+        sf::RenderWindow window(sf::VideoMode({ 1920, 1080 }), "Emulators");
         window.setFramerateLimit(60); // TODO: set the emulator specific one
-        bool success = ImGui::SFML::Init(window);
+
+        bool success = ImGui::SFML::Init(window, false);
+
+        // setup font
+        ImGuiIO& io = ImGui::GetIO();
+        io.Fonts->Clear();
+        io.Fonts->AddFontFromFileTTF("courbd.ttf", 24);
+        ImGui::SFML::UpdateFontTexture();
 
         // if a rom is passed we will load it right away
 		if (parser.exists("r"))
@@ -331,7 +299,8 @@ namespace common
         }
 
         // setup sprite to draw the emulator onto main window
-        setup_emulator(emulator_type, rom_filename);
+        setup_emulator(emulator_type);
+        emulator_function_init(rom_filename);
 
         //DemoWindow(window);
         //return 0;
@@ -358,28 +327,70 @@ namespace common
                 }
             }
 
+            // handle updating the emulator
+            emulator_function_update();
+
+            // imgui updates and drawing
             ImGui::SFML::Update(window, deltaTime);
 
             // handle the main menu
             update_mainmenu(window);
 
-            // handle updating the emulator
-            emulator_function_update();
+            // layout the main display
+            float menuHeight = ImGui::GetFrameHeight();
+            float debugHeight = 64.0f;
+            float windowWidth = ImGui::GetIO().DisplaySize.x;
+            float windowHeight = ImGui::GetIO().DisplaySize.y;
 
-            window.clear();
+            // Position it right below the menu bar. and to fill width
+            ImGui::SetNextWindowPos(ImVec2(0, menuHeight));
+            ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, 0), ImGuiCond_Always);
 
-            // render the emualtor texture
-            emulator_sprite->setPosition(sf::Vector2f(0.0f, 32.0f));
-            window.draw(*emulator_sprite);
+            // draw emulator display with imgui layout
+            ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar |
+                                            ImGuiWindowFlags_NoResize |
+                                            ImGuiWindowFlags_NoMove |
+                                            ImGuiWindowFlags_NoCollapse;
 
-            // update menu
-            ImGui::SFML::Render(window);
+            ImGui::Begin("Emulator Display", nullptr, window_flags);
 
-            // debug drawing
+            if (emulator_render_texture != nullptr)
+            {
+                // Get the texture from the sprite
+                sf::Vector2u textureSize = emulator_render_texture->getSize();
+
+                // Display as ImGui image
+                ImGui::Image(*emulator_render_texture, sf::Vector2f(textureSize.x, textureSize.y));
+
+                // Show controls below - TODO: make emulator specific control
+                ImGui::Separator();
+                ImGui::Text("Controls: QWER/ASDF/ZXCV + 0234");
+                ImGui::Text("Space: Reset");
+            }
+            else
+            {
+                ImGui::Text("No emulator loaded");
+                ImGui::Text("Use File -> Load Rom to load a ROM");
+            }
+
+            ImGui::End();
+
+            // Position it right below the menu bar. and to fill width
+            ImGui::SetNextWindowPos(ImVec2(0, ImGui::GetFrameHeight()));
+            ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, 0), ImGuiCond_Always);
+
+            // Show FPS in a separate window
+            ImGui::SetNextWindowPos(ImVec2(0, windowHeight - debugHeight));
+            ImGui::SetNextWindowSize(ImVec2(windowWidth, debugHeight), ImGuiCond_Always);
+
+            ImGui::Begin("Debug Info", nullptr, window_flags);
             debug::update();
-            debug::draw(window);
-            
-            // finally display
+            ImGui::Text("FPS: %d", debug::fps);
+            ImGui::End();
+
+            // clear and display updated sfml window
+            window.clear();
+            ImGui::SFML::Render(window);
             window.display();
         }
 
