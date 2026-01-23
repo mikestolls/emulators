@@ -28,12 +28,20 @@ namespace common
         EMULATOR_TYPE_GAMEBOY,
     };
 
+    struct EmulatorDisplay
+    {
+        int fps;
+        float display_scale;
+        const sf::Texture* display_texture = nullptr;
+    };
+
     typedef int (*EmulatorInitFunction)(const std::string&);
     typedef int (*EmulatorUpdateFunction)();
     typedef int (*EmulatorProcessEventFunction)(const sf::Event*);
     typedef int (*EmulatorAssemblerFunction)(const std::string&);
     typedef int (*EmulatorDisassemblerFunction)(const std::string&);
 
+    sf::RenderWindow window;
     u8 emulator_type = -1;
     
     EmulatorInitFunction emulator_function_init = nullptr;
@@ -42,7 +50,7 @@ namespace common
     EmulatorAssemblerFunction emulator_function_assembler = nullptr;
     EmulatorDisassemblerFunction emulator_function_disassembler = nullptr;
 
-    sf::RenderTexture* emulator_render_texture = nullptr;
+    EmulatorDisplay emulator_display;
 
     // debug variables
     namespace debug
@@ -111,7 +119,9 @@ namespace common
             emulator_function_assembler = &chip8::assembler::assemble_to_file;
             emulator_function_disassembler = &chip8::disassembler::disassemble_to_file;
 
-            emulator_render_texture = chip8::get_render_texture();
+            emulator_display.display_texture = chip8::get_emulator_texture();
+            emulator_display.fps = 60;
+            emulator_display.display_scale = 1.0f;
             break;
         case EMULATOR_TYPE_GAMEBOY:
             emulator_function_init = &gameboy::init_emulator;
@@ -120,11 +130,16 @@ namespace common
             emulator_function_assembler = &gameboy::assembler::assemble_to_file;
             emulator_function_disassembler = &gameboy::disassembler::disassemble_to_file;
 
-            emulator_render_texture = nullptr;
+            emulator_display.display_texture = gameboy::get_emulator_texture();
+            emulator_display.fps = 60;
+            emulator_display.display_scale = 4.0f;
             break;
         default:
             return -1;
         }
+
+        // set any window settings
+        window.setFramerateLimit(emulator_display.fps);
 
         return 0;
     }
@@ -269,8 +284,7 @@ namespace common
         // TODO - need to add support for the unit tests from gameboy
 
 		// init sfml window
-        sf::RenderWindow window(sf::VideoMode({ 1920, 1080 }), "Emulators");
-        window.setFramerateLimit(60); // TODO: set the emulator specific one
+        window = sf::RenderWindow(sf::VideoMode({ 1920, 1080 }), "Emulators");
 
         bool success = ImGui::SFML::Init(window, false);
 
@@ -354,13 +368,15 @@ namespace common
 
             ImGui::Begin("Emulator Display", nullptr, window_flags);
 
-            if (emulator_render_texture != nullptr)
+            if (emulator_display.display_texture != nullptr)
             {
                 // Get the texture from the sprite
-                sf::Vector2u textureSize = emulator_render_texture->getSize();
+                sf::Vector2u textureSize = emulator_display.display_texture->getSize();
+                textureSize.x *= emulator_display.display_scale;
+                textureSize.y *= emulator_display.display_scale;
 
                 // Display as ImGui image
-                ImGui::Image(*emulator_render_texture, sf::Vector2f(textureSize.x, textureSize.y));
+                ImGui::Image(*emulator_display.display_texture, sf::Vector2f(textureSize.x, textureSize.y));
 
                 // Show controls below - TODO: make emulator specific control
                 ImGui::Separator();

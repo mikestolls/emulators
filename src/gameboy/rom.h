@@ -35,12 +35,12 @@ namespace gameboy
 			memset(&romheader, 0x0, sizeof(rom_header));
 		}
 
-		rom(std::string& filename)
+		rom(const std::string& filename)
 		{
 			load(filename);
 		}
 
-		void load(std::string& filename)
+		void load(const std::string& filename)
 		{
 			FILE* file = 0;
 			fopen_s(&file, filename.c_str(), "rb");

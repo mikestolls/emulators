@@ -35,6 +35,13 @@ namespace gameboy
 
 	std::map<sf::Keyboard::Key, input_binding> input_map;
 	rom loaded_rom;
+	sf::Texture framebuffer_texture;
+
+	const u32 cycles_per_frame = cpu::cycles_per_sec / cpu::fps;
+	u32 cycle_count = 0;
+
+	debugger gameboy_debugger;
+	bool show_debugger = false;
 	
 	/*std::list<unit_test> unit_test_list;
 	
@@ -376,16 +383,138 @@ namespace gameboy
 
 	int init_emulator(const std::string& rom_filename)
 	{
+		// load and run the rom
+		rom rom(rom_filename);
+
+		// load the boot rom file
+		bool success = framebuffer_texture.resize(sf::Vector2u(gpu::width, gpu::height));
+
+		// init input map
+		input_map[sf::Keyboard::Key::Left] = { DIRECTION_LEFT, true };
+		input_map[sf::Keyboard::Key::Right] = { DIRECTION_RIGHT, true };
+		input_map[sf::Keyboard::Key::Up] = { DIRECTION_UP, true };
+		input_map[sf::Keyboard::Key::Down] = { DIRECTION_DOWN, true };
+		input_map[sf::Keyboard::Key::A] = { BUTTON_A, false };
+		input_map[sf::Keyboard::Key::B] = { BUTTON_B, false };
+		input_map[sf::Keyboard::Key::Enter] = { BUTTON_START, false };
+		input_map[sf::Keyboard::Key::RShift] = { BUTTON_SELECT, false };
+
+		// init cpu and load rom
+		warning("fix boot rom loading")
+
+#ifdef USE_BOOT_ROM
+		boot_rom boot("gameboy/boot.gb");
+		memory_module::initialize(&boot, &rom);
+#else
+		memory_module::initialize(nullptr, &rom);
+#endif
+
+		cpu::initialize();
+		gpu::initialize();
+
 		return 0;
 	}
 
 	int process_event(const sf::Event* event)
 	{
+		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
+		{
+			if (keyPressed->code == sf::Keyboard::Key::F1)
+			{
+				show_debugger = !show_debugger;
+			}
+
+			if (show_debugger)
+			{
+				if (keyPressed->code == sf::Keyboard::Key::Space)
+				{
+					cpu::reset();
+					gpu::reset();
+					cycle_count = 0;
+				}
+				else if (keyPressed->code == sf::Keyboard::Key::F2)
+				{
+					u8* ptr = memory_module::get_memory(0x9800, true);
+					u8* buffer = new u8[0x401];
+					memset(buffer, 0x0, 0x401);
+					memcpy(buffer, ptr, 0x400);
+					//std::string checksum = buffer;
+
+					printf("Checksum: %s", buffer);
+				}
+				else
+				{
+					gameboy_debugger.on_keypressed(keyPressed->code);
+				}
+			}
+			else
+			{
+				// check for joypad input
+				auto itr = input_map.find(keyPressed->code);
+
+				if (itr != input_map.end())
+				{
+					// handle joypad input
+					set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
+				}
+			}
+		}
+		else if (const auto* keyReleased = event->getIf<sf::Event::KeyReleased>())
+		{
+			if (show_debugger)
+			{
+
+			}
+			else
+			{
+				// check for joypad input
+				auto itr = input_map.find(keyReleased->code);
+
+				if (itr != input_map.end())
+				{
+					// handle joypad input
+					set_button_released(itr->second.joypad_map, itr->second.is_directional);
+				}
+			}
+		}
+
 		return 0;
 	}
 
 	int update()
 	{
+		while (cycle_count < cycles_per_frame)
+		{
+			// update the cpu emulation
+			u8 cpu_cycles = cpu::check_interrupts();
+			cpu_cycles += cpu::execute_opcode();
+			cycle_count += cpu_cycles;
+
+			if (cpu::paused || !cpu::running)
+			{
+				break;
+			}
+		}
+
+		if (!cpu::paused && cpu::running)
+		{
+			// once we have passed cycles per frame reset cycle count
+			cycle_count -= cycles_per_frame;
+		}
+
+		// update the framebuffer
+		if (gpu::vblank_occurred)
+		{
+			framebuffer_texture.update(gpu::framebuffer, sf::Vector2u(gpu::width, gpu::height), sf::Vector2u(0, 0));
+
+			gpu::vblank_occurred = false;
+		}
+
 		return 0;
+	}
+	
+	const sf::Texture* get_emulator_texture()
+	{
+		return &framebuffer_texture;
 	}
 }
