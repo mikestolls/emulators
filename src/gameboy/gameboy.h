@@ -412,6 +412,8 @@ namespace gameboy
 		cpu::initialize();
 		gpu::initialize();
 
+		gameboy_debugger.initialize(gpu::width * pixelSize, gpu::height * pixelSize);
+
 		return 0;
 	}
 
@@ -516,5 +518,49 @@ namespace gameboy
 	const sf::Texture* get_emulator_texture()
 	{
 		return &framebuffer_texture;
+	}
+
+	int debugger_update()
+	{
+		return gameboy_debugger.update();
+	}
+
+	int debugger_process_event(const sf::Event* event)
+	{
+		/*if (event->is<sf::Event::Closed>())
+		{
+			//gameboy_debugger.destroy();
+		}*/
+
+		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
+		{
+			if (keyPressed->code == sf::Keyboard::Key::Space)
+			{
+				cpu::reset();
+				gpu::reset();
+				cycle_count = 0;
+			}
+			else if (keyPressed->code == sf::Keyboard::Key::F2)
+			{
+				u8* ptr = memory_module::get_memory(0x9800, true);
+				u8* buffer = new u8[0x401];
+				memset(buffer, 0x0, 0x401);
+				memcpy(buffer, ptr, 0x400);
+				//std::string checksum = buffer;
+
+				printf("Checksum: %s", buffer);
+			}
+			else
+			{
+				gameboy_debugger.on_keypressed(keyPressed->code);
+			}
+		}
+
+		return 0;
+	}
+
+	const sf::Texture* get_debugger_texture()
+	{
+		return &gameboy_debugger.window_texture.getTexture();
 	}
 }
