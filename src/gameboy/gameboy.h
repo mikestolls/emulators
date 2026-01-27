@@ -384,7 +384,7 @@ namespace gameboy
 	int init_emulator(const std::string& rom_filename)
 	{
 		// load and run the rom
-		rom rom(rom_filename);
+		loaded_rom.load(rom_filename);
 
 		// load the boot rom file
 		bool success = framebuffer_texture.resize(sf::Vector2u(gpu::width, gpu::height));
@@ -400,13 +400,11 @@ namespace gameboy
 		input_map[sf::Keyboard::Key::RShift] = { BUTTON_SELECT, false };
 
 		// init cpu and load rom
-		warning("fix boot rom loading")
-
 #ifdef USE_BOOT_ROM
 		boot_rom boot("gameboy/boot.gb");
-		memory_module::initialize(&boot, &rom);
+		memory_module::initialize(&boot, &loaded_rom);
 #else
-		memory_module::initialize(nullptr, &rom);
+		memory_module::initialize(nullptr, &loaded_rom);
 #endif
 
 		cpu::initialize();
@@ -538,6 +536,14 @@ namespace gameboy
 			{
 				cpu::reset();
 				gpu::reset();
+
+#ifdef USE_BOOT_ROM
+				boot_rom boot("gameboy/boot.gb");
+				memory_module::initialize(&boot, &loaded_rom);
+#else
+				memory_module::initialize(nullptr, &loaded_rom);
+#endif
+
 				cycle_count = 0;
 			}
 			else if (keyPressed->code == sf::Keyboard::Key::F2)
