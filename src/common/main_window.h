@@ -299,7 +299,7 @@ namespace common
         {
             // TODO - this is temp for now to see if it needs to stay flipped
             sf::Vector2u textureSize = emulator_display.debugger_texture->getSize();
-
+            /*
             // Create a static flipped texture
             static sf::RenderTexture flipped_texture;
             static bool initialized = false;
@@ -323,8 +323,8 @@ namespace common
             // Display the flipped texture in ImGui (NOT the window!)
             ImGui::Image(flipped_texture.getTexture(),
                 sf::Vector2f(textureSize.x, textureSize.y));
-
-            //ImGui::Image(*emulator_display.debugger_texture, sf::Vector2f(textureSize.x, textureSize.y));
+            */
+            ImGui::Image(*emulator_display.debugger_texture, sf::Vector2f(textureSize.x, textureSize.y));
         }
         else
         {

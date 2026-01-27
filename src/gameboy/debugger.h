@@ -44,7 +44,14 @@ namespace gameboy
             // create window texture and sprite
             bool success = window_texture.resize(sf::Vector2u(width, height));
             window_sprite.setTexture(window_texture.getTexture(), true);
-            
+
+            // Set a flipped view to correct RenderTexture orientation
+            sf::View view = window_texture.getView();
+            sf::Vector2f viewSize = view.getSize();
+            viewSize.y *= -1.0f;
+            view.setSize(viewSize);
+            window_texture.setView(view);
+
             // add bottom bar
             bottom_bar.setFillColor(sf::Color(100, 100, 100, 255));
             bottom_bar.setPosition(sf::Vector2f(0, height - bottom_bar_height));
