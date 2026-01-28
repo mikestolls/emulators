@@ -13,13 +13,18 @@ namespace gameboy
 {
     namespace debugger
     {
-        void debugger_colored_text(const char* text, ImVec4 backgroundColor, ImVec4 textColor)
+        void debugger_colored_text(ImVec4 backgroundColor, ImVec4 textColor, const char* fmt, ...)
         {
-            // 1. Calculate the size of the text
-            ImVec2 textSize = ImGui::CalcTextSize(text);
+            va_list args;
+            va_start(args, fmt);
 
-            // Optional: Add padding if desired (e.g., style.FramePadding * 2)
-            // Here we will use 0 padding for simplicity.
+            char buffer[256];
+            vsnprintf(buffer, sizeof(buffer), fmt, args);
+
+            va_end(args);
+
+            // 1. Calculate the size of the text
+            ImVec2 textSize = ImGui::CalcTextSize(buffer);
 
             // 2. Get current cursor position and draw list
             ImVec2 textPos = ImGui::GetCursorScreenPos();
@@ -34,7 +39,7 @@ namespace gameboy
             ImGui::PushStyleColor(ImGuiCol_Text, textColor);
             // Move the cursor back to the original position so Text() draws on top of the rect
             ImGui::SetCursorScreenPos(textPos);
-            ImGui::Text("%s", text);
+            ImGui::Text(buffer);
             ImGui::PopStyleColor();
         }
 
