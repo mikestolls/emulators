@@ -70,3 +70,5 @@ target_link_libraries(emulators
     SFML::System
     ImGuiFileDialog
 )
+
+target_include_directories(emulators PRIVATE src)

@@ -1,7 +1,6 @@
 #include "defines.h"
 #include <iostream>
 
-#include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 #include <SFML/System/Clock.hpp>
 #include <SFML/Window/Event.hpp>
@@ -41,7 +40,7 @@ namespace common
     typedef int (*EmulatorProcessEventFunction)(const sf::Event*);
     typedef int (*EmulatorAssemblerFunction)(const std::string&);
     typedef int (*EmulatorDisassemblerFunction)(const std::string&);
-    typedef int (*EmulatorDebuggerUpdateFunction)();
+    typedef int (*EmulatorDebuggerUpdateFunction)(const sf::Time&);
     typedef int (*EmulatorDebuggerProcessEventFunction)(const sf::Event*);
 
     sf::RenderWindow window;
@@ -119,11 +118,11 @@ namespace common
         switch (emulator_type)
         {
         case EMULATOR_TYPE_CHIP8:
-            emulator_function_init = &chip8::init_emulator;
-            emulator_function_update = &chip8::update;
-            emulator_function_process_event = &chip8::process_event;
-            emulator_function_assembler = &chip8::assembler::assemble_to_file;
-            emulator_function_disassembler = &chip8::disassembler::disassemble_to_file;
+            emulator_function_init = chip8::init_emulator;
+            emulator_function_update = chip8::update;
+            emulator_function_process_event = chip8::process_event;
+            emulator_function_assembler = chip8::assembler::assemble_to_file;
+            emulator_function_disassembler = chip8::disassembler::disassemble_to_file;
             emulator_function_debugger_update = nullptr;
             emulator_function_debugger_process_event = nullptr;
 
@@ -133,13 +132,13 @@ namespace common
             emulator_display.display_scale = 1.0f;
             break;
         case EMULATOR_TYPE_GAMEBOY:
-            emulator_function_init = &gameboy::init_emulator;
-            emulator_function_update = &gameboy::update;
-            emulator_function_process_event = &gameboy::process_event;
-            emulator_function_assembler = &gameboy::assembler::assemble_to_file;
-            emulator_function_disassembler = &gameboy::disassembler::disassemble_to_file;
-            emulator_function_debugger_update = &gameboy::debugger_update;
-            emulator_function_debugger_process_event = &gameboy::debugger_process_event;
+            emulator_function_init = gameboy::init_emulator;
+            emulator_function_update = gameboy::update;
+            emulator_function_process_event = gameboy::process_event;
+            emulator_function_assembler = gameboy::assembler::assemble_to_file;
+            emulator_function_disassembler = gameboy::disassembler::disassemble_to_file;
+            emulator_function_debugger_update = gameboy::debugger_update;
+            emulator_function_debugger_process_event = gameboy::debugger_process_event;
 
             emulator_display.display_texture = gameboy::get_emulator_texture();
             emulator_display.debugger_texture = gameboy::get_debugger_texture();
@@ -226,7 +225,7 @@ namespace common
         return 0;
     }
 
-    void update_main_display(sf::RenderWindow& window)
+    void update_main_display(const sf::RenderWindow& window)
     {
         float menuHeight = ImGui::GetFrameHeight();
         float debugHeight = 64.0f;
@@ -498,7 +497,7 @@ namespace common
             }
 
             // handle updating the emulator debugger
-            emulator_function_debugger_update();
+            emulator_function_debugger_update(deltaTime);
 
             // imgui updates and drawing
             debugger_window.clear();

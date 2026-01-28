@@ -14,7 +14,7 @@
 
 namespace gameboy
 {
-    class debugger
+    class debugger_old
     {
     public:
         // render target for debugger
@@ -29,12 +29,12 @@ namespace gameboy
 
         const float bottom_bar_height = 24;
 
-        debugger()
+        debugger_old()
         {
 
         }
 
-		~debugger()
+		~debugger_old()
 		{
 			destroy();
 		}

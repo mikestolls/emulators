@@ -11,6 +11,7 @@
 #include "rom.h"
 #include "boot_rom.h"
 #include "debugger.h"
+#include "debugger/debugger.h"
 #include "disassembler.h"
 
 //#define USE_BOOT_ROM
@@ -40,7 +41,7 @@ namespace gameboy
 	const u32 cycles_per_frame = cpu::cycles_per_sec / cpu::fps;
 	u32 cycle_count = 0;
 
-	debugger gameboy_debugger;
+	debugger_old gameboy_debugger;
 	bool show_debugger = false;
 	
 	/*std::list<unit_test> unit_test_list;
@@ -380,7 +381,6 @@ namespace gameboy
 	}
 	*/
 
-
 	int init_emulator(const std::string& rom_filename)
 	{
 		// load and run the rom
@@ -411,6 +411,8 @@ namespace gameboy
 		gpu::initialize();
 
 		gameboy_debugger.initialize(gpu::width * pixelSize, gpu::height * pixelSize);
+
+		debugger::init_debugger();
 
 		return 0;
 	}
@@ -518,8 +520,10 @@ namespace gameboy
 		return &framebuffer_texture;
 	}
 
-	int debugger_update()
+	int debugger_update(const sf::Time& deltaTime)
 	{
+		debugger::update_debugger(deltaTime);
+
 		return gameboy_debugger.update();
 	}
 
