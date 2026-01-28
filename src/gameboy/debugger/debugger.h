@@ -10,6 +10,7 @@
 
 #include "debugger_tileset.h"
 #include "debugger_tilemap.h"
+#include "debugger_registers_palette.h"
 
 namespace gameboy
 {
@@ -31,6 +32,7 @@ namespace gameboy
 
         DebuggerPanel panel_tileset;
         DebuggerPanel panel_tilemap;
+        DebuggerPanel panel_registers_palette;
 
         int setup_debugger_panels()
         {
@@ -45,6 +47,12 @@ namespace gameboy
             panel_tilemap.update = tilemap::update;
             panel_tilemap.draw = tilemap::draw;
             panel_tilemap.init();
+
+            // setup registers and palette panel
+            panel_registers_palette.init = registers_palette::init;
+            panel_registers_palette.update = registers_palette::update;
+            panel_registers_palette.draw = registers_palette::draw;
+            panel_registers_palette.init();
 
             return 0;
         }
@@ -104,6 +112,7 @@ namespace gameboy
             // update the panels
             panel_tileset.update();
             panel_tilemap.update();
+            panel_registers_palette.update();
 
             // imgui updates and drawing
             window.clear();
@@ -120,7 +129,8 @@ namespace gameboy
                 panel_tileset.draw();
                 ImGui::SameLine(0.0f, 48.0f);
                 panel_tilemap.draw();
-                ImGui::SameLine();
+                ImGui::SameLine(0.0f, 48.0f);
+                panel_registers_palette.draw();
 
                 ImGui::End();
             }
