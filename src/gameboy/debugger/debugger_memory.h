@@ -61,7 +61,7 @@ namespace gameboy
 
             int draw(bool is_focused)
             {
-                if (debugger::debugger_panel_begin("Memory", ImVec2(1120, 335), is_focused, 0.9f))
+                if (debugger::debugger_panel_begin("Memory", ImVec2(1120, 335), is_focused, 0.7f))
                 {
                     ImGui::SetWindowFontScale(0.9f);
                     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 0)); // 0 vertical spacing
@@ -189,9 +189,9 @@ namespace gameboy
                 return 0;
             }
 
-            void on_keypressed(sf::Keyboard::Key key)
+            int process_event(const sf::Event* event)
             {
-
+                return 0;
             }
         }
 	}

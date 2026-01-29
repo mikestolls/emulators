@@ -18,6 +18,14 @@ namespace gameboy
         {
             #define TILEMAP_TEXTURE_SIZE		256
 
+            enum
+            {
+                MODE_AUTO = 0,
+                MODE_FORCE_0,
+                MODE_FORCE_1,
+            };
+
+            u8 tilemap_mode;
             u8 tilemap_index;
             u8 tilemap_texture_data[256 * 256 * 4]; // texture will 128 x 128 with 4 bpp
 
@@ -34,6 +42,8 @@ namespace gameboy
                     return -1;
                 }
 
+                tilemap_index = 0;
+                tilemap_mode = MODE_AUTO;
                 tilemap_size = sf::Vector2f(TILEMAP_TEXTURE_SIZE, TILEMAP_TEXTURE_SIZE);
 
                 return 0;
@@ -50,18 +60,27 @@ namespace gameboy
 
                 u8* tilemap = memory_module::get_memory(addr, true);
 
+                // need to check if tilemap is using signed or unsigned mode
+                bool unsigned_mode = false;
+                if (tilemap_mode == MODE_AUTO)
+                {
+                    unsigned_mode = (*gpu::lcd_control & 0x10) != 0;  // Read LCDC bit 4
+                }
+                else if (tilemap_mode == MODE_FORCE_0)
+                {
+                    unsigned_mode = true;  // Force 0x8000 mode
+                }
+                else
+                {
+                    unsigned_mode = false; // Force 0x8800 mode
+                }
+
+                s32 tilesetOffset = unsigned_mode ? 0 : 128; // offset depending on tileset used
+                u16 tilesetAddr = unsigned_mode ? 0x8000 : 0x8800; // addr of tileset
+
                 // render 32 x 32 tilemap
                 for (int i = 0; i < 1024; i++)
                 {
-                    s32 tilesetOffset = 128; // offset depending on tileset used
-                    u16 tilesetAddr = 0x8800; // addr of tileset
-                    warning("TODO - implement tilemap index debugger");
-                    //if (tileset_debug->tileset_index == 0)
-                    {
-                        tilesetAddr = 0x8000;
-                        tilesetOffset = 0;
-                    }
-
                     // get tile id
                     s32 tileId = (s8)tilemap[i] + tilesetOffset;
                     u8* tileset = memory_module::get_memory(tilesetAddr + (tileId * 16), true);
@@ -101,17 +120,25 @@ namespace gameboy
             int draw(bool is_focused)
             {
                 // title changes based on tileset index
-                std::string title_str = "Tilemap: ";
-                if (tilemap_index)
+                std::string title_str = "Tilemap:";
+                title_str.append(tilemap_index ? "(0x9C00)" : "(0x9800)");
+                title_str.append("|");
+
+                if (tilemap_mode == MODE_AUTO)
                 {
-                    title_str.append("0x9C00");
+                    bool using_8000 = (*gpu::lcd_control & 0x10) != 0;
+                    title_str.append(using_8000 ? "AUTO(0x8000)" : "AUTO(0x8800)");
+                }
+                else if (tilemap_mode == MODE_FORCE_0)
+                {
+                    title_str.append("FORCE(0x8000)");
                 }
                 else
                 {
-                    title_str.append("0x9800");
+                    title_str.append("FORCE(0x8800)");
                 }
 
-                if (debugger::debugger_panel_begin(title_str.c_str(), ImVec2(tilemap_size.x, tilemap_size.y), is_focused, 0.9f))
+                if (debugger::debugger_panel_begin(title_str.c_str(), ImVec2(tilemap_size.x, tilemap_size.y), is_focused, 0.7f))
                 {
                     ImGui::Image(tilemap_texture, tilemap_size);
 
@@ -128,6 +155,10 @@ namespace gameboy
                     if (keyPressed->code == sf::Keyboard::Key::Left || keyPressed->code == sf::Keyboard::Key::Right)
                     {
                         tilemap_index ^= 1;
+                    }
+                    else if (keyPressed->code == sf::Keyboard::Key::T)
+                    {
+                        tilemap_mode = (tilemap_mode + 1) % 3;
                     }
                 }
 

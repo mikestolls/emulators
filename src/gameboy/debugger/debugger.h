@@ -69,21 +69,23 @@ namespace gameboy
             panels[DEBUGGER_PANEL_REGISTERS_PALETTE].init = registers_palette::init;
             panels[DEBUGGER_PANEL_REGISTERS_PALETTE].update = registers_palette::update;
             panels[DEBUGGER_PANEL_REGISTERS_PALETTE].draw = registers_palette::draw;
-            panels[DEBUGGER_PANEL_REGISTERS_PALETTE].init();
+            panels[DEBUGGER_PANEL_REGISTERS_PALETTE].process_event = registers_palette::process_event;
 
             // setup disassembler panel
             panels[DEBUGGER_PANEL_DISASSEMBLER].init = disassembler::init;
             panels[DEBUGGER_PANEL_DISASSEMBLER].update = disassembler::update;
             panels[DEBUGGER_PANEL_DISASSEMBLER].draw = disassembler::draw;
+            panels[DEBUGGER_PANEL_DISASSEMBLER].process_event = disassembler::process_event;
 
             // setup memory panel
             panels[DEBUGGER_PANEL_MEMORY].init = memory::init;
             panels[DEBUGGER_PANEL_MEMORY].update = memory::update;
             panels[DEBUGGER_PANEL_MEMORY].draw = memory::draw;
+            panels[DEBUGGER_PANEL_MEMORY].process_event = memory::process_event;
 
-            for (auto itr = panels.begin(); itr != panels.end(); itr++)
+            for (auto& panel : panels)
             {
-                (*itr).init();
+                panel.init();
             }
 
             panel_focus_index = 0;
@@ -162,9 +164,9 @@ namespace gameboy
             }
 
             // update the panels
-            for (auto itr = panels.begin(); itr != panels.end(); itr++)
+            for (auto& panel : panels)
             {
-                (*itr).update();
+                panel.update();
             }
 
             // imgui updates and drawing
@@ -183,15 +185,18 @@ namespace gameboy
 
             if (ImGui::Begin("Gameboy Debugger", nullptr, window_flags))
             {
+                // draw top 3 panels
                 panels[DEBUGGER_PANEL_TILESET].draw(panels[DEBUGGER_PANEL_TILESET].is_focused);
-                ImGui::SameLine(0.0f, 46.0f);
+                ImGui::SameLine(0.0f, 44.0f);
                 panels[DEBUGGER_PANEL_TILEMAP].draw(panels[DEBUGGER_PANEL_TILEMAP].is_focused);
-                ImGui::SameLine(0.0f, 46.0f);
+                ImGui::SameLine(0.0f, 44.0f);
                 panels[DEBUGGER_PANEL_REGISTERS_PALETTE].draw(panels[DEBUGGER_PANEL_REGISTERS_PALETTE].is_focused);
 
+                // draw mid panel
                 ImGui::Spacing();
                 panels[DEBUGGER_PANEL_DISASSEMBLER].draw(panels[DEBUGGER_PANEL_DISASSEMBLER].is_focused);
 
+                // draw bottom panel
                 ImGui::Spacing();
                 panels[DEBUGGER_PANEL_MEMORY].draw(panels[DEBUGGER_PANEL_MEMORY].is_focused);
 

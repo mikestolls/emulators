@@ -30,7 +30,7 @@ namespace gameboy
 
             int draw(bool is_focused)
             {
-				if (debugger_panel_begin("Registers & Palette & Flags", ImVec2(512, 256), is_focused, 0.9f))
+				if (debugger_panel_begin("Registers & Palette & Flags", ImVec2(512, 256), is_focused, 0.7f))
 				{
                     ImGui::SetWindowFontScale(0.85f);
                     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(8, 8)); // Horizontal, Vertical padding
@@ -109,9 +109,9 @@ namespace gameboy
                 return 0;
             }
 
-            void on_keypressed(sf::Keyboard::Key key)
+            int process_event(const sf::Event* event)
             {
-
+                return 0;
             }
         }
 	}
