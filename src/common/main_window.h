@@ -440,7 +440,7 @@ namespace common
                     {
                         window.close();
                     }
-                    if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
+                    else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
                     {
                         if (keyPressed->code == sf::Keyboard::Key::F1)
                         {
@@ -483,7 +483,7 @@ namespace common
                     {
                         debugger_window.close();
                     }
-                    if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
+                    else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
                     {
                         if (keyPressed->code == sf::Keyboard::Key::F1)
                         {

@@ -98,7 +98,7 @@ namespace gameboy
                 return 0;
             }
 
-            int draw()
+            int draw(bool is_focused)
             {
                 // title changes based on tileset index
                 std::string title_str = "Tilemap: ";
@@ -111,7 +111,7 @@ namespace gameboy
                     title_str.append("0x9800");
                 }
 
-                if (debugger::debugger_panel_begin(title_str.c_str(), ImVec2(tilemap_size.x, tilemap_size.y), 0.9f))
+                if (debugger::debugger_panel_begin(title_str.c_str(), ImVec2(tilemap_size.x, tilemap_size.y), is_focused, 0.9f))
                 {
                     ImGui::Image(tilemap_texture, tilemap_size);
 
@@ -121,13 +121,17 @@ namespace gameboy
                 return 0;
             }
 
-            void on_keypressed(sf::Keyboard::Key key)
+            int process_event(const sf::Event * event)
             {
-                warning("TODO - implement tilemap debugger key press");
-                if (key == sf::Keyboard::Key::Left || key == sf::Keyboard::Key::Right)
+                if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
                 {
-                    tilemap_index ^= 1;
+                    if (keyPressed->code == sf::Keyboard::Key::Left || keyPressed->code == sf::Keyboard::Key::Right)
+                    {
+                        tilemap_index ^= 1;
+                    }
                 }
+
+                return 0;
             }
         }
     }

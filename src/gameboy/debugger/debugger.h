@@ -18,57 +18,76 @@ namespace gameboy
 {
 	namespace debugger
 	{
-        typedef int (*DebuggerPanelInit)();
-        typedef int (*DebuggerPanelUpdate)();
-        typedef int (*DebuggerPanelDraw)();
+        typedef int (*DebuggerPanelInitFunction)();
+        typedef int (*DebuggerPanelUpdateFunction)();
+        typedef int (*DebuggerPanelDrawFunction)(bool);
+        typedef int (*EDebuggerPanelProcessEventFunction)(const sf::Event*);
 
         struct DebuggerPanel
         {
-            DebuggerPanelInit init = nullptr;
-            DebuggerPanelUpdate update = nullptr;
-            DebuggerPanelDraw draw = nullptr;
+            DebuggerPanelInitFunction init = nullptr;
+            DebuggerPanelUpdateFunction update = nullptr;
+            DebuggerPanelDrawFunction draw = nullptr;
+            EDebuggerPanelProcessEventFunction process_event = nullptr;
+
+            bool is_focused = false;
+        };
+
+        enum
+        {
+            DEBUGGER_PANEL_TILESET = 0,
+            DEBUGGER_PANEL_TILEMAP,
+            DEBUGGER_PANEL_REGISTERS_PALETTE,
+            DEBUGGER_PANEL_DISASSEMBLER,
+            DEBUGGER_PANEL_MEMORY,
+            DEBUGGER_PANEL_COUNT,
         };
 
         ImGuiContext* context = nullptr;
         sf::RenderWindow window;
 
-        DebuggerPanel panel_tileset;
-        DebuggerPanel panel_tilemap;
-        DebuggerPanel panel_registers_palette;
-        DebuggerPanel panel_disassembler;
-        DebuggerPanel panel_memory;
+        std::vector<DebuggerPanel> panels;
+        u8 panel_focus_index;
 
         int setup_debugger_panels()
         {
+            panels.resize(DEBUGGER_PANEL_COUNT);
+
             // setup tileset panel;
-            panel_tileset.init = tileset::init;
-            panel_tileset.update = tileset::update;
-            panel_tileset.draw = tileset::draw;
-            panel_tileset.init();
+            panels[DEBUGGER_PANEL_TILESET].init = tileset::init;
+            panels[DEBUGGER_PANEL_TILESET].update = tileset::update;
+            panels[DEBUGGER_PANEL_TILESET].draw = tileset::draw;
+            panels[DEBUGGER_PANEL_TILESET].process_event = tileset::process_event;
 
             // setup tilemap panel;
-            panel_tilemap.init = tilemap::init;
-            panel_tilemap.update = tilemap::update;
-            panel_tilemap.draw = tilemap::draw;
-            panel_tilemap.init();
+            panels[DEBUGGER_PANEL_TILEMAP].init = tilemap::init;
+            panels[DEBUGGER_PANEL_TILEMAP].update = tilemap::update;
+            panels[DEBUGGER_PANEL_TILEMAP].draw = tilemap::draw;
+            panels[DEBUGGER_PANEL_TILEMAP].process_event = tilemap::process_event;
 
             // setup registers and palette panel
-            panel_registers_palette.init = registers_palette::init;
-            panel_registers_palette.update = registers_palette::update;
-            panel_registers_palette.draw = registers_palette::draw;
-            panel_registers_palette.init();
+            panels[DEBUGGER_PANEL_REGISTERS_PALETTE].init = registers_palette::init;
+            panels[DEBUGGER_PANEL_REGISTERS_PALETTE].update = registers_palette::update;
+            panels[DEBUGGER_PANEL_REGISTERS_PALETTE].draw = registers_palette::draw;
+            panels[DEBUGGER_PANEL_REGISTERS_PALETTE].init();
 
             // setup disassembler panel
-            panel_disassembler.init = disassembler::init;
-            panel_disassembler.update = disassembler::update;
-            panel_disassembler.draw = disassembler::draw;
-            panel_disassembler.init();
+            panels[DEBUGGER_PANEL_DISASSEMBLER].init = disassembler::init;
+            panels[DEBUGGER_PANEL_DISASSEMBLER].update = disassembler::update;
+            panels[DEBUGGER_PANEL_DISASSEMBLER].draw = disassembler::draw;
 
             // setup memory panel
-            panel_memory.init = memory::init;
-            panel_memory.update = memory::update;
-            panel_memory.draw = memory::draw;
-            panel_memory.init();
+            panels[DEBUGGER_PANEL_MEMORY].init = memory::init;
+            panels[DEBUGGER_PANEL_MEMORY].update = memory::update;
+            panels[DEBUGGER_PANEL_MEMORY].draw = memory::draw;
+
+            for (auto itr = panels.begin(); itr != panels.end(); itr++)
+            {
+                (*itr).init();
+            }
+
+            panel_focus_index = 0;
+            panels[panel_focus_index].is_focused = true;
 
             return 0;
         }
@@ -114,23 +133,39 @@ namespace gameboy
                     if (event->is<sf::Event::Closed>())
                     {
                         window.close();
+                        continue;
                     }
-                    if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
+                    else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
                     {
-                        if (keyPressed->code == sf::Keyboard::Key::F1)
+                        if (keyPressed->code == sf::Keyboard::Key::Tab)
                         {
-                            // close debugger
+                            panels[panel_focus_index].is_focused = false;
+                            panel_focus_index++;
+
+                            if (panel_focus_index >= DEBUGGER_PANEL_COUNT)
+                            {
+                                panel_focus_index = 0;
+                            }
+
+                            panels[panel_focus_index].is_focused = true;
+
+                            continue;
                         }
+                    }
+
+                    // pass any other event to the panels
+                    if (panels[panel_focus_index].process_event != nullptr)
+                    {
+                        panels[panel_focus_index].process_event(const_cast<sf::Event*>(&(*event)));
                     }
                 }
             }
 
             // update the panels
-            panel_tileset.update();
-            panel_tilemap.update();
-            panel_registers_palette.update();
-            panel_disassembler.update();
-            panel_memory.update();
+            for (auto itr = panels.begin(); itr != panels.end(); itr++)
+            {
+                (*itr).update();
+            }
 
             // imgui updates and drawing
             window.clear();
@@ -148,17 +183,17 @@ namespace gameboy
 
             if (ImGui::Begin("Gameboy Debugger", nullptr, window_flags))
             {
-                panel_tileset.draw();
+                panels[DEBUGGER_PANEL_TILESET].draw(panels[DEBUGGER_PANEL_TILESET].is_focused);
                 ImGui::SameLine(0.0f, 46.0f);
-                panel_tilemap.draw();
+                panels[DEBUGGER_PANEL_TILEMAP].draw(panels[DEBUGGER_PANEL_TILEMAP].is_focused);
                 ImGui::SameLine(0.0f, 46.0f);
-                panel_registers_palette.draw();
+                panels[DEBUGGER_PANEL_REGISTERS_PALETTE].draw(panels[DEBUGGER_PANEL_REGISTERS_PALETTE].is_focused);
 
                 ImGui::Spacing();
-                panel_disassembler.draw();
+                panels[DEBUGGER_PANEL_DISASSEMBLER].draw(panels[DEBUGGER_PANEL_DISASSEMBLER].is_focused);
 
                 ImGui::Spacing();
-                panel_memory.draw();
+                panels[DEBUGGER_PANEL_MEMORY].draw(panels[DEBUGGER_PANEL_MEMORY].is_focused);
 
                 ImGui::End();
             }

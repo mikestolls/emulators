@@ -28,9 +28,9 @@ namespace gameboy
                 return 0;
             }
 
-            int draw()
+            int draw(bool is_focused)
             {
-				if (debugger_panel_begin("Registers & Palette & Flags", ImVec2(512, 256), 0.9f))
+				if (debugger_panel_begin("Registers & Palette & Flags", ImVec2(512, 256), is_focused, 0.9f))
 				{
                     ImGui::SetWindowFontScale(0.85f);
                     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(8, 8)); // Horizontal, Vertical padding

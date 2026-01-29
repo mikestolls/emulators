@@ -43,7 +43,7 @@ namespace gameboy
             ImGui::PopStyleColor();
         }
 
-        bool debugger_panel_begin(const char* title, ImVec2& size, float headerFontScale = 1.0f, ImVec2 padding = ImVec2(0, 0))
+        bool debugger_panel_begin(const char* title, ImVec2& size, bool is_focused, float headerFontScale = 1.0f, ImVec2 padding = ImVec2(0, 0))
         {
             // draw emulator display with imgui layout
             ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoResize |
@@ -55,7 +55,13 @@ namespace gameboy
             float baseHeaderHeight = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y * 2;
             float headerHeight = baseHeaderHeight * headerFontScale;
 
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding); // padding
+            ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 2.0f); // 2px thick border
+
+            if (is_focused)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.25f, 0.45f, 0.65f, 1.0f)); // Same color as header
+            }
 
             float separatorHeight = 1.0f;
             ImVec2 windowPadding = ImGui::GetStyle().WindowPadding;
@@ -64,6 +70,7 @@ namespace gameboy
             float totalWidth = size.x + (windowPadding.x * 2) + (childBorderSize * 2);
             float totalHeight = size.y + headerHeight + separatorHeight + (windowPadding.y * 2) + (childBorderSize * 2);
 
+            bool ret = false;
             if (ImGui::BeginChild(title, ImVec2(totalWidth, totalHeight), true, window_flags))
             {
                 // Get current cursor position and available width for header background
@@ -74,8 +81,13 @@ namespace gameboy
                 ImGui::SetWindowFontScale(headerFontScale);
                 float textHeight = ImGui::GetFrameHeight();
                 
-                // Draw grey background for header (uses scaled textHeight)
                 ImU32 headerBgColor = ImGui::GetColorU32(ImGuiCol_TitleBgActive);
+                if (is_focused)
+                {
+                    headerBgColor = ImGui::GetColorU32(ImVec4(0.25f, 0.45f, 0.65f, 1.0f)); // Brighter blue-ish when focused
+                }
+
+                // Draw grey background for header (uses scaled textHeight)
                 ImDrawList* drawList = ImGui::GetWindowDrawList();
                 drawList->AddRectFilled(
                     startPos,
@@ -100,14 +112,20 @@ namespace gameboy
                 ImGui::SetCursorScreenPos(ImVec2(startPos.x, startPos.y + textHeight));
 
                 ImGui::Separator();
-                ImGui::Spacing();
+                ImGui::Spacing();         
 
-                ImGui::PopStyleVar();
-                return true;
+                ret = true;
             }
 
-            ImGui::PopStyleVar();
-            return false;
+            if (is_focused)
+            {
+                ImGui::PopStyleColor(); // Border color
+            }
+
+            ImGui::PopStyleVar(); // ChildBorderSize
+            ImGui::PopStyleVar(); // padding
+
+            return ret;
         }
 
         void debugger_panel_end()
