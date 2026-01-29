@@ -42,9 +42,9 @@ namespace gameboy
 
             int draw()
             {
-                if (debugger::debugger_panel_begin("Disassembler", ImVec2(1120, 380)))
+                if (debugger::debugger_panel_begin("Disassembler", ImVec2(1120, 335), 0.9f))
                 {
-					ImGui::SetWindowFontScale(1.0f);
+					ImGui::SetWindowFontScale(0.9f);
                     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 0)); // 0 vertical spacing
 
 					// draw foreground of each line
@@ -63,6 +63,12 @@ namespace gameboy
 						// Determine background color
 						ImVec4 bgColor(row_color, row_color, row_color, 1.0f); // default alternate row color
 
+                        if (i == active_line)
+                        {
+                            active_addr = sym.addr;
+                            bgColor = ImVec4(0.59f, 0.59f, 0.59f, 1.0f);
+                        }
+
 						// Draw background for the line
 						ImVec2 lineStart = ImGui::GetCursorScreenPos();
 						ImVec2 lineEnd(lineStart.x + ImGui::GetContentRegionAvail().x, lineStart.y + ImGui::GetTextLineHeight());
@@ -73,12 +79,13 @@ namespace gameboy
                         ImGui::SameLine(0, 20);
 
                         // Opcode in yellow
-                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "\t\t0x%02X", sym.opcode);
-
                         if (sym.opcode == 0xCB)
                         {
-                            ImGui::SameLine(0, 5);
-                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "0x%02X", sym.cb_opcode);
+                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "\t\t0x%02X 0x%02X", sym.opcode, sym.cb_opcode);
+                        }
+                        else
+                        {
+                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "\t\t0x%02X", sym.opcode);
                         }
 
                         ImGui::SameLine(0, 20);

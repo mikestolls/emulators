@@ -12,6 +12,7 @@
 #include "debugger_tilemap.h"
 #include "debugger_registers_palette.h"
 #include "debugger_disassembler.h"
+#include "debugger_memory.h"
 
 namespace gameboy
 {
@@ -35,6 +36,7 @@ namespace gameboy
         DebuggerPanel panel_tilemap;
         DebuggerPanel panel_registers_palette;
         DebuggerPanel panel_disassembler;
+        DebuggerPanel panel_memory;
 
         int setup_debugger_panels()
         {
@@ -61,6 +63,12 @@ namespace gameboy
             panel_disassembler.update = disassembler::update;
             panel_disassembler.draw = disassembler::draw;
             panel_disassembler.init();
+
+            // setup memory panel
+            panel_memory.init = memory::init;
+            panel_memory.update = memory::update;
+            panel_memory.draw = memory::draw;
+            panel_memory.init();
 
             return 0;
         }
@@ -122,6 +130,7 @@ namespace gameboy
             panel_tilemap.update();
             panel_registers_palette.update();
             panel_disassembler.update();
+            panel_memory.update();
 
             // imgui updates and drawing
             window.clear();
@@ -133,15 +142,23 @@ namespace gameboy
                 ImGuiWindowFlags_NoCollapse |
                 ImGuiWindowFlags_NoBackground;
 
+            // Set window to fill entire display, starting at top-left
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+
             if (ImGui::Begin("Gameboy Debugger", nullptr, window_flags))
             {
                 panel_tileset.draw();
-                ImGui::SameLine(0.0f, 48.0f);
+                ImGui::SameLine(0.0f, 46.0f);
                 panel_tilemap.draw();
-                ImGui::SameLine(0.0f, 48.0f);
+                ImGui::SameLine(0.0f, 46.0f);
                 panel_registers_palette.draw();
 
+                ImGui::Spacing();
                 panel_disassembler.draw();
+
+                ImGui::Spacing();
+                panel_memory.draw();
 
                 ImGui::End();
             }

@@ -43,7 +43,7 @@ namespace gameboy
             ImGui::PopStyleColor();
         }
 
-        bool debugger_panel_begin(const char* title, ImVec2& size)
+        bool debugger_panel_begin(const char* title, ImVec2& size, float headerFontScale = 1.0f, ImVec2 padding = ImVec2(0, 0))
         {
             // draw emulator display with imgui layout
             ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoResize |
@@ -51,7 +51,12 @@ namespace gameboy
                 ImGuiWindowFlags_NoCollapse |
                 ImGuiWindowFlags_NoScrollbar;
 
-            float headerHeight = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y * 2;
+            // Calculate header height with font scale applied
+            float baseHeaderHeight = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y * 2;
+            float headerHeight = baseHeaderHeight * headerFontScale;
+
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
+
             float separatorHeight = 1.0f;
             ImVec2 windowPadding = ImGui::GetStyle().WindowPadding;
             float childBorderSize = ImGui::GetStyle().ChildBorderSize;
@@ -64,9 +69,12 @@ namespace gameboy
                 // Get current cursor position and available width for header background
                 ImVec2 startPos = ImGui::GetCursorScreenPos();
                 float availableWidth = ImGui::GetContentRegionAvail().x;
+
+                // Apply text scale before calculating text height
+                ImGui::SetWindowFontScale(headerFontScale);
                 float textHeight = ImGui::GetFrameHeight();
                 
-                // Draw grey background for header
+                // Draw grey background for header (uses scaled textHeight)
                 ImU32 headerBgColor = ImGui::GetColorU32(ImGuiCol_TitleBgActive);
                 ImDrawList* drawList = ImGui::GetWindowDrawList();
                 drawList->AddRectFilled(
@@ -80,20 +88,25 @@ namespace gameboy
                 ImVec2 textSize = ImGui::CalcTextSize(title);
                 float textOffsetY = (textHeight - textSize.y) * 0.5f;
                 
+                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 4.0f);
                 ImGui::SetCursorPosY(ImGui::GetCursorPosY() + textOffsetY);
                 ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), title);
                 
                 ImGui::PopStyleVar();
-                
+
+                ImGui::SetWindowFontScale(1.0f);
+
                 // Move cursor to after the header
                 ImGui::SetCursorScreenPos(ImVec2(startPos.x, startPos.y + textHeight));
 
                 ImGui::Separator();
                 ImGui::Spacing();
 
+                ImGui::PopStyleVar();
                 return true;
             }
 
+            ImGui::PopStyleVar();
             return false;
         }
 

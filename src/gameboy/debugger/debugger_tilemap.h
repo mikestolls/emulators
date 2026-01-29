@@ -111,7 +111,7 @@ namespace gameboy
                     title_str.append("0x9800");
                 }
 
-                if (debugger::debugger_panel_begin(title_str.c_str(), ImVec2(tilemap_size.x, tilemap_size.y)))
+                if (debugger::debugger_panel_begin(title_str.c_str(), ImVec2(tilemap_size.x, tilemap_size.y), 0.9f))
                 {
                     ImGui::Image(tilemap_texture, tilemap_size);
 

@@ -109,7 +109,7 @@ namespace gameboy
                     title_str.append("0x8000");
                 }
 
-                if (debugger::debugger_panel_begin(title_str.c_str(), ImVec2(tileset_size.x, tileset_size.y)))
+                if (debugger::debugger_panel_begin(title_str.c_str(), ImVec2(tileset_size.x, tileset_size.y), 0.9f))
                 {
                     ImGui::Image(tileset_texture, tileset_size);
 

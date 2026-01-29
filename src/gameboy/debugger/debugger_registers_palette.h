@@ -30,7 +30,7 @@ namespace gameboy
 
             int draw()
             {
-				if (debugger_panel_begin("Registers & Palette & Flags", ImVec2(512, 256)))
+				if (debugger_panel_begin("Registers & Palette & Flags", ImVec2(512, 256), 0.9f))
 				{
                     ImGui::SetWindowFontScale(0.85f);
                     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(8, 8)); // Horizontal, Vertical padding
