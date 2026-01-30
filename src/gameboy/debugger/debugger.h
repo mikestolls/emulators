@@ -14,6 +14,8 @@
 #include "debugger_disassembler.h"
 #include "debugger_memory.h"
 
+#include "../gameboy.h"
+
 namespace gameboy
 {
 	namespace debugger
@@ -152,6 +154,30 @@ namespace gameboy
                             panels[panel_focus_index].is_focused = true;
 
                             continue;
+                        }
+                        else if (keyPressed->code == sf::Keyboard::Key::Space)
+                        {
+                            cpu::reset();
+                            gpu::reset();
+
+#ifdef USE_BOOT_ROM
+                            boot_rom boot("gameboy/boot.gb");
+                            memory_module::initialize(&boot, &gameboy::loaded_rom);
+#else
+                            memory_module::initialize(nullptr, &gameboy::loaded_rom);
+#endif
+
+                            gameboy::cycle_count = 0;
+                        }
+                        else if (keyPressed->code == sf::Keyboard::Key::F2)
+                        {
+                            u8* ptr = memory_module::get_memory(0x9800, true);
+                            u8* buffer = new u8[0x401];
+                            memset(buffer, 0x0, 0x401);
+                            memcpy(buffer, ptr, 0x400);
+                            //std::string checksum = buffer;
+
+                            printf("Checksum: %s", buffer);
                         }
                     }
 

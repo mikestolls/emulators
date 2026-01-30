@@ -67,7 +67,7 @@ namespace chip8
 				}
 			}
 
-			if (keyPressed->code == sf::Keyboard::Key::Space)
+			if (keyPressed->code == sf::Keyboard::Key::Space) // resetting here because chip8 doesnt have debugger
 			{
 				cpu::reset();
 			}

@@ -10,11 +10,20 @@
 #include "gpu.h"
 #include "rom.h"
 #include "boot_rom.h"
-#include "debugger.h"
-#include "debugger/debugger.h"
 #include "disassembler.h"
 
 //#define USE_BOOT_ROM
+
+namespace gameboy
+{
+	rom loaded_rom;
+
+	const u32 cycles_per_frame = cpu::cycles_per_sec / cpu::fps;
+	u32 cycle_count = 0;
+}
+
+#include "debugger.h"
+#include "debugger/debugger.h"
 
 namespace gameboy
 {
@@ -35,11 +44,7 @@ namespace gameboy
 	};
 
 	std::map<sf::Keyboard::Key, input_binding> input_map;
-	rom loaded_rom;
 	sf::Texture framebuffer_texture;
-
-	const u32 cycles_per_frame = cpu::cycles_per_sec / cpu::fps;
-	u32 cycle_count = 0;
 
 	debugger_old gameboy_debugger;
 	bool show_debugger = false;
@@ -524,46 +529,19 @@ namespace gameboy
 	{
 		debugger::update_debugger(deltaTime);
 
+#ifdef OLD_DEBUGGER
 		return gameboy_debugger.update();
+#else
+		return 0;
+#endif
 	}
 
+#ifdef OLD_DEBUGGER
 	int debugger_process_event(const sf::Event* event)
 	{
-		/*if (event->is<sf::Event::Closed>())
-		{
-			//gameboy_debugger.destroy();
-		}*/
-
 		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
 		{
-			if (keyPressed->code == sf::Keyboard::Key::Space)
-			{
-				cpu::reset();
-				gpu::reset();
-
-#ifdef USE_BOOT_ROM
-				boot_rom boot("gameboy/boot.gb");
-				memory_module::initialize(&boot, &loaded_rom);
-#else
-				memory_module::initialize(nullptr, &loaded_rom);
-#endif
-
-				cycle_count = 0;
-			}
-			else if (keyPressed->code == sf::Keyboard::Key::F2)
-			{
-				u8* ptr = memory_module::get_memory(0x9800, true);
-				u8* buffer = new u8[0x401];
-				memset(buffer, 0x0, 0x401);
-				memcpy(buffer, ptr, 0x400);
-				//std::string checksum = buffer;
-
-				printf("Checksum: %s", buffer);
-			}
-			else
-			{
-				gameboy_debugger.on_keypressed(keyPressed->code);
-			}
+			gameboy_debugger.on_keypressed(keyPressed->code);
 		}
 
 		return 0;
@@ -573,4 +551,5 @@ namespace gameboy
 	{
 		return &gameboy_debugger.window_texture.getTexture();
 	}
+#endif
 }
