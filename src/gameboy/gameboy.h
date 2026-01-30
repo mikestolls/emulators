@@ -24,10 +24,6 @@ namespace gameboy
 	bool is_debugger_visible;
 }
 
-#ifdef OLD_DEBUGGER
-#include "debugger.h"
-#endif
-
 #include "debugger/debugger.h"
 
 namespace gameboy
@@ -50,10 +46,6 @@ namespace gameboy
 
 	std::map<sf::Keyboard::Key, input_binding> input_map;
 	sf::Texture framebuffer_texture;
-
-#ifdef OLD_DEBUGGER
-	debugger_old gameboy_debugger;
-#endif
 
 	//bool show_debugger = false;
 	
@@ -423,10 +415,6 @@ namespace gameboy
 		cpu::initialize();
 		gpu::initialize();
 
-#ifdef OLD_DEBUGGER
-		gameboy_debugger.initialize(gpu::width * pixelSize, gpu::height * pixelSize);
-#endif
-
 		debugger::init_debugger();
 		debugger::window.setVisible(false);
 		is_debugger_visible = false;
@@ -475,7 +463,7 @@ namespace gameboy
 		return 0;
 	}
 
-	int update()
+	int update(const sf::Time& deltaTime)
 	{
 		while (cycle_count < cycles_per_frame)
 		{
@@ -504,6 +492,9 @@ namespace gameboy
 			gpu::vblank_occurred = false;
 		}
 
+		// update 
+		debugger::update_debugger(deltaTime);
+
 		return 0;
 	}
 	
@@ -511,32 +502,4 @@ namespace gameboy
 	{
 		return &framebuffer_texture;
 	}
-
-	int debugger_update(const sf::Time& deltaTime)
-	{
-		debugger::update_debugger(deltaTime);
-
-#ifdef OLD_DEBUGGER
-		return gameboy_debugger.update();
-#else
-		return 0;
-#endif
-	}
-
-#ifdef OLD_DEBUGGER
-	int debugger_process_event(const sf::Event* event)
-	{
-		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
-		{
-			gameboy_debugger.on_keypressed(keyPressed->code);
-		}
-
-		return 0;
-	}
-
-	const sf::Texture* get_debugger_texture()
-	{
-		return &gameboy_debugger.window_texture.getTexture();
-	}
-#endif
 }

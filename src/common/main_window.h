@@ -9,8 +9,6 @@
 #include <ImGuiFileDialog.h>
 #include <argparse.h>
 
-//#define OLD_DEBUGGER
-
 #include "chip8/chip8.h"
 #include "chip8/rom.h"
 #include "chip8/assembler.h"
@@ -34,23 +32,14 @@ namespace common
         int fps;
         float display_scale;
         const sf::Texture* display_texture = nullptr;
-
-#ifdef OLD_DEBUGGER
-        const sf::Texture* debugger_texture = nullptr;
-#endif
     };
 
     typedef int (*EmulatorInitFunction)(const std::string&);
     typedef int (*EmulatorDestroyFunction)();
-    typedef int (*EmulatorUpdateFunction)();
+    typedef int (*EmulatorUpdateFunction)(const sf::Time&);
     typedef int (*EmulatorProcessEventFunction)(const sf::Event*);
     typedef int (*EmulatorAssemblerFunction)(const std::string&);
     typedef int (*EmulatorDisassemblerFunction)(const std::string&);
-    typedef int (*EmulatorDebuggerUpdateFunction)(const sf::Time&);
-
-#ifdef OLD_DEBUGGER
-    typedef int (*EmulatorDebuggerProcessEventFunction)(const sf::Event*);
-#endif
 
     sf::RenderWindow window;
     u8 emulator_type = -1;
@@ -61,17 +50,8 @@ namespace common
     EmulatorProcessEventFunction emulator_function_process_event = nullptr;
     EmulatorAssemblerFunction emulator_function_assembler = nullptr;
     EmulatorDisassemblerFunction emulator_function_disassembler = nullptr;
-    EmulatorDebuggerUpdateFunction emulator_function_debugger_update = nullptr;
-
-#ifdef OLD_DEBUGGER
-    EmulatorDebuggerProcessEventFunction emulator_function_debugger_process_event = nullptr;
-#endif
 
     EmulatorDisplay emulator_display;
-
-#ifdef OLD_DEBUGGER
-    sf::RenderWindow debugger_window;
-#endif
 
     // debug variables
     namespace debug
@@ -140,12 +120,6 @@ namespace common
             emulator_function_process_event = chip8::process_event;
             emulator_function_assembler = chip8::assembler::assemble_to_file;
             emulator_function_disassembler = chip8::disassembler::disassemble_to_file;
-            emulator_function_debugger_update = nullptr;
-
-#ifdef OLD_DEBUGGER
-            emulator_function_debugger_process_event = nullptr;
-            emulator_display.debugger_texture = nullptr;
-#endif 
 
             emulator_display.display_texture = chip8::get_emulator_texture();
             emulator_display.fps = 60;
@@ -158,12 +132,6 @@ namespace common
             emulator_function_process_event = gameboy::process_event;
             emulator_function_assembler = gameboy::assembler::assemble_to_file;
             emulator_function_disassembler = gameboy::disassembler::disassemble_to_file;
-            emulator_function_debugger_update = gameboy::debugger_update;
-
-#ifdef OLD_DEBUGGER
-            emulator_function_debugger_process_event = gameboy::debugger_process_event;
-            emulator_display.debugger_texture = gameboy::get_debugger_texture();
-#endif
 
             emulator_display.display_texture = gameboy::get_emulator_texture();
             emulator_display.fps = 60;
@@ -305,60 +273,6 @@ namespace common
         ImGui::End();
     }
 
-#ifdef OLD_DEBUGGER
-    void update_debugger_display(sf::RenderWindow& window)
-    {
-        ImGui::SetNextWindowPos(ImVec2(0, 0));
-        ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x, 0), ImGuiCond_Always);
-
-        // draw emulator display with imgui layout
-        ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar |
-            ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoCollapse;
-
-        ImGui::Begin("Debugger Display", nullptr, window_flags);
-
-        if (emulator_display.debugger_texture != nullptr)
-        {
-            // TODO - this is temp for now to see if it needs to stay flipped
-            sf::Vector2u textureSize = emulator_display.debugger_texture->getSize();
-            /*
-            // Create a static flipped texture
-            static sf::RenderTexture flipped_texture;
-            static bool initialized = false;
-
-            if (!initialized)
-            {
-                flipped_texture.resize(sf::Vector2u(textureSize.x, textureSize.y));
-                initialized = true;
-            }
-
-            // Create sprite and flip it
-            sf::Sprite sprite(*emulator_display.debugger_texture);
-            sprite.setScale(sf::Vector2f(1.f, -1.f)); // Flip vertically
-            sprite.setPosition(sf::Vector2f(0, textureSize.y)); // Adjust position after flip
-
-            // Draw flipped sprite to temporary texture
-            flipped_texture.clear(sf::Color::Transparent);
-            flipped_texture.draw(sprite);
-            flipped_texture.display();
-
-            // Display the flipped texture in ImGui (NOT the window!)
-            ImGui::Image(flipped_texture.getTexture(),
-                sf::Vector2f(textureSize.x, textureSize.y));
-            */
-            ImGui::Image(*emulator_display.debugger_texture, sf::Vector2f(textureSize.x, textureSize.y));
-        }
-        else
-        {
-            ImGui::Text("No debugger for emulator");
-        }
-
-        ImGui::End();
-    }
-#endif 
-
     int main_window(int argc, const char* argv[])
     {
         std::string rom_filename = "";
@@ -402,11 +316,6 @@ namespace common
         ImGuiContext* main_context = ImGui::CreateContext();
         window = sf::RenderWindow(sf::VideoMode({ 1920, 1080 }), "Emulators");
 
-#ifdef OLD_DEBUGGER
-        ImGuiContext* debugger_context = ImGui::CreateContext();
-        debugger_window = sf::RenderWindow(sf::VideoMode({ 1920, 1080 }), "Debugger");
-#endif
-
         ImGui::SetCurrentContext(main_context);
         bool success = ImGui::SFML::Init(window, false);
 
@@ -415,19 +324,6 @@ namespace common
         io.Fonts->Clear();
         io.Fonts->AddFontFromFileTTF("courbd.ttf", 24);
         ImGui::SFML::UpdateFontTexture();
-
-#ifdef OLD_DEBUGGER
-        ImGui::SetCurrentContext(debugger_context);
-        success = ImGui::SFML::Init(debugger_window, false);
-
-        // setup font
-        ImGuiIO& io_debugger = ImGui::GetIO();
-        io_debugger.Fonts->Clear();
-        io_debugger.Fonts->AddFontFromFileTTF("courbd.ttf", 24);
-        ImGui::SFML::UpdateFontTexture();
-
-        ImGui::SetCurrentContext(main_context);
-#endif 
 
         // if a rom is passed we will load it right away
 		if (parser.exists("r"))
@@ -484,7 +380,7 @@ namespace common
             }
 
             // handle updating the emulator
-            emulator_function_update();
+            emulator_function_update(deltaTime);
 
             // imgui updates and drawing
             window.clear();
@@ -499,50 +395,6 @@ namespace common
             // clear and display updated sfml window
             ImGui::SFML::Render(window);
             window.display();
-
-#ifdef OLD_DEBUGGER
-            // now to the debugger context
-            ImGui::SetCurrentContext(debugger_context);
-
-            // process debugger events
-            while (const auto event = debugger_window.pollEvent())
-            {
-                if (event.has_value())
-                {
-                    ImGui::SFML::ProcessEvent(debugger_window, *event);
-                    if (event->is<sf::Event::Closed>())
-                    {
-                        debugger_window.close();
-                    }
-                    else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
-                    {
-                        if (keyPressed->code == sf::Keyboard::Key::F1)
-                        {
-                            // close debugger
-                        }
-                    }
-
-                    // send event first to emulator to process. only if emulator returns != 0 is it consumed
-                    emulator_function_debugger_process_event(const_cast<sf::Event*>(&(*event)));
-                }
-            }
-#endif
-
-            // handle updating the emulator debugger
-            emulator_function_debugger_update(deltaTime);
-
-#ifdef OLD_DEBUGGER
-            // imgui updates and drawing
-            debugger_window.clear();
-            ImGui::SFML::Update(debugger_window, deltaTime);
-
-            // layout the main display
-            update_debugger_display(debugger_window);
-
-            // clear and display updated sfml window
-            ImGui::SFML::Render(debugger_window);
-            debugger_window.display();
-#endif
         }
 
         // destory the emulator. may need to call this before we init a new emulator
@@ -550,19 +402,8 @@ namespace common
 
         window.close();
 
-#ifdef OLD_DEBUGGER
-        debugger_window.close();
-#endif
-
         ImGui::SetCurrentContext(main_context);
         ImGui::SFML::Shutdown(window);
-
-#ifdef OLD_DEBUGGER
-        ImGui::SetCurrentContext(debugger_context);
-        ImGui::SFML::Shutdown(debugger_window);
-
-        ImGui::DestroyContext(debugger_context);
-#endif
 
         ImGui::DestroyContext(main_context);
 

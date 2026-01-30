@@ -93,7 +93,7 @@ namespace chip8
 		return 0;
 	}
 
-	int update()
+	int update(const sf::Time& detlaTime)
 	{
 		// update the cpu emulation
 		const int INSTRUCTIONS_PER_FRAME = 10;

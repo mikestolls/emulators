@@ -136,12 +136,13 @@ namespace gameboy
                     ImGui::SFML::ProcessEvent(window, *event);
                     if (event->is<sf::Event::Closed>())
                     {
-                        window.close();
+                        gameboy::is_debugger_visible = false;
+                        window.setVisible(gameboy::is_debugger_visible);
+                        
                         continue;
                     }
                     else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
                     {
-
                         if (keyPressed->code == sf::Keyboard::Key::F1)
                         {
                             gameboy::is_debugger_visible = !gameboy::is_debugger_visible;
