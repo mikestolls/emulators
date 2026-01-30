@@ -25,7 +25,6 @@ namespace gameboy
 			u16 active_addr;
 			u16 pc_start;
 			std::vector<u16> program_addr;
-			std::stringstream goto_input_stream;
 			bool is_goto_prompt;
 
 			u16 find_next_instr(u16 pc)
@@ -157,7 +156,6 @@ namespace gameboy
 				active_line = 0;
 				pc_start = 0;
 				program_addr.push_back(0x0);
-				goto_input_stream.clear();
 				is_goto_prompt = false;
 
                 return 0;
@@ -311,151 +309,102 @@ namespace gameboy
                 return 0;
             }
 
-            int process_event(const sf::Event* event)
-            {
+			int process_event(const sf::Event* event)
+			{
+				if (is_goto_prompt) // prompt events handled by imgui
+				{
+					return 0;
+				}
+
 				if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
 				{
 					sf::Keyboard::Key key = keyPressed->code;
 
-					if (is_goto_prompt)
+					// handle up and down
+					if (key == sf::Keyboard::Key::Down)
 					{
-						if (key >= sf::Keyboard::Key::Num0 && key <= sf::Keyboard::Key::Num9)
-						{
-							// add the number to the input stream
-							goto_input_stream << (int)key - (int)sf::Keyboard::Key::Num0;
-						}
-						else if (key >= sf::Keyboard::Key::Numpad0 && key <= sf::Keyboard::Key::Numpad9)
-						{
-							// add the number to the input stream
-							goto_input_stream << (int)key - (int)sf::Keyboard::Key::Numpad0;
-						}
-						else if (key >= sf::Keyboard::Key::A && key <= sf::Keyboard::Key::F)
-						{
-							goto_input_stream << (char)(0x41 + (int)key - (int)sf::Keyboard::Key::A);
-						}
-						else if (key == sf::Keyboard::Key::Backspace)
-						{
-							if (goto_input_stream.str().length() > 0)
-							{
-								std::string temp = goto_input_stream.str().erase(goto_input_stream.str().length() - 1);
-								goto_input_stream.str("");
-								goto_input_stream << temp;
-							}
-						}
-						else if (key == sf::Keyboard::Key::Enter)
-						{
-							is_goto_prompt = false;
+						active_line++;
+					}
+					else if (key == sf::Keyboard::Key::Up)
+					{
+						active_line--;
+					}
 
-							if (goto_input_stream.str().length() != 0)
-							{
-								//get the instruction int
-								u16 addr = (u16)std::stoul(goto_input_stream.str(), nullptr, 16);
+					if (active_line > LINE_COUNT - 1)
+					{
+						active_line = LINE_COUNT - 1;
+						pc_start = find_next_instr(pc_start);
+					}
+					else if (active_line < 0)
+					{
+						active_line = 0;
+						pc_start = find_prev_instr(pc_start);
+					}
 
-								goto_instr(addr);
-							}
-						}
-						else if (key == sf::Keyboard::Key::Escape)
-						{
-							is_goto_prompt = false;
-						}
+					// handle breakpoint
+					if (key == sf::Keyboard::Key::F9)
+					{
+						auto itr = std::find(cpu::breakpoints.begin(), cpu::breakpoints.end(), active_addr);
 
-						// cap size
-						if (goto_input_stream.tellp() > 4)
+						if (itr != cpu::breakpoints.end())
 						{
-							std::string temp = goto_input_stream.str().erase(4);
-							goto_input_stream.str("");
-							goto_input_stream << temp;
+							cpu::breakpoints.erase(itr);
+						}
+						else
+						{
+							cpu::breakpoints.push_back(active_addr);
 						}
 					}
-					else
+					else if (key == sf::Keyboard::Key::F5)
 					{
-						// handle up and down
-						if (key == sf::Keyboard::Key::Down)
-						{
-							active_line++;
-						}
-						else if (key == sf::Keyboard::Key::Up)
-						{
-							active_line--;
-						}
+						// resume the cpu
+						cpu::paused = false;
 
-						if (active_line > LINE_COUNT - 1)
+						if (cpu::memory_breakpoint_last_addr == 0x0) // not a memory breakpoint. yes i know. 0x0 is a valid addr, but no one needs to watch it
 						{
-							active_line = LINE_COUNT - 1;
-							pc_start = find_next_instr(pc_start);
+							cpu::breakpoint_disable_one_instr = true;
 						}
-						else if (active_line < 0)
+					}
+					else if (key == sf::Keyboard::Key::F6)
+					{
+						cpu::paused = true;
+						goto_instr(cpu::R.pc);
+					}
+					else if (key == sf::Keyboard::Key::F10)
+					{
+						if (cpu::paused)
 						{
-							active_line = 0;
-							pc_start = find_prev_instr(pc_start);
-						}
+							gameboy::disassembler::symbol sym;
+							gameboy::disassembler::disassemble_instr(cpu::R.pc, sym);
 
-						// handle breakpoint
-						if (key == sf::Keyboard::Key::F9)
-						{
-							auto itr = std::find(cpu::breakpoints.begin(), cpu::breakpoints.end(), active_addr);
-
-							if (itr != cpu::breakpoints.end())
+							if (sym.mnemonic.compare("CALL") == 0)
 							{
-								cpu::breakpoints.erase(itr);
+								cpu::soft_breakpoints.push_back(find_next_instr(cpu::R.pc));
+								cpu::paused = false;
+								cpu::breakpoint_disable_one_instr = true;
 							}
 							else
 							{
-								cpu::breakpoints.push_back(active_addr);
-							}
-						}
-						else if (key == sf::Keyboard::Key::F5)
-						{
-							// resume the cpu
-							cpu::paused = false;
-
-							if (cpu::memory_breakpoint_last_addr == 0x0) // not a memory breakpoint. yes i know. 0x0 is a valid addr, but no one needs to watch it
-							{
 								cpu::breakpoint_disable_one_instr = true;
 							}
 						}
-						else if (key == sf::Keyboard::Key::F6)
+					}
+					else if (key == sf::Keyboard::Key::F11)
+					{
+						if (cpu::paused)
 						{
-							cpu::paused = true;
-							goto_instr(cpu::R.pc);
+							//cpu::paused = false;
+							cpu::breakpoint_disable_one_instr = true;
 						}
-						else if (key == sf::Keyboard::Key::F10)
-						{
-							if (cpu::paused)
-							{
-								gameboy::disassembler::symbol sym;
-								gameboy::disassembler::disassemble_instr(cpu::R.pc, sym);
-
-								if (sym.mnemonic.compare("CALL") == 0)
-								{
-									cpu::soft_breakpoints.push_back(find_next_instr(cpu::R.pc));
-									cpu::paused = false;
-									cpu::breakpoint_disable_one_instr = true;
-								}
-								else
-								{
-									cpu::breakpoint_disable_one_instr = true;
-								}
-							}
-						}
-						else if (key == sf::Keyboard::Key::F11)
-						{
-							if (cpu::paused)
-							{
-								//cpu::paused = false;
-								cpu::breakpoint_disable_one_instr = true;
-							}
-						}
-						else if (key == sf::Keyboard::Key::G)
-						{
-							is_goto_prompt = true;
-							goto_input_stream.clear();
-						}
+					}
+					else if (key == sf::Keyboard::Key::G)
+					{
+						is_goto_prompt = true;
 					}
 				}
 
 				return 0;
-            }
+			}
         }
 	}
 }
