@@ -139,4 +139,14 @@ namespace chip8
 	{
 		return &render_texture.getTexture();
 	}
+
+	int set_debugger_visible(bool visible)
+	{
+		return 0;
+	}
+
+	bool get_debugger_visible()
+	{
+		return false;
+	}
 }

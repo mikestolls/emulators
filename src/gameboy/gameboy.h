@@ -433,12 +433,6 @@ namespace gameboy
 	{
 		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
 		{
-			if (keyPressed->code == sf::Keyboard::Key::F1)
-			{
-				is_debugger_visible = !is_debugger_visible;
-				debugger::window.setVisible(is_debugger_visible);
-			}
-
 			// check for joypad input
 			auto itr = input_map.find(keyPressed->code);
 
@@ -501,5 +495,18 @@ namespace gameboy
 	const sf::Texture* get_emulator_texture()
 	{
 		return &framebuffer_texture;
+	}
+
+	int set_debugger_visible(bool visible)
+	{
+		is_debugger_visible = visible;
+		debugger::window.setVisible(is_debugger_visible);
+
+		return 0;
+	}
+
+	bool get_debugger_visible()
+	{
+		return is_debugger_visible;
 	}
 }

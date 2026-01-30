@@ -40,6 +40,8 @@ namespace common
     typedef int (*EmulatorProcessEventFunction)(const sf::Event*);
     typedef int (*EmulatorAssemblerFunction)(const std::string&);
     typedef int (*EmulatorDisassemblerFunction)(const std::string&);
+    typedef int (*EmulatorDebuggerSetVisible)(const bool);
+    typedef bool (*EmulatorDebuggerIsVisible)();
 
     sf::RenderWindow window;
     u8 emulator_type = -1;
@@ -50,6 +52,8 @@ namespace common
     EmulatorProcessEventFunction emulator_function_process_event = nullptr;
     EmulatorAssemblerFunction emulator_function_assembler = nullptr;
     EmulatorDisassemblerFunction emulator_function_disassembler = nullptr;
+    EmulatorDebuggerSetVisible emulator_function_debugger_set_visible = nullptr;
+    EmulatorDebuggerIsVisible emulator_function_debugger_get_visible = nullptr;
 
     EmulatorDisplay emulator_display;
 
@@ -120,6 +124,8 @@ namespace common
             emulator_function_process_event = chip8::process_event;
             emulator_function_assembler = chip8::assembler::assemble_to_file;
             emulator_function_disassembler = chip8::disassembler::disassemble_to_file;
+            emulator_function_debugger_set_visible = chip8::set_debugger_visible;
+            emulator_function_debugger_get_visible = chip8::get_debugger_visible;
 
             emulator_display.display_texture = chip8::get_emulator_texture();
             emulator_display.fps = 60;
@@ -132,6 +138,8 @@ namespace common
             emulator_function_process_event = gameboy::process_event;
             emulator_function_assembler = gameboy::assembler::assemble_to_file;
             emulator_function_disassembler = gameboy::disassembler::disassemble_to_file;
+            emulator_function_debugger_set_visible = gameboy::set_debugger_visible;
+            emulator_function_debugger_get_visible = gameboy::get_debugger_visible;
 
             emulator_display.display_texture = gameboy::get_emulator_texture();
             emulator_display.fps = 60;
@@ -176,6 +184,17 @@ namespace common
                 if (ImGui::MenuItem("Exit"))
                 {
                     window.close();
+                }
+
+                ImGui::EndMenu();
+            }
+            
+            if (ImGui::BeginMenu("Tools"))
+            {
+                bool debugger_visible = emulator_function_debugger_get_visible();
+                if (ImGui::MenuItem("Debugger", "F1", debugger_visible))
+                {
+                    emulator_function_debugger_set_visible(!debugger_visible);
                 }
 
                 ImGui::EndMenu();
@@ -370,7 +389,7 @@ namespace common
                     {
                         if (keyPressed->code == sf::Keyboard::Key::F1)
                         {
-                            // open debugger
+                            emulator_function_debugger_set_visible(!emulator_function_debugger_get_visible());
                         }
                     }
 
