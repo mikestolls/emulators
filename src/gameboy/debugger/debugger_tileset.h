@@ -16,6 +16,8 @@ namespace gameboy
 	{
         namespace tileset
         {
+            #define TILESET_TEXTURE_SIZE		128
+
             u8 tileset_index;
             u8 tileset_texture_data[TILESET_TEXTURE_SIZE * TILESET_TEXTURE_SIZE * 4]; // texture will 128 x 128 with 4 bpp
 

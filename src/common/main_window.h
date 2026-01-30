@@ -34,10 +34,14 @@ namespace common
         int fps;
         float display_scale;
         const sf::Texture* display_texture = nullptr;
+
+#ifdef OLD_DEBUGGER
         const sf::Texture* debugger_texture = nullptr;
+#endif
     };
 
     typedef int (*EmulatorInitFunction)(const std::string&);
+    typedef int (*EmulatorDestroyFunction)();
     typedef int (*EmulatorUpdateFunction)();
     typedef int (*EmulatorProcessEventFunction)(const sf::Event*);
     typedef int (*EmulatorAssemblerFunction)(const std::string&);
@@ -52,6 +56,7 @@ namespace common
     u8 emulator_type = -1;
     
     EmulatorInitFunction emulator_function_init = nullptr;
+    EmulatorDestroyFunction emulator_function_destroy = nullptr;
     EmulatorUpdateFunction emulator_function_update = nullptr;
     EmulatorProcessEventFunction emulator_function_process_event = nullptr;
     EmulatorAssemblerFunction emulator_function_assembler = nullptr;
@@ -130,6 +135,7 @@ namespace common
         {
         case EMULATOR_TYPE_CHIP8:
             emulator_function_init = chip8::init_emulator;
+            emulator_function_destroy = chip8::destroy_emulator;
             emulator_function_update = chip8::update;
             emulator_function_process_event = chip8::process_event;
             emulator_function_assembler = chip8::assembler::assemble_to_file;
@@ -147,6 +153,7 @@ namespace common
             break;
         case EMULATOR_TYPE_GAMEBOY:
             emulator_function_init = gameboy::init_emulator;
+            emulator_function_destroy = gameboy::destroy_emulator;
             emulator_function_update = gameboy::update;
             emulator_function_process_event = gameboy::process_event;
             emulator_function_assembler = gameboy::assembler::assemble_to_file;
@@ -537,6 +544,9 @@ namespace common
             debugger_window.display();
 #endif
         }
+
+        // destory the emulator. may need to call this before we init a new emulator
+        emulator_function_destroy(); 
 
         window.close();
 

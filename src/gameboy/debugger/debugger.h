@@ -141,7 +141,13 @@ namespace gameboy
                     }
                     else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
                     {
-                        if (keyPressed->code == sf::Keyboard::Key::Tab)
+
+                        if (keyPressed->code == sf::Keyboard::Key::F1)
+                        {
+                            gameboy::is_debugger_visible = !gameboy::is_debugger_visible;
+                            window.setVisible(gameboy::is_debugger_visible);
+                        }
+                        else if (keyPressed->code == sf::Keyboard::Key::Tab)
                         {
                             panels[panel_focus_index].is_focused = false;
                             panel_focus_index++;
@@ -239,7 +245,7 @@ namespace gameboy
             return 0;
 		}
 
-        int cleanup_debugger()
+        int destroy_debugger()
         {
             ImGuiContext* old_context = ImGui::GetCurrentContext();
 

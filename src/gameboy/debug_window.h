@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef OLD_DEBUGGER
+
 #include "defines.h"
 
 #include <SFML/Graphics.hpp>
@@ -98,3 +100,5 @@ namespace gameboy
         }
     };
 }
+
+#endif

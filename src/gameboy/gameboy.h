@@ -20,9 +20,14 @@ namespace gameboy
 
 	const u32 cycles_per_frame = cpu::cycles_per_sec / cpu::fps;
 	u32 cycle_count = 0;
+
+	bool is_debugger_visible;
 }
 
+#ifdef OLD_DEBUGGER
 #include "debugger.h"
+#endif
+
 #include "debugger/debugger.h"
 
 namespace gameboy
@@ -46,8 +51,11 @@ namespace gameboy
 	std::map<sf::Keyboard::Key, input_binding> input_map;
 	sf::Texture framebuffer_texture;
 
+#ifdef OLD_DEBUGGER
 	debugger_old gameboy_debugger;
-	bool show_debugger = false;
+#endif
+
+	//bool show_debugger = false;
 	
 	/*std::list<unit_test> unit_test_list;
 	
@@ -415,9 +423,20 @@ namespace gameboy
 		cpu::initialize();
 		gpu::initialize();
 
+#ifdef OLD_DEBUGGER
 		gameboy_debugger.initialize(gpu::width * pixelSize, gpu::height * pixelSize);
+#endif
 
 		debugger::init_debugger();
+		debugger::window.setVisible(false);
+		is_debugger_visible = false;
+
+		return 0;
+	}
+
+	int destroy_emulator()
+	{
+		debugger::destroy_debugger();
 
 		return 0;
 	}
@@ -428,60 +447,28 @@ namespace gameboy
 		{
 			if (keyPressed->code == sf::Keyboard::Key::F1)
 			{
-				show_debugger = !show_debugger;
+				is_debugger_visible = !is_debugger_visible;
+				debugger::window.setVisible(is_debugger_visible);
 			}
 
-			if (show_debugger)
-			{
-				if (keyPressed->code == sf::Keyboard::Key::Space)
-				{
-					cpu::reset();
-					gpu::reset();
-					cycle_count = 0;
-				}
-				else if (keyPressed->code == sf::Keyboard::Key::F2)
-				{
-					u8* ptr = memory_module::get_memory(0x9800, true);
-					u8* buffer = new u8[0x401];
-					memset(buffer, 0x0, 0x401);
-					memcpy(buffer, ptr, 0x400);
-					//std::string checksum = buffer;
+			// check for joypad input
+			auto itr = input_map.find(keyPressed->code);
 
-					printf("Checksum: %s", buffer);
-				}
-				else
-				{
-					gameboy_debugger.on_keypressed(keyPressed->code);
-				}
-			}
-			else
+			if (itr != input_map.end())
 			{
-				// check for joypad input
-				auto itr = input_map.find(keyPressed->code);
-
-				if (itr != input_map.end())
-				{
-					// handle joypad input
-					set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
-				}
+				// handle joypad input
+				set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
 			}
 		}
 		else if (const auto* keyReleased = event->getIf<sf::Event::KeyReleased>())
 		{
-			if (show_debugger)
-			{
+			// check for joypad input
+			auto itr = input_map.find(keyReleased->code);
 
-			}
-			else
+			if (itr != input_map.end())
 			{
-				// check for joypad input
-				auto itr = input_map.find(keyReleased->code);
-
-				if (itr != input_map.end())
-				{
-					// handle joypad input
-					set_button_released(itr->second.joypad_map, itr->second.is_directional);
-				}
+				// handle joypad input
+				set_button_released(itr->second.joypad_map, itr->second.is_directional);
 			}
 		}
 

@@ -53,6 +53,11 @@ namespace chip8
 		return 0;
 	}
 
+	int destroy_emulator()
+	{
+		return 0;
+	}
+
 	int process_event(const sf::Event* event)
 	{
 		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())

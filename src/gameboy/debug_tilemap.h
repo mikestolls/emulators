@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef OLD_DEBUGGER
+
 #include "defines.h"
 #include "debug_window.h"
 #include "debug_tileset.h"
@@ -121,3 +123,5 @@ namespace gameboy
         }
     };
 }
+
+#endif

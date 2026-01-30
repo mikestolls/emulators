@@ -18,6 +18,7 @@ namespace gameboy
         {
 			#define LINE_COUNT					16
             #define MEM_PER_LINE				16
+            #define MEM_LINE_COUNT				16
 
             #define ROW_COLOR_0                 0.12f
             #define ROW_COLOR_1                 0.22f

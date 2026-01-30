@@ -5,14 +5,14 @@
 #include "memory_module.h"
 #include "gpu.h"
 
+#include "gameboy.h"
+
 #include "debug_tileset.h"
 #include "debug_tilemap.h"
 #include "debug_registers.h"
 #include "debug_disassembler.h"
 #include "debug_memory.h"
 #include "debug_palette.h"
-
-#include "gameboy.h"
 
 namespace gameboy
 {
