@@ -353,6 +353,11 @@ namespace gameboy
 				return 0;
 			}
 
+			if (get_lcd_control_flag(FLAG_OBJ_DISPLAY_ENABLED) == false)
+			{
+				return 0; // dont render sprites with obj disabled
+			}
+
 			// Clear sprite priority tracking for this scanline
 			memset(sprite_pixels, 0, sizeof(sprite_pixels));
 
