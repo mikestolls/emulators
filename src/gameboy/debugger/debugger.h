@@ -13,6 +13,7 @@
 #include "debugger_registers_palette.h"
 #include "debugger_disassembler.h"
 #include "debugger_memory.h"
+#include "debugger_gpu.h"
 
 #include "../gameboy.h"
 
@@ -42,6 +43,7 @@ namespace gameboy
             DEBUGGER_PANEL_REGISTERS_PALETTE,
             DEBUGGER_PANEL_DISASSEMBLER,
             DEBUGGER_PANEL_MEMORY,
+            DEBUGGER_PANEL_GPU,
             DEBUGGER_PANEL_COUNT,
         };
 
@@ -84,6 +86,12 @@ namespace gameboy
             panels[DEBUGGER_PANEL_MEMORY].update = memory::update;
             panels[DEBUGGER_PANEL_MEMORY].draw = memory::draw;
             panels[DEBUGGER_PANEL_MEMORY].process_event = memory::process_event;
+
+            // setup gpu panel
+            panels[DEBUGGER_PANEL_GPU].init = gpu::init;
+            panels[DEBUGGER_PANEL_GPU].update = gpu::update;
+            panels[DEBUGGER_PANEL_GPU].draw = gpu::draw;
+            panels[DEBUGGER_PANEL_GPU].process_event = gpu::process_event;
 
             for (auto& panel : panels)
             {
@@ -164,8 +172,8 @@ namespace gameboy
                         }
                         else if (keyPressed->code == sf::Keyboard::Key::Space)
                         {
-                            cpu::reset();
-                            gpu::reset();
+                            gameboy::cpu::reset();
+                            gameboy::gpu::reset();
 
 #ifdef USE_BOOT_ROM
                             boot_rom boot("gameboy/boot.gb");
@@ -218,20 +226,30 @@ namespace gameboy
 
             if (ImGui::Begin("Gameboy Debugger", nullptr, window_flags))
             {
-                // draw top 3 panels
+                // Layout: Top 3 panels, then Disassembler/Memory stacked on left, GPU full height on right
+                ImGui::BeginGroup();
+
+                // Top row: 3 panels
                 panels[DEBUGGER_PANEL_TILESET].draw(panels[DEBUGGER_PANEL_TILESET].is_focused);
                 ImGui::SameLine(0.0f, 44.0f);
                 panels[DEBUGGER_PANEL_TILEMAP].draw(panels[DEBUGGER_PANEL_TILEMAP].is_focused);
                 ImGui::SameLine(0.0f, 44.0f);
                 panels[DEBUGGER_PANEL_REGISTERS_PALETTE].draw(panels[DEBUGGER_PANEL_REGISTERS_PALETTE].is_focused);
 
-                // draw mid panel
                 ImGui::Spacing();
-                panels[DEBUGGER_PANEL_DISASSEMBLER].draw(panels[DEBUGGER_PANEL_DISASSEMBLER].is_focused);
 
-                // draw bottom panel
+                // Bottom row: Disassembler and Memory stacked on left, GPU on right
+                
+                // Left side: Disassembler on top, Memory on bottom
+                panels[DEBUGGER_PANEL_DISASSEMBLER].draw(panels[DEBUGGER_PANEL_DISASSEMBLER].is_focused);
                 ImGui::Spacing();
                 panels[DEBUGGER_PANEL_MEMORY].draw(panels[DEBUGGER_PANEL_MEMORY].is_focused);
+                
+                ImGui::EndGroup();
+                
+                // Right side: GPU panel full height
+                ImGui::SameLine(0.0f, 44.0f);
+                panels[DEBUGGER_PANEL_GPU].draw(panels[DEBUGGER_PANEL_GPU].is_focused);
 
                 ImGui::End();
             }

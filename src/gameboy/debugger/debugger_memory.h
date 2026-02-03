@@ -70,10 +70,12 @@ namespace gameboy
                 {
                     memory_breakpoint_last_addr = cpu::memory_breakpoint_last_addr;
                     goto_memory_address(cpu::memory_breakpoint_last_addr);
+                    disassembler::goto_instr(cpu::memory_breakpoint_last_pc);
                 }
                 else if (!cpu::paused)
                 {
                     memory_breakpoint_last_addr = -1;
+                    cpu::memory_breakpoint_last_pc = 0;
                 }
 
                 return 0;

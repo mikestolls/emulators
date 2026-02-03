@@ -61,6 +61,7 @@ namespace gameboy
 		bool breakpoint_hit;
 		bool breakpoint_disable_one_instr;
 		s32 memory_breakpoint_last_addr;
+		u16 memory_breakpoint_last_pc;
 
 		bool interrupt_master;
 		u8* interrupt_enable_flag;
@@ -849,6 +850,7 @@ namespace gameboy
 			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
 			memory_breakpoint_last_addr = -1;
+			memory_breakpoint_last_pc = -1;
 
 			return 0;
 		}
@@ -865,6 +867,7 @@ namespace gameboy
 			if (addr == memory_breakpoint_last_addr)
 			{
 				memory_breakpoint_last_addr = -1;
+				memory_breakpoint_last_pc = -1;
 				return false;
 			}
 
@@ -876,6 +879,7 @@ namespace gameboy
 					paused = true;
 					breakpoint_hit = true;
 					memory_breakpoint_last_addr = addr;
+					memory_breakpoint_last_pc = pc;
 
 					R.pc = pc; // assuming we back 1 byte to previous opcode. assuming non prefix dont write memory
 					soft_breakpoints.push_back(R.pc);

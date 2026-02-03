@@ -14,10 +14,10 @@ namespace gameboy
 		u8* coincidence_scanline = 0;
 		u8* lcd_control = 0;
 		u8* lcd_status = 0;
-		u8* scrollY = 0;
-		u8* scrollX = 0;
-		u8* windowX = 0;
-		u8* windowY = 0;
+		u8* scroll_y = 0;
+		u8* scroll_x = 0;
+		u8* window_x = 0;
+		u8* window_y = 0;
 		u8* palette_bg = 0;
 		u8* sprite_attr = 0;
 
@@ -29,31 +29,14 @@ namespace gameboy
 		bool scanline_inc = false;
 		s32 horz_cycle_count = 0;
 		bool vblank_occurred = false;
-				
-		// set and get lcd control flag helpers
-		inline void set_lcd_control_flag(u8 flag)
-		{
-			flag = (1 << flag);
-			*lcd_control |= flag;
-		}
-
-		inline void clear_lcd_control_flag(u8 flag)
-		{
-			flag = (1 << flag);
-			*lcd_control &= ~flag; // clear the bit
-		}
-
+		u8 window_scanline_counter = 0;
+		
 		inline u8 get_lcd_control_flag(u8 flag)
 		{
 			return ((*lcd_control & (1 << flag)) >> flag);
 		}
 
-		inline void clear_all_lcd_control_flags()
-		{
-			*lcd_control = 0x0;
-		}
-
-		//Bit 0 - BG Display(for CGB see below) (0 = Off, 1 = On)
+		//Bit 0 - BG and Window enable/priority (for CGB bg and window lose priorty. object display on top) (0 = Off, 1 = On)
 		//Bit 1 - OBJ(Sprite) Display Enable(0 = Off, 1 = On)
 		//Bit 2 - OBJ(Sprite) Size(0 = 8x8, 1 = 8x16)
 		//Bit 3 - BG Tile Map Display Select(0 = 9800 - 9BFF, 1 = 9C00 - 9FFF)
@@ -64,7 +47,7 @@ namespace gameboy
 
 		enum LCD_CONTROL_FLAGS
 		{
-			FLAG_BG_DISPLAY_ENABLED = 0,
+			FLAG_BG_WINDOW_ENABLE_PRIORITY= 0,
 			FLAG_OBJ_DISPLAY_ENABLED,
 			FLAG_OBJ_SIZE,
 			FLAG_BG_TILEMAP_DISPLAY_SELECT,
@@ -159,6 +142,7 @@ namespace gameboy
 			horz_cycle_count = 0;
 			lcd_enabling = false;
 			lcd_enabled = false;
+			window_scanline_counter = 0;
 			memset(framebuffer, 0x0, sizeof(framebuffer));
 			
 			return 0;
@@ -171,10 +155,10 @@ namespace gameboy
 			coincidence_scanline = memory_module::get_memory(0xFF45, true);
 			lcd_control = memory_module::get_memory(0xFF40, true);
 			lcd_status = memory_module::get_memory(0xFF41, true);
-			scrollY =  memory_module::get_memory(0xFF42, true);
-			scrollX = memory_module::get_memory(0xFF43, true);
-			windowY = memory_module::get_memory(0xFF4A, true);
-			windowX = memory_module::get_memory(0xFF4B, true);
+			scroll_y =  memory_module::get_memory(0xFF42, true);
+			scroll_x = memory_module::get_memory(0xFF43, true);
+			window_y = memory_module::get_memory(0xFF4A, true);
+			window_x = memory_module::get_memory(0xFF4B, true);
 			palette_bg = memory_module::get_memory(0xFF47, true);
 			sprite_attr = memory_module::get_memory(0xFE00, true);
 
@@ -242,67 +226,116 @@ namespace gameboy
 				return 0;
 			}
 
-			if (get_lcd_control_flag(FLAG_WINDOW_DISPLAY_ENABLED))
+			bool is_drawing_bg = true;
+			bool is_drawing_window = get_lcd_control_flag(FLAG_WINDOW_DISPLAY_ENABLED) > 0;
+			bool window_visible_this_line = false; // this tracks and increments the window scaline position
+
+			// lcd control bit 0 == 0 means nothing is rendered. different for CGB. objects take priorty over bg and window
+			if (get_lcd_control_flag(FLAG_BG_WINDOW_ENABLE_PRIORITY) == 0)
 			{
-//				warning_assert("window tilemap not implemented yet");
+				is_drawing_bg = false;
+				is_drawing_window = false;
 			}
-
-			// only doing background. but will need to merge this with window
-			if (get_lcd_control_flag(FLAG_BG_DISPLAY_ENABLED)) 
+			
+			if (is_drawing_bg)
 			{
-				// tilemap starting location. tilemap is 32 x 32 bytes that map to a tile
-				u16 tilemapAddr = 0x9800;
-				if (get_lcd_control_flag(FLAG_BG_TILEMAP_DISPLAY_SELECT))
-				{
-					tilemapAddr = 0x9C00;
-				}
-
-				s32 tilesetOffset = 128; // offset depending on tileset used
-				s32 tileSize = 16; // each tile is 16 bytes. 2 x 8 rows of a tile
-				u16 tilesetAddr = 0x8800; // addr of tileset
+				s32 tileset_offset = 128; // offset depending on tileset used
+				s32 tilesize = 16; // each tile is 16 bytes. 2 x 8 rows of a tile
+				u16 tileset_addr = 0x8800; // addr of tileset
 				if (get_lcd_control_flag(FLAG_BG_WINDOW_TILE_DISPLAY_SELECT))
 				{
-					tilesetAddr = 0x8000;
-					tilesetOffset = 0;
+					tileset_addr = 0x8000;
+					tileset_offset = 0;
 				}
 
-				u8 yPos = *scrollY + *scanline;
-				u32 tileY = (yPos / 8) * 32; // calc tile offset based on yPos. map is 32 tiles wide
-				u8 tileYPixel = yPos % 8; // the row of the specific tile the scanline is on
+				u8 y_pos = 0;
+				u8 x_pos = 0;
+				u32 tile_x = 0;
+				u32 tile_y = 0;
+				u8 tile_y_pixel = 0;
+				u8 tile_x_pixel = 0;
+				u8 window_pixel_x = 0;
+				u8 window_pixel_y = window_scanline_counter;
+				s16 tile_id = 0;
+				u16 tilemap_addr = 0;
 
 				// draw the 160 horz pixels
 				for (u32 pixel = 0; pixel < 160; pixel++)
 				{
-					u8 xPos = *scrollX + pixel;
-					u32 tileX = xPos / 8; // calc tile offset base on xPos
-					u8 tileXPixel = xPos % 8; // the column of the speific tile to draw
-					s16 tileId = 0;
-					
-					if (tilesetOffset != 0) // its a signed value
+					// if window is drawing, scaline it >= window_y and horz pixel is >= window_x
+					if (is_drawing_window &&
+						*scanline >= *window_y &&
+						pixel >= *window_x - 7)
 					{
-						tileId = (s8)memory_module::read_memory(tilemapAddr + tileX + tileY, true);
-						tileId += tilesetOffset; // apply offset to the id
+						window_visible_this_line = true; // we rendered a window scanline, increment counter
+
+						// Window doesn't scroll - it starts at (0,0) in its tilemap
+						window_pixel_x = pixel - (*window_x - 7);  // Pixel within window
+						tile_x = window_pixel_x / 8;
+						tile_y = (window_pixel_y / 8) * 32;
+						tile_x_pixel = window_pixel_x % 8;
+						tile_y_pixel = window_pixel_y % 8;
+
+						if (get_lcd_control_flag(FLAG_WINDOW_TILEMAP_DISPLAY_SELECT))
+						{
+							tilemap_addr = 0x9C00;
+						}
+						else
+						{
+							tilemap_addr = 0x9800;
+						}
 					}
 					else
 					{
-						tileId = memory_module::read_memory(tilemapAddr + tileX + tileY, true);
+						y_pos = *scroll_y + *scanline;
+						tile_x = 0;
+						tile_y = (y_pos / 8) * 32; // calc tile offset based on y_pos. map is 32 tiles wide
+						tile_y_pixel = y_pos % 8; // the row of the specific tile the scanline is on
+						x_pos = *scroll_x + pixel;
+						tile_x = x_pos / 8; // calc tile offset base on xPos
+						tile_x_pixel = x_pos % 8; // the column of the speific tile to draw
+
+						if (get_lcd_control_flag(FLAG_BG_TILEMAP_DISPLAY_SELECT))
+						{
+							tilemap_addr = 0x9C00;
+						}
+						else
+						{
+							tilemap_addr = 0x9800;
+						}
+					}
+
+					if (tileset_offset != 0)
+					{
+						tile_id = (s8)memory_module::read_memory(tilemap_addr + tile_x + tile_y, true);
+						tile_id += tileset_offset;
+					}
+					else
+					{
+						tile_id = memory_module::read_memory(tilemap_addr + tile_x + tile_y, true);
 					}
 
 					// we have the tile id. lets draw pixel
-					u8* tileset = memory_module::get_memory(tilesetAddr + (tileId * tileSize) + (tileYPixel * 2), true);
+					u8* tileset = memory_module::get_memory(tileset_addr + (tile_id * tilesize) + (tile_y_pixel * 2), true);
 					u8 dataA = tileset[0];
 					u8 dataB = tileset[1];
-					u8 bit = 7 - tileXPixel; // the bits and pixels are inversed
+					u8 bit = 7 - tile_x_pixel; // the bits and pixels are inversed
 					u8 palette_color = ((dataA & (1 << bit)) >> bit) | (((dataB & (1 << bit)) >> bit) << 1);
 
 					u32 color = gpu::get_palette_color(palette_color);
 
-					u32 pixelPos = ((*scanline) * 160 + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
-					framebuffer[pixelPos++] = (color >> 24) & 0xFF;
-					framebuffer[pixelPos++] = (color >> 16) & 0xFF;
-					framebuffer[pixelPos++] = (color >> 8) & 0xFF;
-					framebuffer[pixelPos++] = 0xFF;
+					u32 pixel_pos = ((*scanline) * 160 + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
+					framebuffer[pixel_pos++] = (color >> 24) & 0xFF;
+					framebuffer[pixel_pos++] = (color >> 16) & 0xFF;
+					framebuffer[pixel_pos++] = (color >> 8) & 0xFF;
+					framebuffer[pixel_pos++] = 0xFF;
 				}
+			}
+
+			// Increment window line counter only if window was visible on this scanline
+			if (window_visible_this_line)
+			{
+				window_scanline_counter++;
 			}
 
 			return 0;
@@ -318,9 +351,10 @@ namespace gameboy
 			u8 spriteHeight = (get_lcd_control_flag(FLAG_OBJ_SIZE) == 0 ? 8 : 16);
 			u8* spritePtr = sprite_attr;
 			u8 sprite_count = 0;
+			u8 sprite_line_count = 0;
 			s32 tileSize = 16; // each tile is 16 bytes. 2 x 8 rows of a tile
 
-			while (sprite_count < 40) // oam has room for 40 sprites with 4 bytes attr each sprite
+			while (sprite_count < 40 && sprite_line_count < 10) // oam has room for 40 sprites with 4 bytes attr each sprite
 			{
 				sprite_count++;
 				u8 yPos = *(spritePtr++) - 16;
@@ -331,6 +365,7 @@ namespace gameboy
 				// check if scanline within y_min y_max
 				if (*scanline >= yPos && *scanline < yPos + spriteHeight)
 				{
+					sprite_line_count++;
 					s16 tileY = *scanline - yPos;
 
 					if (get_sprite_attribute(attr, FLAG_SPRITE_FLIP_Y))
@@ -432,7 +467,7 @@ namespace gameboy
 
 				// draw the scan line
 				draw_scanline();
-				draw_sprites();
+				//draw_sprites();
 
 				cpu::set_request_interrupt_flag(cpu::INTERRUPT_VBLANK);
 
@@ -529,6 +564,7 @@ namespace gameboy
 					else
 					{
 						*scanline = 0;
+						window_scanline_counter = 0; // reset window scanline
 						switch_lcd_mode(MODE_OAM_ACCESS);
 					}
 
@@ -585,6 +621,7 @@ namespace gameboy
 				lcd_enabled = false;
 				set_lcd_status_mode(MODE_HBLANK);
 				*scanline = 0;
+				window_scanline_counter = 0;
 
 				return 0;
 			}
@@ -595,6 +632,7 @@ namespace gameboy
 				lcd_enabled = true;
 				lcd_enabling = true;
 				*scanline = 0;
+				window_scanline_counter = 0;
 				horz_cycle_count = 68;
 
 				set_lcd_status_mode(MODE_HBLANK);
