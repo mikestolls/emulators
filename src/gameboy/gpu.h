@@ -24,6 +24,7 @@ namespace gameboy
 		const u8 width = 160;
 		const u8 height = 144;
 		u8 framebuffer[width * height * 4];
+		u8 bg_palette_indices[width * height];
 		bool lcd_enabling = false;
 		bool lcd_enabled = false;
 		bool scanline_inc = false;
@@ -144,6 +145,7 @@ namespace gameboy
 			lcd_enabled = false;
 			window_scanline_counter = 0;
 			memset(framebuffer, 0x0, sizeof(framebuffer));
+			memset(bg_palette_indices, 0x0, sizeof(bg_palette_indices));
 			
 			return 0;
 		}
@@ -324,7 +326,9 @@ namespace gameboy
 
 					u32 color = gpu::get_palette_color(palette_color);
 
-					u32 pixel_pos = ((*scanline) * 160 + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
+					u32 pixel_index = (*scanline) * 160 + pixel;
+					bg_palette_indices[pixel_index] = palette_color; // store palette index for priority
+					u32 pixel_pos = pixel_index * 4; // the pixel we are drawing * 4 bytes per pixel
 					framebuffer[pixel_pos++] = (color >> 24) & 0xFF;
 					framebuffer[pixel_pos++] = (color >> 16) & 0xFF;
 					framebuffer[pixel_pos++] = (color >> 8) & 0xFF;
@@ -348,35 +352,36 @@ namespace gameboy
 				return 0;
 			}
 
-			u8 spriteHeight = (get_lcd_control_flag(FLAG_OBJ_SIZE) == 0 ? 8 : 16);
-			u8* spritePtr = sprite_attr;
+			u8 sprite_height = (get_lcd_control_flag(FLAG_OBJ_SIZE) == 0 ? 8 : 16);
+			u8* sprite_ptr = sprite_attr;
 			u8 sprite_count = 0;
 			u8 sprite_line_count = 0;
-			s32 tileSize = 16; // each tile is 16 bytes. 2 x 8 rows of a tile
+			s32 tile_size = 16; // each tile is 16 bytes. 2 x 8 rows of a tile
 
 			while (sprite_count < 40 && sprite_line_count < 10) // oam has room for 40 sprites with 4 bytes attr each sprite
 			{
 				sprite_count++;
-				u8 yPos = *(spritePtr++) - 16;
-				u8 xPos = *(spritePtr++) - 8;
-				u8 tileId = *(spritePtr++);
-				u8 attr = *(spritePtr++);
+				u8 y_pos = *(sprite_ptr++) - 16;
+				u8 x_pos = *(sprite_ptr++) - 8;
+				u8 tile_id = *(sprite_ptr++);
+				u8 attr = *(sprite_ptr++);
+				u8 sprite_prio = get_sprite_attribute(attr, FLAG_SPRITE_PRIORITY);
 
 				// check if scanline within y_min y_max
-				if (*scanline >= yPos && *scanline < yPos + spriteHeight)
+				if (*scanline >= y_pos && *scanline < y_pos + sprite_height)
 				{
 					sprite_line_count++;
-					s16 tileY = *scanline - yPos;
+					s16 tile_y = *scanline - y_pos;
 
 					if (get_sprite_attribute(attr, FLAG_SPRITE_FLIP_Y))
 					{
-						tileY -= spriteHeight;
-						tileY *= -1;
+						tile_y -= sprite_height;
+						tile_y *= -1;
 					}
 
-					u8* tileset = memory_module::get_memory(0x8000 + (tileId * tileSize) + (tileY * 2));
-					u8 dataA = tileset[0];
-					u8 dataB = tileset[1];
+					u8* tileset = memory_module::get_memory(0x8000 + (tile_id * tile_size) + (tile_y * 2));
+					u8 data_a = tileset[0];
+					u8 data_b = tileset[1];
 
 					// render the 8 pixels of the tiles scanline
 					for (u8 pixel = 0; pixel < 8; pixel++)
@@ -389,7 +394,7 @@ namespace gameboy
 							bit *= -1;
 						}
 
-						u8 palette_color = ((dataA & (1 << bit)) >> bit) | (((dataB & (1 << bit)) >> bit) << 1);
+						u8 palette_color = ((data_a & (1 << bit)) >> bit) | (((data_b & (1 << bit)) >> bit) << 1);
 
 						if (palette_color == 0x0)
 						{
@@ -409,12 +414,22 @@ namespace gameboy
 						}
 
 						u32 color = gpu::get_palette_color(palette_color, palette);
+						u32 pixel_index = (*scanline) * 160 + x_pos + pixel;
+						u32 pixel_pos = pixel_index * 4; // the pixel we are drawing * 4 bytes per pixel
 
-						u32 pixelPos = ((*scanline) * 160 + xPos + pixel) * 4; // the pixel we are drawing * 4 bytes per pixel
-						framebuffer[pixelPos++] = (color >> 24) & 0xFF;
-						framebuffer[pixelPos++] = (color >> 16) & 0xFF;
-						framebuffer[pixelPos++] = (color >> 8) & 0xFF;
-						framebuffer[pixelPos++] = 0xFF;
+						if (sprite_prio == 1) // check bg color
+						{
+							// if colors match then priority is on bg
+							if (bg_palette_indices[pixel_index] != 0)
+							{
+								continue;
+							}
+						}
+
+						framebuffer[pixel_pos++] = (color >> 24) & 0xFF;
+						framebuffer[pixel_pos++] = (color >> 16) & 0xFF;
+						framebuffer[pixel_pos++] = (color >> 8) & 0xFF;
+						framebuffer[pixel_pos++] = 0xFF;
 					}
 				}
 			}
