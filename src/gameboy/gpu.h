@@ -25,6 +25,7 @@ namespace gameboy
 		const u8 height = 144;
 		u8 framebuffer[width * height * 4];
 		u8 bg_palette_indices[width * height];
+		bool sprite_pixels[160];
 		bool lcd_enabling = false;
 		bool lcd_enabled = false;
 		bool scanline_inc = false;
@@ -352,15 +353,53 @@ namespace gameboy
 				return 0;
 			}
 
+			// Clear sprite priority tracking for this scanline
+			memset(sprite_pixels, 0, sizeof(sprite_pixels));
+
 			u8 sprite_height = (get_lcd_control_flag(FLAG_OBJ_SIZE) == 0 ? 8 : 16);
 			u8* sprite_ptr = sprite_attr;
 			u8 sprite_count = 0;
 			u8 sprite_line_count = 0;
-			s32 tile_size = 16; // each tile is 16 bytes. 2 x 8 rows of a tile
+			u8* sprites_on_line[10];
 
-			while (sprite_count < 40 && sprite_line_count < 10) // oam has room for 40 sprites with 4 bytes attr each sprite
+			// collect a ptr to first 10 sprites on scanline
+			while (sprite_count < 40 && sprite_line_count < 10)
 			{
+				u8* current_sprite = sprite_ptr;
+				u8 y_pos = *(sprite_ptr++) - 16;
+				sprite_ptr += 3; // Skip X, tile ID, attr for now
+
+				// Check if sprite is on this scanline
+				if (*scanline >= y_pos && *scanline < y_pos + sprite_height)
+				{
+					sprites_on_line[sprite_line_count++] = current_sprite;
+				}
+
 				sprite_count++;
+			}
+
+			// sort by x coord. lower x has higher prio
+			for (u8 i = 0; i < sprite_line_count - 1; i++)
+			{
+				for (u8 j = i + 1; j < sprite_line_count; j++)
+				{
+					u8 x_i = sprites_on_line[i][1]; // X is at offset 1
+					u8 x_j = sprites_on_line[j][1];
+
+					// Sort by X coordinate (lower X wins)
+					if (x_j < x_i)
+					{
+						u8* temp = sprites_on_line[i];
+						sprites_on_line[i] = sprites_on_line[j];
+						sprites_on_line[j] = temp;
+					}
+				}
+			}
+
+			s32 tile_size = 16; // each tile is 16 bytes. 2 x 8 rows of a tile
+			for (u8 i = 0; i < sprite_line_count; i++)
+			{
+				u8* sprite_ptr = sprites_on_line[i];
 				u8 y_pos = *(sprite_ptr++) - 16;
 				u8 x_pos = *(sprite_ptr++) - 8;
 				u8 tile_id = *(sprite_ptr++);
@@ -376,7 +415,6 @@ namespace gameboy
 				// check if scanline within y_min y_max
 				if (*scanline >= y_pos && *scanline < y_pos + sprite_height)
 				{
-					sprite_line_count++;
 					s16 tile_y = *scanline - y_pos;
 
 					if (get_sprite_attribute(attr, FLAG_SPRITE_FLIP_Y))
@@ -399,6 +437,20 @@ namespace gameboy
 					// render the 8 pixels of the tiles scanline
 					for (u8 pixel = 0; pixel < 8; pixel++)
 					{
+						s16 screen_x = x_pos + pixel;
+
+						// check screen bounds
+						if (screen_x < 0 || screen_x >= 160)
+						{
+							continue;
+						}
+
+						// sprite-to-sprite priority: earlier sprites have priority
+						if (sprite_pixels[screen_x])
+						{
+							continue;
+						}
+
 						s8 bit = 7 - pixel;
 
 						if (get_sprite_attribute(attr, FLAG_SPRITE_FLIP_X))
@@ -443,6 +495,8 @@ namespace gameboy
 						framebuffer[pixel_pos++] = (color >> 16) & 0xFF;
 						framebuffer[pixel_pos++] = (color >> 8) & 0xFF;
 						framebuffer[pixel_pos++] = 0xFF;
+
+						sprite_pixels[screen_x] = true; // mark pixel as drawn
 					}
 				}
 			}
