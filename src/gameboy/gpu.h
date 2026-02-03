@@ -367,6 +367,12 @@ namespace gameboy
 				u8 attr = *(sprite_ptr++);
 				u8 sprite_prio = get_sprite_attribute(attr, FLAG_SPRITE_PRIORITY);
 
+				// For 8x16 sprites, ignore LSB of tile ID
+				if (sprite_height == 16)
+				{
+					tile_id &= 0xFE; // Force bit 0 to 0
+				}
+
 				// check if scanline within y_min y_max
 				if (*scanline >= y_pos && *scanline < y_pos + sprite_height)
 				{
@@ -375,11 +381,18 @@ namespace gameboy
 
 					if (get_sprite_attribute(attr, FLAG_SPRITE_FLIP_Y))
 					{
-						tile_y -= sprite_height;
-						tile_y *= -1;
+						tile_y = sprite_height - 1 - tile_y;
 					}
 
-					u8* tileset = memory_module::get_memory(0x8000 + (tile_id * tile_size) + (tile_y * 2));
+					// For 8x16 sprites, bottom half uses next tile
+					u8 current_tile = tile_id;
+					if (sprite_height == 16 && tile_y >= 8)
+					{
+						current_tile = tile_id | 0x01; // Bottom tile (tile_id + 1)
+						tile_y -= 8; // Offset within the bottom tile
+					}
+
+					u8* tileset = memory_module::get_memory(0x8000 + (current_tile * tile_size) + (tile_y * 2));
 					u8 data_a = tileset[0];
 					u8 data_b = tileset[1];
 
