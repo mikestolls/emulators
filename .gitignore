@@ -294,3 +294,7 @@ _artifacts/
 _prj/
 _build/
 _obj/
+_cmake_prj
+data/imgui.ini
+_deps
+CMakeCache.txt

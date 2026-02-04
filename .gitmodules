@@ -7,3 +7,15 @@
 [submodule "lib/argparse"]
 	path = lib/argparse
 	url = https://github.com/jamolnng/argparse.git
+[submodule "lib/imgui"]
+	path = lib/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "lib/imgui-sfml"]
+	path = lib/imgui-sfml
+	url = https://github.com/SFML/imgui-sfml.git
+[submodule "lib/sfml"]
+	path = lib/sfml
+	url = https://github.com/SFML/SFML.git
+[submodule "lib/imguifiledialog"]
+	path = lib/imguifiledialog
+	url = https://github.com/aiekick/ImGuiFileDialog.git
