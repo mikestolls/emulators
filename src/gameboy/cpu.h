@@ -40,16 +40,18 @@ namespace gameboy
 	namespace gpu
 	{
 		int update(u8 cycles);
-		void check_coincidence_flag();
 	}
 
 	namespace cpu
 	{
 		const u32 cycles_per_sec = 4194304;
+		const u32 cycles_per_line = 456;
+		const u32 lines_per_frame = 154;
+		const u32 cycles_per_frame = cycles_per_line * lines_per_frame;  // = 70224
 		const u32 fps = 60;
 
 		bool running = true;
-		bool eiOcccurred = false;
+		bool ei_occcurred = false;
 		bool halt = false;
 		bool halt_bug = false;
 		bool halt_continue_exec = false;
@@ -688,9 +690,9 @@ namespace gameboy
 
 		int check_interrupts()
 		{
-			if (eiOcccurred)
+			if (ei_occcurred)
 			{
-				eiOcccurred = false;
+				ei_occcurred = false;
 				interrupt_master = true;
 				return 0;
 			}
@@ -764,9 +766,6 @@ namespace gameboy
 
 		int update_timer(u8 cycles)
 		{
-			gpu::update(cycles);
-			gpu::check_coincidence_flag();
-
 			// update divide register first
 			divide_counter -= cycles;
 
@@ -843,7 +842,7 @@ namespace gameboy
 
 			paused = false;
 			running = true;
-			eiOcccurred = false;
+			ei_occcurred = false;
 			halt = false;
 			halt_bug = false;
 			halt_continue_exec = false;
@@ -1740,7 +1739,7 @@ namespace gameboy
 						break;
 					case 0x7:
 						// EI - enable interupts
-						eiOcccurred = true;
+						ei_occcurred = true;
 						cycles = 4;
 						update_timer(4);
 						break;

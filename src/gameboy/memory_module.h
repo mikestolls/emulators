@@ -266,6 +266,7 @@ namespace gameboy
 				write_memory(0xFF05, 0x00); // TIMA
 				write_memory(0xFF06, 0x00); // TMA
 				write_memory(0xFF07, 0x00); // TMC
+				write_memory(0xFF0F, 0xF1); // IF
 				write_memory(0xFF10, 0x80); // NR10
 				write_memory(0xFF11, 0xBF); // NR11
 				write_memory(0xFF12, 0xF3); // NR12

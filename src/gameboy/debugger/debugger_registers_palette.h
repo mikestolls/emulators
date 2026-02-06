@@ -61,7 +61,7 @@ namespace gameboy
                         ImGui::Text("   IE: 0x%02X", *cpu::interrupt_enable_flag);
                         ImGui::Text("   IF: 0x%02X", *cpu::interrupt_request_flag);
                         ImGui::Text("  IME: %d", (cpu::interrupt_master ? 1 : 0));
-                        ImGui::Text("  CNT: %d%s", gpu::horz_cycle_count, (gpu::get_lcd_control_flag(gpu::FLAG_LCD_DISPLAY_ENABLED) == 0 ? " - " : ""));
+                        ImGui::Text("  DOT: %d%s", gpu::dot, (gpu::get_lcd_control_flag(gpu::FLAG_LCD_DISPLAY_ENABLED) == 0 ? " - " : ""));
 
                         ImGui::TableNextRow();
                         ImGui::TableNextColumn();

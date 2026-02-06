@@ -28,10 +28,9 @@ namespace gameboy
 		bool sprite_pixels[160];
 		bool lcd_enabling = false;
 		bool lcd_enabled = false;
-		bool scanline_inc = false;
-		s32 horz_cycle_count = 0;
 		bool vblank_occurred = false;
 		u8 window_scanline_counter = 0;
+		u16 dot = 0;
 		
 		inline u8 get_lcd_control_flag(u8 flag)
 		{
@@ -139,37 +138,6 @@ namespace gameboy
 			FLAG_SPRITE_PRIORITY,
 		};
 
-		int reset()
-		{
-			horz_cycle_count = 0;
-			lcd_enabling = false;
-			lcd_enabled = false;
-			window_scanline_counter = 0;
-			memset(framebuffer, 0x0, sizeof(framebuffer));
-			memset(bg_palette_indices, 0x0, sizeof(bg_palette_indices));
-			
-			return 0;
-		}
-
-		int initialize()
-		{
-			// setup memory ptrs
-			scanline = memory_module::get_memory(0xFF44, true);
-			coincidence_scanline = memory_module::get_memory(0xFF45, true);
-			lcd_control = memory_module::get_memory(0xFF40, true);
-			lcd_status = memory_module::get_memory(0xFF41, true);
-			scroll_y =  memory_module::get_memory(0xFF42, true);
-			scroll_x = memory_module::get_memory(0xFF43, true);
-			window_y = memory_module::get_memory(0xFF4A, true);
-			window_x = memory_module::get_memory(0xFF4B, true);
-			palette_bg = memory_module::get_memory(0xFF47, true);
-			sprite_attr = memory_module::get_memory(0xFE00, true);
-
-			reset();
-
-			return 0;
-		}
-
 		u32 get_palette_color(u8 palette_color, u8 palette)
 		{
 			palette >>= (palette_color << 1);
@@ -222,7 +190,151 @@ namespace gameboy
 			return get_palette_color(palette_color, memory_module::read_memory(0xFF47, true));
 		}
 
-		int draw_scanline()
+		int clear_screen()
+		{
+			// Clear screen
+			u8* framebuffer_ptr = (u8*)framebuffer;
+			u32 color = gpu::get_palette_color(0, 0);
+			for (u32 i = 0; i < (width * height); i++)
+			{
+				*framebuffer_ptr++ = (color >> 24) & 0xFF;
+				*framebuffer_ptr++ = (color >> 16) & 0xFF;
+				*framebuffer_ptr++ = (color >> 8) & 0xFF;
+				*framebuffer_ptr++ = 0xFF;
+			}
+
+			return 0;
+		}
+
+		int check_and_set_coincidence_flag()
+		{
+			if (!lcd_enabled)
+			{
+				*lcd_status &= ~(1 << 2); // clear bit 2 for coincidence when lcd is disabled
+				return 0;
+			}
+
+			// get old flag
+			u8 cur_status = *lcd_status & (1 << 2);
+
+			if (*coincidence_scanline != *scanline)
+			{
+				*lcd_status &= ~(1 << 2); // clear bit 2 for coincidence
+			}
+			else
+			{
+				*lcd_status |= (1 << 2); // set bit 2 for coincidence				
+
+				if (cur_status == 0 && get_lcd_interrupt_flag(FLAG_COINCIDENCE))
+				{
+					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
+				}
+			}
+
+			return 0;
+		}
+
+		int switch_lcd_mode(u8 lcd_mode, bool is_interupting = true)
+		{
+			u8 old_mode = get_lcd_status_mode();
+
+			if (old_mode == lcd_mode)
+			{
+				// nothing to do as the modes the same
+				return 0;
+			}
+
+			// set new mode first
+			set_lcd_status_mode(lcd_mode);
+
+			switch (lcd_mode)
+			{
+			case MODE_HBLANK:
+				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0x3);
+				memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0x3);
+
+				if (is_interupting)
+				{
+					if (get_lcd_interrupt_flag(FLAG_HBLANK))
+					{
+						cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
+					}
+				}
+				break;
+			case MODE_VBLANK:
+				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0x3);
+				memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0x3);
+
+				if (is_interupting)
+				{
+					cpu::set_request_interrupt_flag(cpu::INTERRUPT_VBLANK);
+
+					if (get_lcd_interrupt_flag(FLAG_VBLANK))
+					{
+						cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
+					}
+				}
+				break;
+			case MODE_OAM_ACCESS:
+				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0);
+
+				if (is_interupting)
+				{
+					if (get_lcd_interrupt_flag(FLAG_OAM_ACCESS))
+					{
+						cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
+					}
+				}
+				break;
+			case MODE_VRAM_ACCESS:
+				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0);
+				memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0);
+				break;
+			}
+
+			return 0;
+		}
+
+		int reset()
+		{
+			lcd_enabling = false;
+			lcd_enabled = false;
+			window_scanline_counter = 0;
+			memset(framebuffer, 0x0, sizeof(framebuffer));
+			memset(bg_palette_indices, 0x0, sizeof(bg_palette_indices));
+
+			dot = 0;
+
+			if (memory_module::boot_ptr == nullptr)
+			{
+				// if boot ptr is not used. setup gpu state properly
+				lcd_enabled = true;
+				switch_lcd_mode(MODE_OAM_ACCESS);
+			}
+
+			return 0;
+		}
+
+		int initialize()
+		{
+			// setup memory ptrs
+			scanline = memory_module::get_memory(0xFF44, true);
+			coincidence_scanline = memory_module::get_memory(0xFF45, true);
+			lcd_control = memory_module::get_memory(0xFF40, true);
+			lcd_status = memory_module::get_memory(0xFF41, true);
+			scroll_y =  memory_module::get_memory(0xFF42, true);
+			scroll_x = memory_module::get_memory(0xFF43, true);
+			window_y = memory_module::get_memory(0xFF4A, true);
+			window_x = memory_module::get_memory(0xFF4B, true);
+			palette_bg = memory_module::get_memory(0xFF47, true);
+			sprite_attr = memory_module::get_memory(0xFE00, true);
+
+			reset();
+
+			return 0;
+		}
+
+		int draw_scanline_bg()
 		{
 			if (get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED) == false)
 			{
@@ -346,7 +458,7 @@ namespace gameboy
 			return 0;
 		}
 
-		int draw_sprites()
+		int draw_scanline_sprite()
 		{
 			if (get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED) == false)
 			{
@@ -509,255 +621,129 @@ namespace gameboy
 			return 0;
 		}
 
-		int increment_scanline()
-		{
-			if (*scanline < 144)
-			{
-				draw_scanline();
-				draw_sprites();
-			}
-
-			(*scanline)++; // inc scanline interrupt
-
-			if (*coincidence_scanline == *scanline)
-			{
-				if (get_lcd_interrupt_flag(FLAG_COINCIDENCE))
-				{
-					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
-				}
-			}
-
-			return 0;
-		}
-
-		int switch_lcd_mode(u8 lcd_mode)
-		{
-			set_lcd_status_mode(lcd_mode);
-			scanline_inc = false;
-
-			switch (lcd_mode)
-			{
-			case MODE_HBLANK:
-				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0x3);
-				memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0x3);
-
-				if (get_lcd_interrupt_flag(FLAG_HBLANK))
-				{
-					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
-				}
-
-				horz_cycle_count += 204;
-				break;
-			case MODE_VBLANK:
-				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0x3);
-				memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0x3);
-
-				// draw the scan line
-				draw_scanline();
-				//draw_sprites();
-
-				cpu::set_request_interrupt_flag(cpu::INTERRUPT_VBLANK);
-
-				if (get_lcd_interrupt_flag(FLAG_VBLANK))
-				{
-					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
-				}
-
-				horz_cycle_count += 456;
-				vblank_occurred = true;
-				break;
-			case MODE_OAM_ACCESS:
-				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0);
-
-				if (get_lcd_interrupt_flag(FLAG_OAM_ACCESS))
-				{
-					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
-				}
-
-				horz_cycle_count += 80;
-				break;
-			case MODE_VRAM_ACCESS:
-				memory_module::set_memory_access(memory_module::MEMORY_OAM, 0);
-				memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0);
-
-				horz_cycle_count += 172;
-				break;
-			}
-
-			return 0;
-		}
-
-		int update_lcd_scanline_lcd_enabling()
-		{
-			u8 lcd_mode = get_lcd_status_mode();
-			bool req_lcd_interrupt = false;
-
-			switch (lcd_mode)
-			{
-			case MODE_HBLANK:
-				if (horz_cycle_count < 0)
-				{
-					memory_module::set_memory_access(memory_module::MEMORY_OAM, 0);
-					memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0);
-
-					set_lcd_status_mode(MODE_VRAM_ACCESS);
-					horz_cycle_count += 172;
-				}
-				break;
-			case MODE_VRAM_ACCESS:
-				if (horz_cycle_count < 0)
-				{
-					lcd_enabling = false;
-					switch_lcd_mode(MODE_HBLANK);
-				}
-				break;
-			case MODE_VBLANK:
-			case MODE_OAM_ACCESS:
-				assert("lcd mode should not be set when enabling");
-				break;
-			}
-
-			return 0;
-		}
-
-		int update_lcd_scanline()
-		{
-			u8 lcd_mode = get_lcd_status_mode();
-			bool req_lcd_interrupt = false;
-
-			switch (lcd_mode)
-			{
-			case MODE_HBLANK:
-				if (!scanline_inc && horz_cycle_count <= 0)
-				{
-					// draw the scan line
-					increment_scanline();
-					scanline_inc = true;
-					memory_module::set_memory_access(memory_module::MEMORY_OAM, 0);
-				}
-
-				if (horz_cycle_count < 0)
-				{
-					switch_lcd_mode(MODE_OAM_ACCESS);
-				}
-				break;
-			case MODE_VBLANK:
-				if (horz_cycle_count < 0) // restart screen refresh
-				{
-					if (*scanline < 153)
-					{
-						increment_scanline();
-					}
-					else
-					{
-						*scanline = 0;
-						window_scanline_counter = 0; // reset window scanline
-						switch_lcd_mode(MODE_OAM_ACCESS);
-					}
-
-					horz_cycle_count += 456;
-				}
-				break;
-			case MODE_OAM_ACCESS:
-				if (horz_cycle_count <= 0)
-				{
-					memory_module::set_memory_access(memory_module::MEMORY_VRAM, 0);
-				}
-
-				if (horz_cycle_count < 0)
-				{
-					switch_lcd_mode(MODE_VRAM_ACCESS);
-				}
-				break;
-			case MODE_VRAM_ACCESS:
-				if (horz_cycle_count < 0)
-				{
-					if (*scanline < 143)
-					{
-						switch_lcd_mode(MODE_HBLANK);
-					}
-					else // enter vblank
-					{
-						switch_lcd_mode(MODE_VBLANK);
-					}
-				}
-				break;
-			}
-
-			return 0;
-		}
-		
 		int update(u8 cycles)
 		{
 			if (get_lcd_control_flag(FLAG_LCD_DISPLAY_ENABLED) == false)
 			{
 				if (lcd_enabled)
 				{
-					u8* framebuffer_ptr = (u8*)framebuffer;
-					u32 color = gpu::get_palette_color(0, 0);
+					printf("LCD Turned Off - PC: 0x%.4X\n", cpu::R.pc);
+					lcd_enabled = false;
+					*scanline = 0;
+					window_scanline_counter = 0;
+					dot = 0;
+					switch_lcd_mode(MODE_HBLANK, false);
 
-					for (u32 i = 0; i < (width * height); i++)
-					{
-						*framebuffer_ptr++ = (color >> 24) & 0xFF;
-						*framebuffer_ptr++ = (color >> 16) & 0xFF;
-						*framebuffer_ptr++ = (color >> 8) & 0xFF;
-						*framebuffer_ptr++ = 0xFF;
-					}
+					clear_screen();
 				}
-
-				lcd_enabled = false;
-				set_lcd_status_mode(MODE_HBLANK);
-				*scanline = 0;
-				window_scanline_counter = 0;
 
 				return 0;
 			}
 
+			// LCD just turned on
 			if (!lcd_enabled)
 			{
-				// lcd being re enabled. reset scanline and horz cycle count. lcd mode set to hblank
+				printf("LCD Turned On - PC: 0x%.4X\n", cpu::R.pc);
 				lcd_enabled = true;
 				lcd_enabling = true;
 				*scanline = 0;
 				window_scanline_counter = 0;
-				horz_cycle_count = 68;
-
-				set_lcd_status_mode(MODE_HBLANK);
-			}
-			else
-			{
-				horz_cycle_count -= cycles;
+				dot = 0;
+				switch_lcd_mode(MODE_HBLANK, false);
+				
+				clear_screen(); // dont think i need this
 			}
 
+			u8 old_mode = get_lcd_status_mode();
+
+			// Update dots
+			dot += cycles;
+
+			// LCD enabling: wait ~1 scanline before normal operation
 			if (lcd_enabling)
 			{
-				update_lcd_scanline_lcd_enabling();
+				if (dot >= 84)  // Short startup delay
+				{
+					lcd_enabling = false;
+					dot = 0;
+					*scanline = 0;
+
+					if (old_mode != MODE_OAM_ACCESS)
+					{
+						switch_lcd_mode(MODE_OAM_ACCESS);
+					}
+				}
+
+				return 0;  // Skip normal logic during enabling
 			}
-			else
+
+			// handle scanline transitions when beyond 456 dot count
+			while (dot >= 456)
 			{
-				update_lcd_scanline();
+				dot -= 456;
+				
+				// render before incrementing scanline
+				if (*scanline < 144)
+				{
+					draw_scanline_bg();
+					draw_scanline_sprite();
+				}
+				
+				(*scanline)++;
+
+				// check for V-Blank entry (scanline 144)
+				if (*scanline == 144)
+				{
+					if (old_mode != MODE_VBLANK)
+					{
+						switch_lcd_mode(MODE_VBLANK);
+					}
+
+					vblank_occurred = true;
+				}
+				else if (*scanline >= 154)
+				{
+					// loop scanline back to 9
+					*scanline = 0;
+					window_scanline_counter = 0;  // reset window counter here
+					
+					if (old_mode != MODE_OAM_ACCESS)
+					{
+						switch_lcd_mode(MODE_OAM_ACCESS);
+					}
+				}
+				
+				// Check coincidence flag
+				check_and_set_coincidence_flag();
+			}
+
+			// Update mode based on dot position (only for visible scanlines)
+			if (*scanline < 144)
+			{				
+				if (dot < 80)  // Mode 2: OAM Access
+				{
+					if (old_mode != MODE_OAM_ACCESS)
+					{
+						switch_lcd_mode(MODE_OAM_ACCESS);
+					}
+				}
+				else if (dot < 252)  // Mode 3: VRAM Access (80 + 172)
+				{
+					if (old_mode != MODE_VRAM_ACCESS)
+					{
+						switch_lcd_mode(MODE_VRAM_ACCESS);
+					}
+				}
+				else  // Mode 0: H-Blank (252 to 456)
+				{
+					if (old_mode != MODE_HBLANK)
+					{
+						switch_lcd_mode(MODE_HBLANK);
+					}
+				}
 			}
 
 			return 0;
-		}
-
-		void check_coincidence_flag()
-		{
-			if (*coincidence_scanline != *scanline)
-			{
-				*lcd_status &= ~(1 << 2); // clear bit 2 for coincidence
-			}
-
-			if (scanline_inc)
-			{
-				return;
-			}
-
-			// check for coincidence flag
-			if (*coincidence_scanline == *scanline)
-			{
-				*lcd_status |= (1 << 2); // set bit 2 for coincidence
-			}
 		}
 	}
 }

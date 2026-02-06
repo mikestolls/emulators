@@ -116,6 +116,8 @@ namespace gameboy
                     // Scanline Info
                     ImGui::Text("Scanline (0xFF44): 0x%02X (%d)", *gameboy::gpu::scanline, *gameboy::gpu::scanline);
                     ImGui::Text("LY Compare (0xFF45): 0x%02X (%d)", *gameboy::gpu::coincidence_scanline, *gameboy::gpu::coincidence_scanline);
+                    ImGui::Checkbox("LCD Enabled", &gameboy::gpu::lcd_enabled);
+                    ImGui::Checkbox("LCD Enabling", &gameboy::gpu::lcd_enabling);
                     
                     ImGui::PopStyleVar();
                     ImGui::SetWindowFontScale(1.0f);

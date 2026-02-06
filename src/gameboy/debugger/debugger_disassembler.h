@@ -26,6 +26,7 @@ namespace gameboy
 			u16 pc_start;
 			std::vector<u16> program_addr;
 			bool is_goto_prompt;
+			bool is_cpu_paused;
 
 			u16 find_next_instr(u16 pc)
 			{
@@ -157,12 +158,22 @@ namespace gameboy
 				pc_start = 0;
 				program_addr.push_back(0x0);
 				is_goto_prompt = false;
+				is_cpu_paused = false;
 
                 return 0;
             }
 
             int update()
             {
+				if (cpu::paused && !is_cpu_paused)
+				{
+					// CPU just paused (breakpoint hit) - snap to current PC
+					//goto_instr(cpu::R.pc);
+					is_cpu_paused = true;
+				}
+
+				is_cpu_paused = cpu::paused;
+
                 return 0;
             }
 
@@ -377,9 +388,11 @@ namespace gameboy
 							gameboy::disassembler::symbol sym;
 							gameboy::disassembler::disassemble_instr(cpu::R.pc, sym);
 
+							u16 next_pc = find_next_instr(cpu::R.pc);
+
 							if (sym.mnemonic.compare("CALL") == 0)
 							{
-								cpu::soft_breakpoints.push_back(find_next_instr(cpu::R.pc));
+								cpu::soft_breakpoints.push_back(next_pc);
 								cpu::paused = false;
 								cpu::breakpoint_disable_one_instr = true;
 							}
@@ -387,13 +400,14 @@ namespace gameboy
 							{
 								cpu::breakpoint_disable_one_instr = true;
 							}
+
+							goto_instr(next_pc);
 						}
 					}
 					else if (key == sf::Keyboard::Key::F11)
 					{
 						if (cpu::paused)
 						{
-							//cpu::paused = false;
 							cpu::breakpoint_disable_one_instr = true;
 						}
 					}
