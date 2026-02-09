@@ -165,6 +165,17 @@ namespace gameboy
 				return;
 			}
 
+			if (addr == 0xFF02 && (*value & 0x80)) // Serial transfer control - bit 7 set = transfer
+			{
+				u8 serial_data = mbc::memory[0xFF01]; // read serial data register
+				printf("%c", serial_data); // print char
+				fflush(stdout); // flush immediately
+
+				// clear transfer flag after transfer
+				mbc::memory[0xFF02] = *value & 0x7F;
+				return;
+			}
+
 			if (addr == 0xFF44) // current scanline. if anyone tries to write to this value we reset to 0
 			{
 				mbc::memory[addr] = 0x0;

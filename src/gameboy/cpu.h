@@ -1121,9 +1121,20 @@ namespace gameboy
 				}
 				case 0x4: // z = 4
 				{
+					u8 val;
+
+					if (y == 6) // using (HL) register
+					{
+						val = memory_module::read_memory(R.hl);
+					}
+					else
+					{
+						val = *register_single[y];
+					}
+
 					// INC register_single[y]
 					// check for the half carry only
-					if ((*register_single[y] & 0xF) == 0x0F)
+					if ((val & 0xF) == 0x0F)
 					{
 						set_flag(FLAG_HALFCARRY);
 					}
@@ -1132,7 +1143,7 @@ namespace gameboy
 						clear_flag(FLAG_HALFCARRY);
 					}
 
-					u8 val = *register_single[y] + 1;
+					val += 1;
 
 					if (y == 6) // register (HL)
 					{
@@ -1141,15 +1152,18 @@ namespace gameboy
 					}
 
 					// set new value
-					*register_single[y] = val;
-
-					if (y == 6) // register (HL)
+					if (y == 6) // using (HL) register
 					{
+						memory_module::write_memory(R.hl, val);
 						cycles += 4;
 						update_timer(4);
 					}
+					else
+					{
+						*register_single[y] = val;
+					}
 
-					if (*register_single[y] == 0)
+					if (val == 0)
 					{
 						set_flag(FLAG_ZERO);
 					}
@@ -1166,9 +1180,20 @@ namespace gameboy
 				}
 				case 0x5: // z = 5
 				{
+					u8 val;
+
+					if (y == 6) // using (HL) register
+					{
+						val = memory_module::read_memory(R.hl);
+					}
+					else
+					{
+						val = *register_single[y];
+					}
+
 					// DEC register_single[y]
 					// check for the half carry only
-					if (*register_single[y] & 0x0F)
+					if (val & 0x0F)
 					{
 						clear_flag(FLAG_HALFCARRY);
 					}
@@ -1177,7 +1202,7 @@ namespace gameboy
 						set_flag(FLAG_HALFCARRY);
 					}
 
-					u8 val = *register_single[y] - 1;
+					val -= 1;
 
 					if (y == 6) // register (HL)
 					{
@@ -1186,7 +1211,14 @@ namespace gameboy
 					}
 
 					// set new value
-					*register_single[y] = val;
+					if (y == 6) // using (HL) register
+					{
+						memory_module::write_memory(R.hl, val);
+					}
+					else
+					{
+						*register_single[y] = val;
+					}
 
 					if (y == 6) // register (HL)
 					{
@@ -1194,7 +1226,7 @@ namespace gameboy
 						update_timer(4);
 					}
 
-					if (*register_single[y] == 0)
+					if (val == 0)
 					{
 						set_flag(FLAG_ZERO);
 					}
@@ -1210,6 +1242,7 @@ namespace gameboy
 					break;
 				}
 				case 0x6: // z = 6
+				{
 					// LD register_single[y] with n
 					if (y == 6) // register is (HL)
 					{
@@ -1217,11 +1250,21 @@ namespace gameboy
 						update_timer(4);
 					}
 
-					*register_single[y] = readpc_u8();
+					int val = readpc_u8();
+
+					if (y == 6) // using (HL) register
+					{
+						memory_module::write_memory(R.hl, val);
+					}
+					else
+					{
+						*register_single[y] = val;
+					}
 
 					cycles += 8;
 					update_timer(8);
 					break;
+				}
 				case 0x7: // z = 7
 				{
 					switch (y)
@@ -1303,7 +1346,7 @@ namespace gameboy
 								a -= 0x60;
 							}
 						}
-						else 
+						else
 						{
 							if (get_flag(FLAG_HALFCARRY) != 0 || (a & 0xF) > 9)
 							{
@@ -1319,7 +1362,7 @@ namespace gameboy
 						R.a = (u8)(a & 0xFF);
 						clear_flag(FLAG_HALFCARRY);
 
-						if (R.a) 
+						if (R.a)
 						{
 							clear_flag(FLAG_ZERO);
 						}
@@ -1379,7 +1422,7 @@ namespace gameboy
 			} // end x = 0
 			case 0x1: // x = 1
 			{
-				if (z == 6 && y== 6)
+				if (z == 6 && y == 6)
 				{
 					// HALT
 					if (interrupt_master) // interrupt servicing enabled
@@ -1406,15 +1449,32 @@ namespace gameboy
 				}
 				else
 				{
+					u8 val;
+					if (z == 6) // using (HL) register
+					{
+						val = memory_module::read_memory(R.hl);
+					}
+					else
+					{
+						val = *register_single[z];
+					}
+
 					// LD register_single[y] with register_single[z]
-					*register_single[y] = *register_single[z];
+					if (y == 6) // using (HL) register
+					{
+						memory_module::write_memory(R.hl, val);
+					}
+					else
+					{
+						*register_single[y] = val;
+					}
 
 					if (y == 6 || z == 6) // LD (HL), A,B,C,F,E,F,H,L or LD A,B,C,F,E,H,L, (HL)
 					{
 						cycles += 4;
 						update_timer(4);
 					}
-					
+
 					cycles += 4;
 					update_timer(4);
 				}
@@ -1422,8 +1482,18 @@ namespace gameboy
 			} // end x = 1
 			case 0x2: // x = 2
 			{
+				u8 val;
+				if (z == 6) // using (HL) register
+				{
+					val = memory_module::read_memory(R.hl);
+				}
+				else
+				{
+					val = *register_single[z];
+				}
+
 				// alu[y] with register_single[z]
-				alu_function[y](register_single[z]);
+				alu_function[y](&val);
 
 				if (z == 6) // using (HL) register
 				{
@@ -1463,7 +1533,7 @@ namespace gameboy
 					{
 						// LD mem(FF00 + n) with A
 						u8 addr = readpc_u8();
-						
+
 						if (check_memory_breakpoint(R.pc - 2, addr))
 						{
 							return 0;
@@ -1509,7 +1579,7 @@ namespace gameboy
 
 						clear_flag(FLAG_ZERO);
 						clear_flag(FLAG_SUBTRACTION);
-												
+
 						cycles = 16;
 						update_timer(16);
 						break;
@@ -1523,7 +1593,7 @@ namespace gameboy
 						update_timer(4);
 
 						u8 val = memory_module::read_memory(0xFF00 + addr);
-						
+
 						cycles += 4;
 						update_timer(4);
 
@@ -1662,7 +1732,7 @@ namespace gameboy
 					{
 						// LD mem(nn) with A
 						u16 addr = readpc_u16();
-						
+
 						if (check_memory_breakpoint(R.pc - 3, addr))
 						{
 							return 0;
@@ -1677,7 +1747,7 @@ namespace gameboy
 						update_timer(4);
 
 						memory_module::write_memory(addr, &val, 1);
-						
+
 						cycles += 8;
 						update_timer(8);
 						break;
@@ -1862,36 +1932,54 @@ namespace gameboy
 			case 0x0:
 			{
 				// rot_function[y] with register_single[z]
+				u8 val;
 				if (z == 6) // (HL) register
 				{
 					cycles = 4;
 					update_timer(4);
+
+					val = memory_module::read_memory(R.hl);
+				}
+				else
+				{
+					val = *register_single[z];
 				}
 
-				u8 val = *register_single[z];
 				rot_function[y](&val);
 
 				if (z == 6) // (HL) register
 				{
 					cycles += 4;
 					update_timer(4);
-				}
 
-				*register_single[z] = val;
+					memory_module::write_memory(R.hl, val);
+				}
+				else
+				{
+					*register_single[z] = val;
+				}
 
 				cycles += 8;
 				update_timer(8);
 				break;
 			}
 			case 0x1:
+			{				
 				// test bit y from register_single[z]
+				u8 val;
 				if (z == 6) // (HL) register
 				{
 					cycles = 4;
 					update_timer(4);
+
+					val = memory_module::read_memory(R.hl);
+				}
+				else
+				{
+					val = *register_single[z];
 				}
 
-				if (*register_single[z] & (1 << y))
+				if (val & (1 << y))
 				{
 					clear_flag(FLAG_ZERO);
 				}
@@ -1906,25 +1994,36 @@ namespace gameboy
 				cycles += 8;
 				update_timer(8);
 				break;
+			}
 			case 0x2:
 			{
 				// reset bit y from register_single[z]
+				u8 val;
 				if (z == 6) // (HL) register
 				{
 					cycles = 4;
 					update_timer(4);
+
+					val = memory_module::read_memory(R.hl);
+				}
+				else
+				{
+					val = *register_single[z];
 				}
 
-				u8 val = *register_single[z];
 				val &= ~(1 << y);
 
 				if (z == 6) // (HL) register
 				{
 					cycles += 4;
 					update_timer(4);
-				}
 
-				*register_single[z] = val;
+					memory_module::write_memory(R.hl, val);
+				}
+				else
+				{
+					*register_single[z] = val;
+				}
 
 				cycles += 8;
 				update_timer(8);
@@ -1933,22 +2032,32 @@ namespace gameboy
 			case 0x3:
 			{
 				// reset bit y from register_single[z]
+				u8 val;
 				if (z == 6) // (HL) register
 				{
 					cycles = 4;
 					update_timer(4);
+
+					val = memory_module::read_memory(R.hl);
+				}
+				else
+				{
+					val = *register_single[z];
 				}
 
-				u8 val = *register_single[z];
 				val |= (1 << y);
 
 				if (z == 6) // (HL) register
 				{
 					cycles += 4;
 					update_timer(4);
-				}
 
-				*register_single[z] = val;
+					memory_module::write_memory(R.hl, val);
+				}
+				else
+				{
+					*register_single[z] = val;
+				}
 
 				cycles += 8;
 				update_timer(8);
@@ -2007,14 +2116,6 @@ namespace gameboy
 				breakpoint_disable_one_instr = false;
 			}
 			
-			// need to point this to mem. small hack for the (HL) register instructons
-			register_single[6] = memory_module::get_memory(R.hl); 
-			u8 temp_mem = 0xFF;
-			if (register_single[6] == 0x0)
-			{
-				register_single[6] = &temp_mem;
-			}
-
 			// update the joypad register
 			u8 joypad_register = memory_module::read_memory(0xFF00);
 			joypad_register &= 0xF0; // keep upper bits
