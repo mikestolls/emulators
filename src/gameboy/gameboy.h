@@ -88,6 +88,40 @@ namespace gameboy
 		return 0;
 	}
 
+	void check_test_status()
+	{
+		static bool is_ended = false;
+		static u16 last_pc = 0;
+
+		// Check if PC is stuck (test might be done)
+		if (!is_ended)
+		{
+			if (cpu::R.pc == last_pc && cpu::R.pc != 0)
+			{
+				// Test might be finished, check result register
+				u8 result = gameboy::memory_module::read_memory(0xA000, true);  // Common result address
+
+				if (result != 0)
+				{
+					printf("Test result at 0xA000: 0x%02X\n", result);
+
+					// Read result string if available
+					for (int i = 0; i < 256; i++)
+					{
+						u8 c = gameboy::memory_module::read_memory(0xA004 + i, true);
+						if (c == 0) break;
+						printf("%c", c);
+					}
+					printf("\n");
+
+					is_ended = true;
+				}
+			}
+		}
+
+		last_pc = cpu::R.pc;
+	}
+
 	int process_event(const sf::Event* event)
 	{
 		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
@@ -120,25 +154,27 @@ namespace gameboy
 	{
 		while (cycle_count < cpu::cycles_per_frame)
 		{
-			// update the cpu emulation
+			// Execute one instruction
 			u8 cpu_cycles = cpu::execute_opcode();
 			cycle_count += cpu_cycles;
 
-			// update gpu
+			//check_test_status();
+
+			// Update GPU once with total cycles
 			gpu::update(cpu_cycles);
 
+			// Check if emulator is paused/stopped
 			if (cpu::paused || !cpu::running)
 			{
 				break;
 			}
 
-			cpu_cycles = cpu::check_interrupts();
-			cycle_count += cpu_cycles;
+			// Check for interrupts after instruction
+			u8 interrupt_cycles = cpu::check_interrupts();
+			cycle_count += interrupt_cycles;
 
-			if (cpu_cycles > 0)
-			{
-				gpu::update(cpu_cycles);
-			}
+			// Update GPU once with total cycles
+			gpu::update(interrupt_cycles);
 		}
 
 		if (!cpu::paused && cpu::running)

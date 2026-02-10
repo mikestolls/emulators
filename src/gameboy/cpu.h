@@ -54,7 +54,6 @@ namespace gameboy
 		bool ei_occcurred = false;
 		bool halt = false;
 		bool halt_bug = false;
-		bool halt_continue_exec = false;
 		bool paused = false;
 
 		std::vector<u16> breakpoints;
@@ -80,7 +79,7 @@ namespace gameboy
 		// debug instruction timings
 		static const int instruction_times_nocondition[] = {
 			1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1,
-			0, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
+			1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
 			2, 3, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1,
 			2, 3, 2, 2, 3, 3, 3, 1, 2, 2, 2, 2, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
@@ -603,19 +602,20 @@ namespace gameboy
 			INTERRUPT_TIMER,
 			INTERRUPT_SERIAL_IO_END,
 			INTERRUPT_JOYPAD,
+			INTERRUPT_COUNT
 		};
 
 		inline void set_request_interrupt_flag(u8 flag)
 		{
-			flag = (1 << flag);
-			*interrupt_request_flag |= flag;
+			u8 flag_mask = (1 << flag);
+			*interrupt_request_flag |= flag_mask;
 			*interrupt_request_flag |= 0xE0;
 		}
 
 		inline void clear_request_interrupt_flag(u8 flag)
 		{
-			flag = (1 << flag);
-			*interrupt_request_flag &= ~flag; // clear the bit
+			u8 flag_mask = (1 << flag);
+			*interrupt_request_flag &= ~flag_mask; // clear the bit
 			*interrupt_request_flag |= 0xE0;
 		}
 
@@ -637,14 +637,14 @@ namespace gameboy
 		// interrupt enable function
 		inline void set_enabled_interrupt_flag(u8 flag)
 		{
-			flag = (1 << flag);
-			*interrupt_enable_flag |= flag;
+			u8 flag_mask = (1 << flag);
+			*interrupt_enable_flag |= flag_mask;
 		}
 
 		inline void clear_enabled_interrupt_flag(u8 flag)
 		{
-			flag = (1 << flag);
-			*interrupt_enable_flag &= ~flag; // clear the bit
+			u8 flag_mask = (1 << flag);
+			*interrupt_enable_flag &= ~flag_mask; // clear the bit
 		}
 
 		inline u8 get_enabled_interrupt_flag(u8 flag)
@@ -660,6 +660,8 @@ namespace gameboy
 		void service_interrupt(u8 interrupt)
 		{
 			push_sp_to_stack(R.pc);
+
+			interrupt_master = false; // servicing an interrupt will disable the master
 
 			u16 addr = 0;
 			switch (interrupt)
@@ -697,7 +699,7 @@ namespace gameboy
 				return 0;
 			}
 
-			for (u8 i = 0; i <= INTERRUPT_JOYPAD; i++)
+			for (u8 i = 0; i < INTERRUPT_COUNT; i++)
 			{
 				if (get_request_interrupt_flag(i) && get_enabled_interrupt_flag(i))
 				{
@@ -711,6 +713,8 @@ namespace gameboy
 							R.pc++;
 						}
 
+						update_timer(cycles);
+
 						service_interrupt(i);
 						clear_request_interrupt_flag(i);
 
@@ -718,16 +722,15 @@ namespace gameboy
 
 						return cycles;
 					}
-					else if (halt_continue_exec)
+					else if (halt)
 					{
 						R.pc++;
 						halt = false;
-						halt_continue_exec = false;
 						return 4;
 					}
 					else
 					{
-						return 4;
+						return 0;
 					}
 				}
 			}
@@ -831,7 +834,7 @@ namespace gameboy
 			interrupt_master = false;
 			interrupt_enable_flag = memory_module::get_memory(0xFFFF);
 			interrupt_request_flag = memory_module::get_memory(0xFF0F);
-			
+
 			timer_value = memory_module::get_memory(0xFF05);
 			timer_modulator = memory_module::get_memory(0xFF06);
 			timer_controller = memory_module::get_memory(0xFF07);
@@ -845,7 +848,6 @@ namespace gameboy
 			ei_occcurred = false;
 			halt = false;
 			halt_bug = false;
-			halt_continue_exec = false;
 			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
 			memory_breakpoint_last_addr = -1;
@@ -930,9 +932,31 @@ namespace gameboy
 						break;
 					}
 					case 0x2:
+					{
 						// STOP
-						running = false;
+						u8 key1 = memory_module::read_memory(0xFF4D);
+
+						if (key1 & 0x01)  // Bit 0 set = prepare speed switch
+						{
+							// CGB speed switch. toggle bit 7 (current speed)
+							key1 ^= 0x80;
+							key1 &= ~0x01;
+							memory_module::write_memory(0xFF4D, key1);
+
+							cycles = 4;
+							update_timer(4);
+						}
+						else
+						{
+							// normal STOP. like halth for read next byte which should be 0x0
+							readpc_u8();  // Read and discard the $00 after STOP
+
+							// For now, treat as NOP or halt
+							cycles = 4;
+							update_timer(4);
+						}
 						break;
+					}
 					case 0x3:
 						// JR d
 						R.pc += (s8)readpc_u8(); // relative jump is singed offset
@@ -1439,7 +1463,6 @@ namespace gameboy
 						else // no pending. we halt but dont service interrupt
 						{
 							halt = true;
-							halt_continue_exec = true;
 							R.pc--;
 						}
 					}
