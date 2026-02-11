@@ -214,9 +214,6 @@ namespace gameboy
 				return 0;
 			}
 
-			// get old flag
-			u8 cur_status = *lcd_status & (1 << 2);
-
 			if (*coincidence_scanline != *scanline)
 			{
 				*lcd_status &= ~(1 << 2); // clear bit 2 for coincidence
@@ -225,7 +222,7 @@ namespace gameboy
 			{
 				*lcd_status |= (1 << 2); // set bit 2 for coincidence				
 
-				if (cur_status == 0 && get_lcd_interrupt_flag(FLAG_COINCIDENCE))
+				if (get_lcd_interrupt_flag(FLAG_COINCIDENCE))
 				{
 					cpu::set_request_interrupt_flag(cpu::INTERRUPT_LCD);
 				}
@@ -697,9 +694,9 @@ namespace gameboy
 					if (old_mode != MODE_VBLANK)
 					{
 						switch_lcd_mode(MODE_VBLANK);
-					}
 
-					vblank_occurred = true;
+						vblank_occurred = true;
+					}
 				}
 				else if (*scanline >= 154)
 				{
@@ -712,7 +709,7 @@ namespace gameboy
 						switch_lcd_mode(MODE_OAM_ACCESS);
 					}
 				}
-				
+
 				// Check coincidence flag
 				check_and_set_coincidence_flag();
 			}

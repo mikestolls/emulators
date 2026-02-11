@@ -726,7 +726,7 @@ namespace gameboy
 					{
 						R.pc++;
 						halt = false;
-						return 4;
+						return 0;
 					}
 					else
 					{
