@@ -785,16 +785,6 @@ namespace gameboy
 
 		int update_timer(u8 cycles)
 		{
-			// testing updating gpu here
-			if (cpu::is_double_speed)
-			{
-				gpu::update(cycles >> 1);
-			}
-			else
-			{
-				gpu::update(cycles);
-			}
-
 			// update divide register first
 			divide_counter -= cycles;
 
