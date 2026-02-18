@@ -2,10 +2,16 @@
 
 #include "defines.h"
 
-#include "gameboy\memory_module.h"
+#include "gameboy/memory_module.h"
+#include "gameboy/gameboy.h"
 
 namespace gameboy
 {
+	namespace cpu
+	{
+		u16 get_current_pc();
+	}
+
 	namespace gpu
 	{
 		const bool green_palette = true;
@@ -28,10 +34,27 @@ namespace gameboy
 		bool sprite_pixels[160];
 		bool lcd_enabling = false;
 		bool lcd_enabled = false;
+		u8 lcd_enabling_frame_skip;
 		bool vblank_occurred = false;
 		u8 window_scanline_counter = 0;
 		u16 dot = 0;
-		
+
+		// Timing thresholds
+		const u16 dots_startup_delay = 244;
+		const u16 dots_per_line = 456;
+		const u16 mode2_end = 80;
+		const u16 mode3_end = 252;
+
+		u16 get_dots()
+		{
+			return dot;
+		}
+
+		u8 get_scanline()
+		{
+			return *scanline;
+		}
+
 		inline u8 get_lcd_control_flag(u8 flag)
 		{
 			return ((*lcd_control & (1 << flag)) >> flag);
@@ -64,7 +87,6 @@ namespace gameboy
 			mode &= 0x3; // just incase
 			*lcd_status &= 0xFC; // clear old mode bits
 			*lcd_status |= mode;
-			*lcd_status |= 0x80; // turn bit 7 on
 		}
 
 		inline u8 get_lcd_status_mode()
@@ -296,6 +318,7 @@ namespace gameboy
 		{
 			lcd_enabling = false;
 			lcd_enabled = false;
+			lcd_enabling_frame_skip = 0;
 			window_scanline_counter = 0;
 			memset(framebuffer, 0x0, sizeof(framebuffer));
 			memset(bg_palette_indices, 0x0, sizeof(bg_palette_indices));
@@ -624,14 +647,14 @@ namespace gameboy
 			{
 				if (lcd_enabled)
 				{
-					printf("LCD Turned Off - PC: 0x%.4X\n", cpu::R.pc);
 					lcd_enabled = false;
 					*scanline = 0;
 					window_scanline_counter = 0;
 					dot = 0;
 					switch_lcd_mode(MODE_HBLANK, false);
-
 					clear_screen();
+
+					//printf("LCD Disabled - PC: 0x%X\n", cpu::get_current_pc());
 				}
 
 				return 0;
@@ -640,15 +663,14 @@ namespace gameboy
 			// LCD just turned on
 			if (!lcd_enabled)
 			{
-				printf("LCD Turned On - PC: 0x%.4X\n", cpu::R.pc);
 				lcd_enabled = true;
 				lcd_enabling = true;
 				*scanline = 0;
 				window_scanline_counter = 0;
 				dot = 0;
 				switch_lcd_mode(MODE_HBLANK, false);
-				
-				clear_screen(); // dont think i need this
+
+				//printf("LCD Enabling - PC: 0x%X\n", cpu::get_current_pc());
 			}
 
 			u8 old_mode = get_lcd_status_mode();
@@ -659,33 +681,36 @@ namespace gameboy
 			// LCD enabling: wait ~1 scanline before normal operation
 			if (lcd_enabling)
 			{
-				if (dot >= 84)  // Short startup delay
+				if (dot >= dots_startup_delay)  // Short startup delay
 				{
 					lcd_enabling = false;
 					dot = 0;
 					*scanline = 0;
+					lcd_enabling_frame_skip = 3;
 
 					if (old_mode != MODE_OAM_ACCESS)
 					{
-						switch_lcd_mode(MODE_OAM_ACCESS);
+						switch_lcd_mode(MODE_OAM_ACCESS, false);
 					}
+
+					//printf("LCD Enabled - PC: 0x%X\n", cpu::get_current_pc());
 				}
 
-				return 0;  // Skip normal logic during enabling
+				return 0;
 			}
 
 			// handle scanline transitions when beyond 456 dot count
-			while (dot >= 456)
+			while (dot >= dots_per_line)
 			{
-				dot -= 456;
-				
+				dot -= dots_per_line;
+
 				// render before incrementing scanline
-				if (*scanline < 144)
+				if (*scanline < 144 && lcd_enabling_frame_skip == 0)
 				{
 					draw_scanline_bg();
 					draw_scanline_sprite();
 				}
-				
+
 				(*scanline)++;
 
 				// check for V-Blank entry (scanline 144)
@@ -695,6 +720,16 @@ namespace gameboy
 					{
 						switch_lcd_mode(MODE_VBLANK);
 
+						if (lcd_enabling_frame_skip > 0)
+						{
+							lcd_enabling_frame_skip--;
+
+							//if (lcd_enabling_frame_skip == 0)
+							//{
+							//	printf("LCD Enabled and Skipped Frames - PC: 0x%X\n", cpu::get_current_pc());
+							//}
+						}
+
 						vblank_occurred = true;
 					}
 				}
@@ -703,7 +738,7 @@ namespace gameboy
 					// loop scanline back to 9
 					*scanline = 0;
 					window_scanline_counter = 0;  // reset window counter here
-					
+
 					if (old_mode != MODE_OAM_ACCESS)
 					{
 						switch_lcd_mode(MODE_OAM_ACCESS);
@@ -716,15 +751,15 @@ namespace gameboy
 
 			// Update mode based on dot position (only for visible scanlines)
 			if (*scanline < 144)
-			{				
-				if (dot < 80)  // Mode 2: OAM Access
+			{
+				if (dot < mode2_end)  // Mode 2: OAM Access
 				{
 					if (old_mode != MODE_OAM_ACCESS)
 					{
 						switch_lcd_mode(MODE_OAM_ACCESS);
 					}
 				}
-				else if (dot < 252)  // Mode 3: VRAM Access (80 + 172)
+				else if (dot < mode3_end)  // Mode 3: VRAM Access (80 + 172)
 				{
 					if (old_mode != MODE_VRAM_ACCESS)
 					{

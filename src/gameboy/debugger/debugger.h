@@ -174,6 +174,7 @@ namespace gameboy
                         {
                             gameboy::cpu::reset();
                             gameboy::gpu::reset();
+                            gameboy::apu::reset();
 
 #ifdef USE_BOOT_ROM
                             boot_rom boot("gameboy/boot.gb");
