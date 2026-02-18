@@ -8,12 +8,28 @@
 
 //#include "mbc_base.h"
 
+//#define FORCE_VRAM_OAM
+
 namespace gameboy
 {
 	namespace cpu
 	{
 		void reset_timer_counter();
 		int update_timer(u8 cycles);
+		u16 get_current_pc();
+	}
+
+	namespace apu
+	{
+		int trigger_channel1();
+		int trigger_channel2();
+	}
+
+	namespace gpu
+	{
+		u8 get_lcd_status_mode();
+		u16 get_dots();
+		u8 get_scanline();
 	}
 	
 	namespace memory_module
@@ -107,6 +123,13 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
+#ifdef FORCE_VRAM_OAM
+					if (i == MEMORY_VRAM)
+					{
+						force = true;
+					}
+#endif
+
 					if (!force)
 					{
 						if ((memory_map[i].access & MEMORY_READABLE) == 0)
@@ -136,12 +159,20 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
+#ifdef FORCE_VRAM_OAM
+					if (i == MEMORY_VRAM)
+					{
+						force = true;
+					}
+#endif
+
 					if (!force)
 					{
 						if ((memory_map[i].access & MEMORY_READABLE) == 0)
 						{
-							print_warning("Warning - reading from memory map that is not readable: 0x%X\n", addr);
-							return 0xFF;
+							printf("Warning - reading from memory map %d that is not readable: 0x%X LCD Mode: %d Dot: %d Scanline: %d PC: 0x%X\n",
+								i, addr, gpu::get_lcd_status_mode(), gpu::get_dots(), gpu::get_scanline(), cpu::get_current_pc());
+							return 0;
 						}
 					}
 
@@ -175,8 +206,7 @@ namespace gameboy
 				mbc::memory[0xFF02] = *value & 0x7F;
 				return;
 			}
-
-			if (addr == 0xFF44) // current scanline. if anyone tries to write to this value we reset to 0
+			else if (addr == 0xFF44) // current scanline. if anyone tries to write to this value we reset to 0
 			{
 				mbc::memory[addr] = 0x0;
 				return;
@@ -200,7 +230,7 @@ namespace gameboy
 			else if (addr == 0xFF50)
 			{
 				// unload the boot rom
-				memcpy(mbc::memory_rom, rom_ptr->romdata, 0x100);
+				memcpy(mbc::memory_rom, rom_ptr->rom_data, 0x100);
 				return;
 			}
 			else if (addr == 0xFF46)
@@ -210,17 +240,80 @@ namespace gameboy
 				src_addr *= 0x100;
 				memcpy(&mbc::memory[0xFE00], &mbc::memory[src_addr], 0x9F);
 			}
+			else if (addr >= 0xFF10 && addr <= 0xFF26)
+			{
+				// APU registers - handle special cases
+				if (addr == 0xFF14 && (*value & 0x80)) // NR14 - Channel 1 trigger
+				{
+					// Trigger channel 1
+					mbc::memory[0xFF26] |= 0x01;  // Set channel 1 active in NR52
+
+					apu::trigger_channel1();
+
+					// Write the value (but clear trigger bit as it's write-only)
+					u8 write_val = *value & 0x7F;  // Clear bit 7 after trigger
+					memcpy(&mbc::memory[0xFF14], &write_val, size);
+				}
+				else if (addr == 0xFF19 && (*value & 0x80)) // NR24 - Channel 2 trigger
+				{
+					// Trigger channel 1
+					mbc::memory[0xFF26] |= 0x02;  // Set channel 2 active in NR52
+
+					apu::trigger_channel2();
+
+					// Write the value (but clear trigger bit as it's write-only)
+					u8 write_val = *value & 0x7F;  // Clear bit 7 after trigger
+					memcpy(&mbc::memory[0xFF19], &write_val, size);
+				}
+				else if (addr == 0xFF26) // NR52 - Sound on/off
+				{
+					if (!(*value & 0x80))
+					{
+						// Power off - clear all sound registers except NR52 bit 7
+						for (u16 a = 0xFF10; a <= 0xFF25; a++)
+						{
+							mbc::memory[a] = 0;
+						}
+						mbc::memory[0xFF26] = *value & 0x80;  // Keep only power bit
+					}
+					else
+					{
+						memcpy(&mbc::memory[addr], value, size);
+					}
+				}
+				else
+				{
+					// Normal write for other APU registers
+					memcpy(&mbc::memory[addr], value, size);
+				}
+
+				return;
+			}
 
 			// loop though memory map
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
+#ifdef FORCE_VRAM_OAM
+					if (i == MEMORY_VRAM)
+					{
+						if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
+						{
+							printf("Warning - writing to memory map %d that is not writable: 0x%X LCD Mode: %d Dot: %d Scanline: %d PC: 0x%X\n",
+								i, addr, gpu::get_lcd_status_mode(), gpu::get_dots(), gpu::get_scanline(), cpu::get_current_pc());
+						}
+
+						force = true;
+					}
+#endif
+
 					if (!force)
 					{						
 						if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
 						{
-							print_warning("Warning - writing to memory map that is not writable: 0x%X map: %d\n", addr, i);
+							printf("Warning - writing to memory map %d that is not writable: 0x%X LCD Mode: %d Dot: %d Scanline: %d PC: 0x%X\n",
+								i, addr, gpu::get_lcd_status_mode(), gpu::get_dots(), gpu::get_scanline(), cpu::get_current_pc());
 							return;
 						}
 					}
@@ -248,7 +341,7 @@ namespace gameboy
 		int reset()
 		{
 			mbc::mbc_reset();
-			mbc::mbc_initialize(rom_ptr->romheader.romSize, rom_ptr->romheader.ramSize, rom_ptr->romdata, (u64)rom_ptr->romsize);
+			mbc::mbc_initialize(rom_ptr->rom_header.rom_size, rom_ptr->rom_header.ram_size, rom_ptr->rom_data, (u64)rom_ptr->rom_size);
 
 			memory_map[MEMORY_CARTRIDGE_ROM].memory_ptr = &mbc::memory_rom;
 			memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].memory_ptr = &mbc::memory_switchable_rom;
@@ -262,13 +355,22 @@ namespace gameboy
 			memory_map[MEMORY_ZERO_PAGE].memory_ptr = &mbc::memory_zero_page;
 			memory_map[MEMORY_INTERRUPT_FLAG].memory_ptr = &mbc::memory_interrupt_flag;
 
+			bool is_cgb_mode = (rom_ptr->rom_header.cgb_flag == 0x80 || rom_ptr->rom_header.cgb_flag == 0xC0);
+
+			// default key1 depending on DMG or CGB
+			u8 key1 = 0xFF;
+			if (is_cgb_mode)
+			{
+				key1 = 0x7E;
+			}
+
 			// copy boot rom
 			if (boot_ptr)
 			{
-				memcpy(mbc::memory_rom, boot_ptr->romdata, 0x100);
+				memcpy(mbc::memory_rom, boot_ptr->rom_data, 0x100);
 
-				write_memory(0xFF4D, 0xFF); // KEY1 - CGB only
-				write_memory(0xFF41, 0x84); // LCDS
+				write_memory(0xFF4D, key1); // KEY1
+				write_memory(0xFF41, is_cgb_mode ? 0x04 : 0x84); // LCDS
 			}
 			else
 			{
@@ -281,7 +383,7 @@ namespace gameboy
 				write_memory(0xFF10, 0x80); // NR10
 				write_memory(0xFF11, 0xBF); // NR11
 				write_memory(0xFF12, 0xF3); // NR12
-				write_memory(0xFF14, 0xBF); // NR14
+				write_memory(0xFF14, 0x3F); // NR14
 				write_memory(0xFF16, 0x3F); // NR21
 				write_memory(0xFF17, 0x00); // NR22
 				write_memory(0xFF19, 0xBF); // NR24
@@ -297,7 +399,7 @@ namespace gameboy
 				write_memory(0xFF25, 0xF3); // NR51
 				write_memory(0xFF26, 0xF1); // GB
 				write_memory(0xFF40, 0x91); // LCDC
-				write_memory(0xFF41, 0x85); // LCDS
+				write_memory(0xFF41, is_cgb_mode ? 0x05 : 0x85); // LCDS
 				write_memory(0xFF42, 0x00); // SCY
 				write_memory(0xFF43, 0x00); // SCX
 				write_memory(0xFF45, 0x00); // LYC
@@ -306,7 +408,7 @@ namespace gameboy
 				write_memory(0xFF49, 0xFF); // OBP1
 				write_memory(0xFF4A, 0x00); // WY
 				write_memory(0xFF4B, 0x00); // WX
-				write_memory(0xFF4D, 0x7E); // KEY1 - DMG only
+				write_memory(0xFF4D, key1); // KEY1
 				write_memory(0xFFFF, 0x00); // IE
 			}
 

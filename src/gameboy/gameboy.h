@@ -8,6 +8,7 @@
 #include "cpu.h"
 #include "input.h"
 #include "gpu.h"
+#include "apu.h"
 #include "rom.h"
 #include "boot_rom.h"
 #include "disassembler.h"
@@ -73,6 +74,7 @@ namespace gameboy
 
 		cpu::initialize();
 		gpu::initialize();
+		apu::initialize();
 
 		debugger::init_debugger();
 		debugger::window.setVisible(false);
@@ -150,18 +152,40 @@ namespace gameboy
 		return 0;
 	}
 
+	int update_peripherals(u8 cycles)
+	{
+		u8 peripheral_cycle = cycles;
+		if (cpu::is_double_speed)
+		{
+			peripheral_cycle >>= 1;
+		}
+
+
+		gpu::update(peripheral_cycle);
+		apu::update(peripheral_cycle);
+
+		cpu::update_timer(cycles);
+
+		return 0;
+	}
+
 	int update(const sf::Time& deltaTime)
 	{
-		while (cycle_count < cpu::cycles_per_frame)
+		u32 cycles_needed = cpu::cycles_per_frame;
+		if (cpu::is_double_speed)
+		{
+			cycles_needed *= 2;  // Need 2x CPU cycles in double-speed for same real-time duration
+		}
+
+		// check if vblank happened with proper amount of cycles
+
+		while (!gpu::vblank_occurred)
 		{
 			// Execute one instruction
 			u8 cpu_cycles = cpu::execute_opcode();
 			cycle_count += cpu_cycles;
-
+			
 			//check_test_status();
-
-			// Update GPU once with total cycles
-			gpu::update(cpu_cycles);
 
 			// Check if emulator is paused/stopped
 			if (cpu::paused || !cpu::running)
@@ -172,24 +196,22 @@ namespace gameboy
 			// Check for interrupts after instruction
 			u8 interrupt_cycles = cpu::check_interrupts();
 			cycle_count += interrupt_cycles;
+		}
 
-			// Update GPU once with total cycles
-			gpu::update(interrupt_cycles);
+		if (cycle_count < cycles_needed)
+		{
+			printf("Cycle Count: %d Cycles Needed: %d\n", cycle_count, cycles_needed);
 		}
 
 		if (!cpu::paused && cpu::running)
 		{
 			// once we have passed cycles per frame reset cycle count
-			cycle_count -= cpu::cycles_per_frame;
+			cycle_count -= cycles_needed;
 		}
 
 		// update the framebuffer
-		if (gpu::vblank_occurred)
-		{
-			framebuffer_texture.update(gpu::framebuffer, sf::Vector2u(gpu::width, gpu::height), sf::Vector2u(0, 0));
-
-			gpu::vblank_occurred = false;
-		}
+		framebuffer_texture.update(gpu::framebuffer, sf::Vector2u(gpu::width, gpu::height), sf::Vector2u(0, 0));
+		gpu::vblank_occurred = false;
 
 		// update 
 		debugger::update_debugger(deltaTime);

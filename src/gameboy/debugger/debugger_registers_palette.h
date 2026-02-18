@@ -55,7 +55,7 @@ namespace gameboy
 
                         // draw gpu info
                         ImGui::Text(" LCDC: 0x%02X", *gpu::lcd_control);
-                        ImGui::Text(" LCDS: 0x%02X", (0x80 | *gpu::lcd_status));
+                        ImGui::Text(" LCDS: 0x%02X", *gpu::lcd_status);
                         ImGui::Text(" SCAN: 0x%02X", *gpu::scanline);
                         ImGui::Text("CSCAN: 0x%02X", *gpu::coincidence_scanline);
                         ImGui::Text("   IE: 0x%02X", *cpu::interrupt_enable_flag);
