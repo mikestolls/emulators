@@ -8,7 +8,7 @@
 
 //#include "mbc_base.h"
 
-//#define FORCE_VRAM_OAM
+#define FORCE_VRAM_OAM
 
 namespace gameboy
 {
@@ -17,6 +17,7 @@ namespace gameboy
 		void reset_timer_counter();
 		int update_timer(u8 cycles);
 		u16 get_current_pc();
+		void set_double_speed(bool double_speed);
 	}
 
 	namespace apu
@@ -226,6 +227,21 @@ namespace gameboy
 					cpu::reset_timer_counter(); // reset timer
 				}
 				return;
+			}
+			else if (addr == 0xFF4D)
+			{
+				// speed switch
+				bool is_double_speed = (*value & 0x80) != 0;
+				cpu::set_double_speed(is_double_speed);
+
+				if (is_double_speed)
+				{
+					printf("Double Speed Enabled - PC: 0x%X\n", cpu::get_current_pc());
+				}
+				else
+				{
+					printf("Double Speed Disabled - PC: 0x%X\n", cpu::get_current_pc());
+				}
 			}
 			else if (addr == 0xFF50)
 			{

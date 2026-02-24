@@ -27,6 +27,7 @@ namespace gameboy
 			std::vector<u16> program_addr;
 			bool is_goto_prompt;
 			bool is_cpu_paused;
+			bool is_skip_update;
 
 			u16 find_next_instr(u16 pc)
 			{
@@ -159,16 +160,30 @@ namespace gameboy
 				program_addr.push_back(0x0);
 				is_goto_prompt = false;
 				is_cpu_paused = false;
+				is_skip_update = false;
+
+				cpu::breakpoints.push_back(0x100);
 
                 return 0;
             }
 
             int update()
             {
+				if (is_skip_update) // mostly used for step in and over to allow cpu to run first to update PC
+				{
+					is_skip_update = false;
+					return 0;
+				}
+
+				if (!cpu::is_opcode_complete)
+				{
+					return 0;
+				}
+
 				if (cpu::paused && !is_cpu_paused)
 				{
 					// CPU just paused (breakpoint hit) - snap to current PC
-					//goto_instr(cpu::R.pc);
+					goto_instr(cpu::R.pc);
 					is_cpu_paused = true;
 				}
 
@@ -376,11 +391,6 @@ namespace gameboy
 							cpu::breakpoint_disable_one_instr = true;
 						}
 					}
-					else if (key == sf::Keyboard::Key::F6)
-					{
-						cpu::paused = true;
-						goto_instr(cpu::R.pc);
-					}
 					else if (key == sf::Keyboard::Key::F10)
 					{
 						if (cpu::paused)
@@ -390,18 +400,16 @@ namespace gameboy
 
 							u16 next_pc = find_next_instr(cpu::R.pc);
 
+							// handle stepping over a call
 							if (sym.mnemonic.compare("CALL") == 0)
 							{
 								cpu::soft_breakpoints.push_back(next_pc);
 								cpu::paused = false;
-								cpu::breakpoint_disable_one_instr = true;
-							}
-							else
-							{
-								cpu::breakpoint_disable_one_instr = true;
 							}
 
-							goto_instr(next_pc);
+							cpu::breakpoint_disable_one_instr = true;
+							is_cpu_paused = false;
+							is_skip_update = true;
 						}
 					}
 					else if (key == sf::Keyboard::Key::F11)
@@ -409,6 +417,8 @@ namespace gameboy
 						if (cpu::paused)
 						{
 							cpu::breakpoint_disable_one_instr = true;
+							is_cpu_paused = false;
+							is_skip_update = true;
 						}
 					}
 					else if (key == sf::Keyboard::Key::G)

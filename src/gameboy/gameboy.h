@@ -181,27 +181,30 @@ namespace gameboy
 
 		while (!gpu::vblank_occurred)
 		{
+			cpu::update();
 			// Execute one instruction
-			u8 cpu_cycles = cpu::execute_opcode();
-			cycle_count += cpu_cycles;
+			//u8 cpu_cycles = cpu::execute_opcode();
+			//cycle_count += cpu_cycles;
 			
 			//check_test_status();
 
 			// Check if emulator is paused/stopped
-			if (cpu::paused || !cpu::running)
+			if ((cpu::paused || !cpu::running) && cpu::is_opcode_complete)
 			{
 				break;
 			}
 
 			// Check for interrupts after instruction
 			u8 interrupt_cycles = cpu::check_interrupts();
-			cycle_count += interrupt_cycles;
+			//cycle_count += interrupt_cycles;
+
+			gpu::update(4);
 		}
 
-		if (cycle_count < cycles_needed)
-		{
-			printf("Cycle Count: %d Cycles Needed: %d\n", cycle_count, cycles_needed);
-		}
+		//if (cycle_count < cycles_needed)
+		//{
+		//	printf("Cycle Count: %d Cycles Needed: %d\n", cycle_count, cycles_needed);
+		//}
 
 		if (!cpu::paused && cpu::running)
 		{
