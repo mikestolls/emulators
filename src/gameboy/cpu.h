@@ -95,7 +95,9 @@ namespace gameboy
 			MICRO_OP_TYPE micro_op_type;
 			u8* src_ptr = nullptr;
 			u8* dest_ptr = nullptr;
+			u16 dest_mask = 0xFFFF;
 			u16 addr = 0;
+			u16 addr_offset = 0x0;
 			s16 value = 0;
 			u8* value_ptr = nullptr;
 			s8 src_modify = 0;
@@ -123,7 +125,7 @@ namespace gameboy
 		const u32 fps = 60;
 
 		bool running = true;
-		bool ei_occcurred = false;
+		u8 ei_occcurred = 0;
 		bool halt = false;
 		bool halt_bug = false;
 		bool paused = false;
@@ -797,10 +799,8 @@ namespace gameboy
 
 		int check_interrupts()
 		{
-			if (ei_occcurred)
+			if (interrupt_master == false)
 			{
-				ei_occcurred = false;
-				interrupt_master = true;
 				return 0;
 			}
 
@@ -818,7 +818,7 @@ namespace gameboy
 							R.pc++;
 						}
 
-						gameboy::update_peripherals(cycles);
+						//gameboy::update_peripherals(cycles);
 
 						service_interrupt(i);
 						clear_request_interrupt_flag(i);
@@ -976,7 +976,7 @@ namespace gameboy
 
 			paused = false;
 			running = true;
-			ei_occcurred = false;
+			ei_occcurred = 0;
 			halt = false;
 			halt_bug = false;
 			is_double_speed = false;
@@ -1200,11 +1200,12 @@ namespace gameboy
 						set_flag(flag, FLAG_CARRY);
 
 						u8 reset_flag = 0x0;
-						set_flag(flag, FLAG_SUBTRACTION);
+						set_flag(reset_flag, FLAG_SUBTRACTION);
 
 						MicroOp add;
 						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
-						add.src_ptr = (u8*)&last_temp_value;
+						add.src_ptr = (u8*)&R.hl;
+						add.value_ptr = (u8*)&last_temp_value;
 						add.dest_ptr = (u8*)&R.hl;
 						add.set_flags = flag;
 						add.reset_flags = reset_flag;
@@ -1440,7 +1441,7 @@ namespace gameboy
 						set_flag(flag, FLAG_HALFCARRY);
 
 						u8 reset_flag = 0x0;
-						set_flag(flag, FLAG_SUBTRACTION);
+						set_flag(reset_flag, FLAG_SUBTRACTION);
 
 						MicroOp inc;
 						inc.micro_op_type = MICRO_OP_TYPE::ADD_8;
@@ -1448,6 +1449,7 @@ namespace gameboy
 						inc.is_use_value = true;
 						inc.src_ptr = (u8*)&last_temp_value; 
 						inc.dest_ptr = (u8*)&last_temp_value;
+						inc.is_signed = true;
 						inc.set_flags = flag;
 						inc.reset_flags = reset_flag;
 						micro_op_queue.push_back(inc);
@@ -1472,7 +1474,7 @@ namespace gameboy
 						set_flag(flag, FLAG_HALFCARRY);
 
 						u8 reset_flag = 0x0;
-						set_flag(flag, FLAG_SUBTRACTION);
+						set_flag(reset_flag, FLAG_SUBTRACTION);
 
 						MicroOp inc;
 						inc.micro_op_type = MICRO_OP_TYPE::ADD_8;
@@ -1480,6 +1482,7 @@ namespace gameboy
 						inc.is_use_value = true;
 						inc.src_ptr = (u8*)&last_temp_value;
 						inc.dest_ptr = (u8*)register_single[y];
+						inc.is_signed = true;
 						inc.set_flags = flag;
 						inc.reset_flags = reset_flag;
 						micro_op_queue.push_back(inc);
@@ -1509,6 +1512,7 @@ namespace gameboy
 						inc.is_use_value = true;
 						inc.src_ptr = (u8*)&last_temp_value;
 						inc.dest_ptr = (u8*)&last_temp_value;
+						inc.is_signed = true;
 						inc.set_flags = flag;
 						micro_op_queue.push_back(inc);
 
@@ -1537,6 +1541,7 @@ namespace gameboy
 						inc.is_use_value = true;
 						inc.src_ptr = (u8*)&last_temp_value;
 						inc.dest_ptr = (u8*)register_single[y];
+						inc.is_signed = true;
 						inc.set_flags = flag;
 						micro_op_queue.push_back(inc);
 					}
@@ -1794,7 +1799,8 @@ namespace gameboy
 						micro_op_queue.push_back(fetch);
 
 						MicroOp add;
-						add.micro_op_type = MICRO_OP_TYPE::ADD_8;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
+						add.is_use_value = true;
 						add.value = 0xFF00;
 						add.src_ptr = (u8*)&last_temp_value;
 						add.dest_ptr = (u8*)&last_temp_value;
@@ -1816,32 +1822,34 @@ namespace gameboy
 						fetch.dest_ptr = (u8*)&last_temp_value;
 						micro_op_queue.push_back(fetch);
 
-						// adding to pad timing
-						MicroOp nop0;
-						nop0.micro_op_type = MICRO_OP_TYPE::NOP;
-						micro_op_queue.push_back(nop0);
-
-						// adding to pad timing
-						MicroOp nop2;
-						nop2.micro_op_type = MICRO_OP_TYPE::NOP;
-						micro_op_queue.push_back(nop2);
-
 						u8 flag = 0x0;
 						set_flag(flag, FLAG_HALFCARRY);
 						set_flag(flag, FLAG_CARRY);
 
 						u8 reset_flag = 0x0;
-						set_flag(flag, FLAG_ZERO);
-						set_flag(flag, FLAG_SUBTRACTION);
+						set_flag(reset_flag, FLAG_ZERO);
+						set_flag(reset_flag, FLAG_SUBTRACTION);
 
 						MicroOp add;
 						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
-						add.src_ptr = (u8*)&last_temp_value;
-						add.dest_ptr = (u8*)&R.sp;
+						add.src_ptr = (u8*)&R.sp;
+						add.value_ptr = (u8*)&last_temp_value;
+						add.dest_ptr = (u8*)&last_temp_value;
 						add.is_signed = true;
 						add.set_flags = flag;
 						add.reset_flags = reset_flag;
 						micro_op_queue.push_back(add);
+
+						MicroOp assign;
+						assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+						assign.src_ptr = (u8*)&last_temp_value;
+						assign.dest_ptr = (u8*)&R.sp;
+						micro_op_queue.push_back(assign);
+
+						// adding to pad timing
+						MicroOp nop0;
+						nop0.micro_op_type = MICRO_OP_TYPE::NOP;
+						micro_op_queue.push_back(nop0);
 
 						break;
 					}
@@ -1854,7 +1862,8 @@ namespace gameboy
 						micro_op_queue.push_back(fetch);
 
 						MicroOp add;
-						add.micro_op_type = MICRO_OP_TYPE::ADD_8;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
+						add.is_use_value = true;
 						add.value = 0xFF00;
 						add.src_ptr = (u8*)&last_temp_value;
 						add.dest_ptr = (u8*)&last_temp_value;
@@ -1882,13 +1891,13 @@ namespace gameboy
 						set_flag(flag, FLAG_CARRY);
 
 						u8 reset_flag = 0x0;
-						set_flag(flag, FLAG_ZERO);
-						set_flag(flag, FLAG_SUBTRACTION);
+						set_flag(reset_flag, FLAG_ZERO);
+						set_flag(reset_flag, FLAG_SUBTRACTION);
 
 						MicroOp add;
 						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
-						add.src_ptr = (u8*)&last_temp_value;
-						add.value_ptr = (u8*)&R.sp;
+						add.src_ptr = (u8*)&R.sp;
+						add.value_ptr = (u8*)&last_temp_value;
 						add.dest_ptr = (u8*)&last_temp_value;
 						add.is_signed = true;
 						add.set_flags = flag;
@@ -1928,6 +1937,7 @@ namespace gameboy
 						assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
 						assign.src_ptr = (u8*)&last_temp_value;
 						assign.dest_ptr = (u8*)register_pairs2[p];
+						assign.dest_mask = (p == 3 ? 0xFFF0 : 0xFFFF); // p == 3 means its writing to AF so we mask
 						micro_op_queue.push_back(assign);
 					}
 					else
@@ -2102,7 +2112,8 @@ namespace gameboy
 					{
 						// LD A with mem(FF00 + C)
 						MicroOp add;
-						add.micro_op_type = MICRO_OP_TYPE::ADD_8;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
+						add.is_use_value = true;
 						add.value = 0xFF00;
 						add.src_ptr = (u8*)&R.c;
 						add.dest_ptr = (u8*)&last_temp_value;
@@ -2748,7 +2759,7 @@ namespace gameboy
 
 				if (op.dest_ptr != nullptr)
 				{
-					*op.dest_ptr = value;
+					*op.dest_ptr = value & op.dest_mask;
 				}
 
 				break;
@@ -2767,7 +2778,7 @@ namespace gameboy
 				
 				if (op.dest_ptr != nullptr)
 				{
-					*((u16*)op.dest_ptr) = value;
+					*((u16*)op.dest_ptr) = value & op.dest_mask;
 				}
 
 				break;
@@ -2779,18 +2790,28 @@ namespace gameboy
 					assert(false);
 				}
 
+				if (op.src_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				s32 original = (s8)*((u8*)op.src_ptr);
 				s32 value = 0x0;
+
 				if (op.is_use_value) // if use value we add to total value
 				{
 					value = (s8)op.value;
 				}
 				else if (op.value_ptr != nullptr) // if we passed pointer to value
 				{
-					value = (s8)*op.value_ptr;
-				}
-				else if (op.src_ptr != nullptr) // if src ptr add to value
-				{
-					value = (s8)*op.src_ptr;
+					if (op.is_signed) // note: is signed only works with 8 bit value ptr
+					{
+						value = (s8)*((s8*)op.value_ptr);
+					}
+					else
+					{
+						value = (s8)(*((u8*)op.value_ptr));
+					}
 				}
 
 				// check for carry
@@ -2800,14 +2821,14 @@ namespace gameboy
 
 					if (value >= 0)
 					{
-						if ((*op.dest_ptr + value) & 0xFF)
+						if ((original + value) & 0xFF)
 						{
 							set_flag(FLAG_CARRY);
 						}
 					}
 					else
 					{
-						if (*op.dest_ptr < (u8)(-value))
+						if (original < (u8)(-value))
 						{
 							set_flag(FLAG_CARRY);
 						}
@@ -2821,14 +2842,14 @@ namespace gameboy
 
 					if (value >= 0)
 					{
-						if ((*op.dest_ptr & 0xF) + (value & 0xF) > 0xF)
+						if ((original & 0xF) + (value & 0xF) > 0xF)
 						{
 							set_flag(FLAG_HALFCARRY);
 						}
 					}
 					else
 					{
-						if ((*op.dest_ptr & 0xF) < ((-value & 0xF) & 0xF))
+						if ((original & 0xF) < ((-value & 0xF) & 0xF))
 						{
 							set_flag(FLAG_HALFCARRY);
 						}
@@ -2851,7 +2872,7 @@ namespace gameboy
 				// Zero flag
 				if (get_flag(op.set_flags, FLAG_ZERO) != 0)
 				{
-					if (((*op.dest_ptr + (u8)value) & 0xFF) == 0)
+					if (((original + (u8)value) & 0xFF) == 0)
 					{
 						set_flag(FLAG_ZERO);
 					}
@@ -2871,8 +2892,8 @@ namespace gameboy
 				}
 
 				// set result
-				value += *op.dest_ptr;
-				*op.dest_ptr = (u8)(value & 0xFF);
+				original += value;
+				*op.dest_ptr = (u8)(original & 0xFF);
 
 				break;
 			}
@@ -2883,6 +2904,12 @@ namespace gameboy
 					assert(false);
 				}
 
+				if (op.src_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				s32 original = (s16)*((u16*)op.src_ptr);
 				s32 value = 0x0;
 				if (op.is_use_value) // if use value we add to total value
 				{
@@ -2890,11 +2917,14 @@ namespace gameboy
 				}
 				else if (op.value_ptr != nullptr) // if we passed pointer to value
 				{
-					value = (s16)*((u16*)op.value_ptr);
-				}
-				else if (op.src_ptr != nullptr) // if src ptr add to value
-				{
-					value = (s16)*((u16*)op.src_ptr);
+					if (op.is_signed) // note: is signed only works with 8 bit value ptr
+					{
+						value = (s16) * ((s8*)op.value_ptr);
+					}
+					else
+					{
+						value = (s16)(*((u16*)op.value_ptr));
+					}
 				}
 
 				// check for carry
@@ -2904,14 +2934,14 @@ namespace gameboy
 
 					if (value >= 0)
 					{
-						if ((*((u16*)op.dest_ptr) + value) > 0xFFFF)
+						if ((original + value) > 0xFFFF)
 						{
 							set_flag(FLAG_CARRY);
 						}
 					}
 					else
 					{
-						if (*(u16*)op.dest_ptr < (u16)(-value))
+						if (original < (u16)(-value))
 						{
 							set_flag(FLAG_CARRY);
 						}
@@ -2925,14 +2955,14 @@ namespace gameboy
 
 					if (value >= 0)
 					{
-						if ((*((u16*)op.dest_ptr) & 0xFFF) + (value & 0xFFF) > 0xFFF)
+						if ((original & 0xFFF) + (value & 0xFFF) > 0xFFF)
 						{
 							set_flag(FLAG_HALFCARRY);
 						}
 					}
 					else
 					{
-						if ((*((u16*)op.dest_ptr) & 0xFFF) < ((-value) & 0xFFF))
+						if ((original & 0xFFF) < ((-value) & 0xFFF))
 						{
 							set_flag(FLAG_HALFCARRY);
 						}
@@ -2955,7 +2985,7 @@ namespace gameboy
 				// Zero flag
 				if (get_flag(op.set_flags, FLAG_ZERO) != 0)
 				{
-					if (((*op.dest_ptr + (u8)value) & 0xFFFF) == 0)
+					if (((original + (u8)value) & 0xFFFF) == 0)
 					{
 						set_flag(FLAG_ZERO);
 					}
@@ -2975,8 +3005,8 @@ namespace gameboy
 				}
 
 				// set the result
-				value += (s32)*((s32*)op.dest_ptr);
-				*((u16*)op.dest_ptr) = (u16)(value & 0xFFFF);
+				original += value;
+				*((u16*)op.dest_ptr) = (u16)(original & 0xFFFF);
 
 				break;
 			}
@@ -2992,6 +3022,8 @@ namespace gameboy
 				{
 					addr = *((u16*)op.src_ptr);
 				}
+
+				addr += op.addr_offset; // add a addr offset. mostly used for 0xFF00 + n ops
 
 				if (check_memory_breakpoint(current_pc, addr))
 				{
@@ -3029,6 +3061,8 @@ namespace gameboy
 				{
 					addr = *((u16*)op.dest_ptr);
 				}
+
+				addr += op.addr_offset; // add a addr offset. mostly used for 0xFF00 + n ops
 
 				if (check_memory_breakpoint(current_pc, addr))
 				{
@@ -3279,12 +3313,14 @@ namespace gameboy
 					{
 					case IME_MODE::DISABLE:
 						interrupt_master = false;
+						ei_occcurred = 0;
 						break;
 					case IME_MODE::ENABLE:
 						interrupt_master = true;
+						ei_occcurred = 0;
 						break;
 					case IME_MODE::ENABLE_DELAYED:
-						ei_occcurred = true;
+						ei_occcurred = 2;
 						break;
 					}
 				}
@@ -3358,12 +3394,25 @@ namespace gameboy
 				last_opcode = 0x0;
 				last_temp_value = 0x0;
 
+				// when pulling new op code. if ei occured on delay we enable here
+				if (ei_occcurred > 0)
+				{
+					ei_occcurred--;
+
+					if (ei_occcurred == 0)
+					{
+						ei_occcurred = false;
+						interrupt_master = true;
+					}
+				}
+
 				// fetch the opcode
 				MicroOp fetch_op;
 				fetch_op.micro_op_type = MICRO_OP_TYPE::FETCH_OP;
 
 				micro_op_queue.push_back(fetch_op);
 
+				// handle breakpoitns for the debugger
 				if (!breakpoint_disable_one_instr)
 				{
 					if (breakpoints.size() > 0)
@@ -3415,7 +3464,7 @@ namespace gameboy
 
 			is_opcode_complete = micro_op_queue.empty(); // if its empty then we completed opcode
 
-			return 0;
+			return 4;
 		}
 	}
 }

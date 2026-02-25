@@ -162,7 +162,7 @@ namespace gameboy
 				is_cpu_paused = false;
 				is_skip_update = false;
 
-				cpu::breakpoints.push_back(0x100);
+				//cpu::breakpoints.push_back(0x100);
 
                 return 0;
             }
