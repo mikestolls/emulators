@@ -68,6 +68,7 @@ namespace gameboy
 			CCF,
 			HALT,
 			ALU,
+			ROTATE_SHIFT,
 			CONDITION,
 			IME,
 			PUSH_STACK,
@@ -102,7 +103,7 @@ namespace gameboy
 			u8* value_ptr = nullptr;
 			s8 src_modify = 0;
 			s8 dest_modify = 0;
-			u8 alu_index = 0;
+			u8 alu_rot_index = 0;
 			u8 condition_index = 0;
 			u8 condition_fail_pop_count = 0;
 			u8 set_flags = 0x0;
@@ -1741,8 +1742,7 @@ namespace gameboy
 				MicroOp alu;
 				alu.micro_op_type = MICRO_OP_TYPE::ALU;
 				alu.src_ptr = (u8*)&last_temp_value;
-				alu.dest_ptr = (u8*)&R.a;
-				alu.alu_index = y;
+				alu.alu_rot_index = y;
 				micro_op_queue.push_back(alu);
 
 				break;
@@ -2347,8 +2347,7 @@ namespace gameboy
 					MicroOp alu;
 					alu.micro_op_type = MICRO_OP_TYPE::ALU;
 					alu.src_ptr = (u8*)&last_temp_value;
-					alu.dest_ptr = (u8*)&R.a;
-					alu.alu_index = y;
+					alu.alu_rot_index = y;
 					micro_op_queue.push_back(alu);
 
 					break;
@@ -2412,10 +2411,10 @@ namespace gameboy
 					micro_op_queue.push_back(read);
 
 					MicroOp rot;
-					rot.micro_op_type = MICRO_OP_TYPE::ALU;
+					rot.micro_op_type = MICRO_OP_TYPE::ROTATE_SHIFT;
 					rot.src_ptr = (u8*)&last_temp_value;
 					rot.dest_ptr = (u8*)&last_temp_value;
-					rot.alu_index = y;
+					rot.alu_rot_index = y;
 					micro_op_queue.push_back(rot);
 
 					MicroOp write;
@@ -2433,10 +2432,10 @@ namespace gameboy
 					micro_op_queue.push_back(read);
 
 					MicroOp rot;
-					rot.micro_op_type = MICRO_OP_TYPE::ALU; // or a new MICRO_OP_TYPE if you want to distinguish
+					rot.micro_op_type = MICRO_OP_TYPE::ROTATE_SHIFT; 
 					rot.src_ptr = (u8*)&last_temp_value;
 					rot.dest_ptr = (u8*)&last_temp_value;
-					rot.alu_index = y;
+					rot.alu_rot_index = y;
 					micro_op_queue.push_back(rot);
 
 					MicroOp write;
@@ -3123,7 +3122,8 @@ namespace gameboy
 			}
 			case MICRO_OP_TYPE::ROTATE_ACCUMULATOR:
 			{
-				clear_all_flags();
+				clear_flag(FLAG_SUBTRACTION);
+				clear_flag(FLAG_HALFCARRY);
 
 				switch (op.rotate_type)
 				{
@@ -3134,6 +3134,10 @@ namespace gameboy
 					if (carry)
 					{
 						set_flag(FLAG_CARRY);
+					}
+					else
+					{
+						clear_flag(FLAG_CARRY);
 					}
 
 					break;
@@ -3146,6 +3150,10 @@ namespace gameboy
 					{
 						set_flag(FLAG_CARRY);
 					}
+					else
+					{
+						clear_flag(FLAG_CARRY);
+					}
 
 					break;
 				}
@@ -3157,6 +3165,10 @@ namespace gameboy
 					{
 						set_flag(FLAG_CARRY);
 					}
+					else
+					{
+						clear_flag(FLAG_CARRY);
+					}
 
 					break;
 				}
@@ -3167,6 +3179,10 @@ namespace gameboy
 					if (carry)
 					{
 						set_flag(FLAG_CARRY);
+					}
+					else
+					{
+						clear_flag(FLAG_CARRY);
 					}
 
 					break;
@@ -3282,8 +3298,32 @@ namespace gameboy
 			}
 			case MICRO_OP_TYPE::ALU:
 			{
-				u8 temp = (u8)last_temp_value;
-				alu_function[op.alu_index](&temp);
+				if (op.src_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				u8 temp = *op.src_ptr;
+				alu_function[op.alu_rot_index](&temp);
+
+				// dest_ptr not used as alu funcs set R register directly
+				break;
+			}
+			case MICRO_OP_TYPE::ROTATE_SHIFT:
+			{
+				if (op.dest_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				if (op.src_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				u8 temp = *op.src_ptr;
+				rot_function[op.alu_rot_index](&temp);
+				*op.dest_ptr = temp; // set back to destination
 
 				break;
 			}
