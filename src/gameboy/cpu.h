@@ -1080,7 +1080,8 @@ namespace gameboy
 						MicroOp write_high;
 						write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
 						write_high.src_ptr = ((u8*)&R.sp) + 1;
-						write_high.dest_ptr = ((u8*)&last_temp_value) + 1;
+						write_high.dest_ptr = (u8*)&last_temp_value;
+						write_high.addr_offset = 0x1; // writing second byte of sp
 						micro_op_queue.push_back(write_high);
 
 						break;
