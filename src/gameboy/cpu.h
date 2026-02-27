@@ -2829,9 +2829,19 @@ namespace gameboy
 				{
 					clear_flag(FLAG_HALFCARRY);
 
-					if ((original & 0xF) + (value & 0xF) > 0xF)
+					if (value >= 0)
 					{
-						set_flag(FLAG_HALFCARRY);
+						if ((original & 0xF) + (value & 0xF) > 0xF)
+						{
+							set_flag(FLAG_HALFCARRY);
+						}
+					}
+					else
+					{
+						if ((original & 0xF) == 0)
+						{
+							set_flag(FLAG_HALFCARRY);
+						}
 					}
 				}
 
@@ -3177,6 +3187,7 @@ namespace gameboy
 			{
 				clear_flag(FLAG_SUBTRACTION);
 				clear_flag(FLAG_HALFCARRY);
+				clear_flag(FLAG_ZERO);
 
 				switch (op.rotate_type)
 				{
