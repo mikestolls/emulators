@@ -74,7 +74,8 @@ namespace gameboy
 			IME,
 			PUSH_STACK,
 			TEST_BIT,
-			RESET_BIT
+			RESET_BIT,
+			SET_BIT
 		};
 
 		enum ROTATE_TYPE
@@ -2462,6 +2463,7 @@ namespace gameboy
 					MicroOp test_bit;
 					test_bit.micro_op_type = MICRO_OP_TYPE::TEST_BIT;
 					test_bit.src_ptr = (u8*)&last_temp_value;
+					test_bit.value = y; // bit index
 					micro_op_queue.push_back(test_bit);
 				}
 				else
@@ -2469,6 +2471,7 @@ namespace gameboy
 					MicroOp test_bit;
 					test_bit.micro_op_type = MICRO_OP_TYPE::TEST_BIT;
 					test_bit.src_ptr = register_single[z];
+					test_bit.value = y; // bit index
 					micro_op_queue.push_back(test_bit);
 				}
 
@@ -2520,7 +2523,7 @@ namespace gameboy
 					micro_op_queue.push_back(read);
 
 					MicroOp reset_bit;
-					reset_bit.micro_op_type = MICRO_OP_TYPE::RESET_BIT;
+					reset_bit.micro_op_type = MICRO_OP_TYPE::SET_BIT;
 					reset_bit.src_ptr = (u8*)&last_temp_value;
 					reset_bit.value = y; // bit index
 					micro_op_queue.push_back(reset_bit);
@@ -2534,7 +2537,7 @@ namespace gameboy
 				else
 				{
 					MicroOp reset_bit;
-					reset_bit.micro_op_type = MICRO_OP_TYPE::RESET_BIT;
+					reset_bit.micro_op_type = MICRO_OP_TYPE::SET_BIT;
 					reset_bit.src_ptr = register_single[z];
 					reset_bit.value = y; // bit index
 					micro_op_queue.push_back(reset_bit);
@@ -3480,6 +3483,15 @@ namespace gameboy
 				if (op.src_ptr != nullptr)
 				{
 					*op.src_ptr &= ~(1 << (u8)op.value);
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::SET_BIT:
+			{
+				if (op.src_ptr != nullptr)
+				{
+					*op.src_ptr |= (1 << (u8)op.value);
 				}
 
 				break;
