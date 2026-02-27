@@ -58,6 +58,7 @@ namespace gameboy
 			ASSIGN_REG_16,
 			ADD_8,
 			ADD_16,
+			ADD_8_TO_16,
 			READ_ADDR_8,
 			WRITE_ADDR_8,
 			JUMP,
@@ -1193,7 +1194,7 @@ namespace gameboy
 						// ADD HL with register_pairs[p]
 						MicroOp read;
 						read.micro_op_type = MICRO_OP_TYPE::READ_REG_16;
-						read.src_ptr = (u8*)&R.hl;
+						read.src_ptr = (u8*)register_pairs[p];
 						read.dest_ptr = (u8*)&last_temp_value;
 						micro_op_queue.push_back(read);
 
@@ -1832,8 +1833,8 @@ namespace gameboy
 						set_flag(reset_flag, FLAG_SUBTRACTION);
 
 						MicroOp add;
-						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
-						add.src_ptr = (u8*)&R.sp;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_8_TO_16;
+						add.src_ptr = ((u8*)&R.sp);
 						add.value_ptr = (u8*)&last_temp_value;
 						add.dest_ptr = (u8*)&last_temp_value;
 						add.is_signed = true;
@@ -1884,7 +1885,6 @@ namespace gameboy
 						MicroOp fetch;
 						fetch.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
 						fetch.dest_ptr = (u8*)&last_temp_value;
-						fetch.is_signed = true;
 						micro_op_queue.push_back(fetch);
 
 						u8 flag = 0x0;
@@ -1896,7 +1896,7 @@ namespace gameboy
 						set_flag(reset_flag, FLAG_SUBTRACTION);
 
 						MicroOp add;
-						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_8_TO_16;
 						add.src_ptr = (u8*)&R.sp;
 						add.value_ptr = (u8*)&last_temp_value;
 						add.dest_ptr = (u8*)&last_temp_value;
@@ -2819,19 +2819,9 @@ namespace gameboy
 				{
 					clear_flag(FLAG_CARRY);
 
-					if (value >= 0)
+					if ((original & 0xF) + (value & 0xF) > 0xF)
 					{
-						if ((original + value) & 0xFF)
-						{
-							set_flag(FLAG_CARRY);
-						}
-					}
-					else
-					{
-						if (original < (u8)(-value))
-						{
-							set_flag(FLAG_CARRY);
-						}
+						set_flag(FLAG_CARRY);
 					}
 				}
 
@@ -2840,19 +2830,9 @@ namespace gameboy
 				{
 					clear_flag(FLAG_HALFCARRY);
 
-					if (value >= 0)
+					if ((original & 0xF) + (value & 0xF) > 0xF)
 					{
-						if ((original & 0xF) + (value & 0xF) > 0xF)
-						{
-							set_flag(FLAG_HALFCARRY);
-						}
-					}
-					else
-					{
-						if ((original & 0xF) < ((-value & 0xF) & 0xF))
-						{
-							set_flag(FLAG_HALFCARRY);
-						}
+						set_flag(FLAG_HALFCARRY);
 					}
 				}
 
@@ -2909,7 +2889,7 @@ namespace gameboy
 					assert(false);
 				}
 
-				s32 original = (s16)*((u16*)op.src_ptr);
+				s32 original = *((u16*)op.src_ptr);
 				s32 value = 0x0;
 				if (op.is_use_value) // if use value we add to total value
 				{
@@ -2919,11 +2899,11 @@ namespace gameboy
 				{
 					if (op.is_signed) // note: is signed only works with 8 bit value ptr
 					{
-						value = (s16) * ((s8*)op.value_ptr);
+						value = (s8)*((s8*)op.value_ptr);
 					}
 					else
 					{
-						value = (s16)(*((u16*)op.value_ptr));
+						value = (u16)(*((u16*)op.value_ptr));
 					}
 				}
 
@@ -2932,19 +2912,9 @@ namespace gameboy
 				{
 					clear_flag(FLAG_CARRY);
 
-					if (value >= 0)
+					if ((original & 0xFFFF) + (value & 0xFFFF) > 0xFFFF)
 					{
-						if ((original + value) > 0xFFFF)
-						{
-							set_flag(FLAG_CARRY);
-						}
-					}
-					else
-					{
-						if (original < (u16)(-value))
-						{
-							set_flag(FLAG_CARRY);
-						}
+						set_flag(FLAG_CARRY);
 					}
 				}
 
@@ -2953,19 +2923,102 @@ namespace gameboy
 				{
 					clear_flag(FLAG_HALFCARRY);
 
-					if (value >= 0)
+					if ((original & 0xFFF) + (value & 0xFFF) > 0xFFF)
 					{
-						if ((original & 0xFFF) + (value & 0xFFF) > 0xFFF)
-						{
-							set_flag(FLAG_HALFCARRY);
-						}
+						set_flag(FLAG_HALFCARRY);
+					}
+				}
+
+				// subtract flag
+				if (get_flag(op.set_flags, FLAG_SUBTRACTION) != 0)
+				{
+					if (value < 0)
+					{
+						set_flag(FLAG_SUBTRACTION);
+					}
+					else if (value < 0)
+					{
+						clear_flag(FLAG_SUBTRACTION);
+					}
+				}
+
+				// Zero flag
+				if (get_flag(op.set_flags, FLAG_ZERO) != 0)
+				{
+					if (((original + (u8)value) & 0xFFFF) == 0)
+					{
+						set_flag(FLAG_ZERO);
 					}
 					else
 					{
-						if ((original & 0xFFF) < ((-value) & 0xFFF))
-						{
-							set_flag(FLAG_HALFCARRY);
-						}
+						clear_flag(FLAG_ZERO);
+					}
+				}
+
+				// check for which flags need to be reset
+				for (u8 i = FLAG_CARRY; i <= FLAG_ZERO; i++)
+				{
+					if (get_flag(op.reset_flags, i) != 0)
+					{
+						clear_flag(i);
+					}
+				}
+
+				// set the result
+				original += value;
+				*((u16*)op.dest_ptr) = (u16)(original & 0xFFFF);
+
+				break;
+			}
+			case MICRO_OP_TYPE::ADD_8_TO_16:
+			{
+				if (op.dest_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				if (op.src_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				s32 original = *((u16*)op.src_ptr);
+				s32 value = 0x0;
+				if (op.is_use_value) // if use value we add to total value
+				{
+					value = (s16)op.value;
+				}
+				else if (op.value_ptr != nullptr) // if we passed pointer to value
+				{
+					if (op.is_signed) // note: is signed only works with 8 bit value ptr
+					{
+						value = (s8) * ((s8*)op.value_ptr);
+					}
+					else
+					{
+						value = (u16)(*((u16*)op.value_ptr));
+					}
+				}
+
+				// check for carry
+				if (get_flag(op.set_flags, FLAG_CARRY) != 0)
+				{
+					clear_flag(FLAG_CARRY);
+
+					if ((original & 0xFF) + (value & 0xFF) > 0xFF)
+					{
+						set_flag(FLAG_CARRY);
+					}
+				}
+
+				// check for the half carry.
+				if (get_flag(op.set_flags, FLAG_HALFCARRY) != 0)
+				{
+					clear_flag(FLAG_HALFCARRY);
+
+					if ((original & 0xF) + (value & 0xF) > 0xF)
+					{
+						set_flag(FLAG_HALFCARRY);
 					}
 				}
 
