@@ -1074,13 +1074,13 @@ namespace gameboy
 
 						MicroOp write_low;
 						write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-						write_low.src_ptr = (u8*)&R.sp;
+						write_low.value_ptr = (u8*)&R.sp;
 						write_low.dest_ptr = (u8*)&last_temp_value;
 						micro_op_queue.push_back(write_low);
 
 						MicroOp write_high;
 						write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-						write_high.src_ptr = ((u8*)&R.sp) + 1;
+						write_high.value_ptr = ((u8*)&R.sp) + 1;
 						write_high.dest_ptr = (u8*)&last_temp_value;
 						write_high.addr_offset = 0x1; // writing second byte of sp
 						micro_op_queue.push_back(write_high);
@@ -1238,7 +1238,7 @@ namespace gameboy
 
 							MicroOp write;
 							write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-							write.src_ptr = (u8*)&last_temp_value;
+							write.value_ptr = (u8*)&last_temp_value;
 							write.dest_ptr = (u8*)&R.bc;
 							micro_op_queue.push_back(write);
 
@@ -1255,7 +1255,7 @@ namespace gameboy
 
 							MicroOp write;
 							write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-							write.src_ptr = (u8*)&last_temp_value;
+							write.value_ptr = (u8*)&last_temp_value;
 							write.dest_ptr = (u8*)&R.de;
 							micro_op_queue.push_back(write);
 
@@ -1272,7 +1272,7 @@ namespace gameboy
 
 							MicroOp write;
 							write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-							write.src_ptr = (u8*)&last_temp_value;
+							write.value_ptr = (u8*)&last_temp_value;
 							write.dest_ptr = (u8*)&R.hl;
 							write.dest_modify = 1;
 							micro_op_queue.push_back(write);
@@ -1290,7 +1290,7 @@ namespace gameboy
 
 							MicroOp write;
 							write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-							write.src_ptr = (u8*)&last_temp_value;
+							write.value_ptr = (u8*)&last_temp_value;
 							write.dest_ptr = (u8*)&R.hl;
 							write.dest_modify = -1;
 							micro_op_queue.push_back(write);
@@ -1459,7 +1459,7 @@ namespace gameboy
 
 						MicroOp write;
 						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-						write.src_ptr = (u8*)&last_temp_value;
+						write.value_ptr = (u8*)&last_temp_value;
 						write.dest_ptr = (u8*)&R.hl;
 						micro_op_queue.push_back(write);
 					}
@@ -1521,7 +1521,7 @@ namespace gameboy
 
 						MicroOp write;
 						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-						write.src_ptr = (u8*)&last_temp_value;
+						write.value_ptr = (u8*)&last_temp_value;
 						write.dest_ptr = (u8*)&R.hl;
 						micro_op_queue.push_back(write);
 					}
@@ -1563,7 +1563,7 @@ namespace gameboy
 					{
 						MicroOp write;
 						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-						write.src_ptr = (u8*)&last_temp_value;
+						write.value_ptr = (u8*)&last_temp_value;
 						write.dest_ptr = (u8*)&R.hl;
 						micro_op_queue.push_back(write);
 					}
@@ -1684,7 +1684,7 @@ namespace gameboy
 
 					MicroOp write;
 					write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-					write.src_ptr = (u8*)&last_temp_value;
+					write.value_ptr = (u8*)&last_temp_value;
 					write.dest_ptr = (u8*)&R.hl;
 					micro_op_queue.push_back(write);
 				}
@@ -1810,7 +1810,7 @@ namespace gameboy
 
 						MicroOp write;
 						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-						write.src_ptr = (u8*)&R.a;
+						write.value_ptr = (u8*)&R.a;
 						write.dest_ptr = (u8*)&last_temp_value;
 						micro_op_queue.push_back(write);
 
@@ -2068,17 +2068,17 @@ namespace gameboy
 					case 0x4:
 					{
 						// LD mem(FF00 + C) with A
-						MicroOp read_a;
-						read_a.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
-						read_a.src_ptr = (u8*)&R.a;
-						read_a.dest_ptr = (u8*)&last_temp_value;
-						micro_op_queue.push_back(read_a);
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+						read.src_ptr = (u8*)&R.c;
+						read.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(read);
 
 						MicroOp write;
 						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-						write.src_ptr = (u8*)&last_temp_value;
-						write.addr = 0xFF00 + R.c;
-						write.is_use_addr = true;
+						write.value_ptr = (u8*)&R.a;
+						write.dest_ptr = (u8*)&last_temp_value;
+						write.addr_offset = 0xFF00;
 						micro_op_queue.push_back(write);
 
 						break;
@@ -2103,7 +2103,7 @@ namespace gameboy
 
 						MicroOp write;
 						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-						write.src_ptr = (u8*)&R.a; // value to write
+						write.value_ptr = (u8*)&R.a; // value to write
 						write.dest_ptr = (u8*)&last_temp_value;
 						micro_op_queue.push_back(write);
 
@@ -2112,18 +2112,17 @@ namespace gameboy
 					case 0x6:
 					{
 						// LD A with mem(FF00 + C)
-						MicroOp add;
-						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
-						add.is_use_value = true;
-						add.value = 0xFF00;
-						add.src_ptr = (u8*)&R.c;
-						add.dest_ptr = (u8*)&last_temp_value;
-						micro_op_queue.push_back(add);
+						MicroOp load;
+						load.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+						load.src_ptr = (u8*)&R.c;
+						load.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(load);
 
 						MicroOp read;
 						read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
 						read.src_ptr = (u8*)&last_temp_value;
 						read.dest_ptr = (u8*)&R.a;
+						read.addr_offset = 0xFF00;
 						micro_op_queue.push_back(read);
 
 						break;
@@ -2420,7 +2419,7 @@ namespace gameboy
 
 					MicroOp write;
 					write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-					write.src_ptr = (u8*)&last_temp_value;
+					write.value_ptr = (u8*)&last_temp_value;
 					write.dest_ptr = (u8*)&R.hl;
 					micro_op_queue.push_back(write);
 				}
@@ -2494,7 +2493,7 @@ namespace gameboy
 
 					MicroOp write;
 					write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-					write.src_ptr = (u8*)&last_temp_value;
+					write.value_ptr = (u8*)&last_temp_value;
 					write.dest_ptr = (u8*)&R.hl;
 					micro_op_queue.push_back(write);
 				}
@@ -2528,7 +2527,7 @@ namespace gameboy
 
 					MicroOp write;
 					write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
-					write.src_ptr = (u8*)&last_temp_value;
+					write.value_ptr = (u8*)&last_temp_value;
 					write.dest_ptr = (u8*)&R.hl;
 					micro_op_queue.push_back(write);
 				}
@@ -2992,7 +2991,7 @@ namespace gameboy
 				{
 					if (op.is_signed) // note: is signed only works with 8 bit value ptr
 					{
-						value = (s8) * ((s8*)op.value_ptr);
+						value = (s8)*((s8*)op.value_ptr);
 					}
 					else
 					{
@@ -3128,9 +3127,9 @@ namespace gameboy
 				{
 					value = op.value;
 				}
-				else if (op.src_ptr != nullptr)
+				else if (op.value_ptr != nullptr)
 				{
-					value = (u8)*op.src_ptr;
+					value = (u8)*op.value_ptr;
 				}
 
 				// write to memory
