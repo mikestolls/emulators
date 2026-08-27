@@ -35,10 +35,11 @@ namespace gameboy
                     ImGui::SetWindowFontScale(0.85f);
                     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(8, 8)); // Horizontal, Vertical padding
 
-                    if (ImGui::BeginTable("Info", 2))
+                    if (ImGui::BeginTable("Info", 3))
                     {
-                        ImGui::TableSetupColumn("Column1", ImGuiTableColumnFlags_WidthFixed, 350.0f);
-                        ImGui::TableSetupColumn("Column2", ImGuiTableColumnFlags_WidthStretch); // Takes remaining space
+                        ImGui::TableSetupColumn("Column1", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+                        ImGui::TableSetupColumn("Column2", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+                        ImGui::TableSetupColumn("Column3", ImGuiTableColumnFlags_WidthStretch); // Takes remaining space
 
                         ImGui::TableNextRow();
                         ImGui::TableNextColumn();
@@ -50,6 +51,14 @@ namespace gameboy
                         ImGui::Text("R.hl: 0x%04X", cpu::R.hl);
                         ImGui::Text("R.sp: 0x%04X", cpu::R.sp);
                         ImGui::Text("R.pc: 0x%04X", cpu::R.pc);
+
+                        ImGui::TableNextColumn();
+
+                        // draw timer info
+                        ImGui::Text(" TIMA: 0x%02X", *cpu::timer_value);
+                        ImGui::Text("  TMA: 0x%02X", *cpu::timer_modulator);
+                        ImGui::Text("  TAC: 0x%02X", *cpu::timer_controller);
+                        ImGui::Text("  DIV: 0x%02X", *cpu::divide_value);
 
                         ImGui::TableNextColumn();
 
@@ -75,6 +84,8 @@ namespace gameboy
                             ImGui::SameLine(0.0f, 4.0f);
                         }
                         ImGui::EndDisabled();
+
+                        ImGui::TableNextColumn();
 
                         ImGui::TableNextColumn();
 
