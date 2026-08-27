@@ -32,7 +32,12 @@ namespace gameboy
 		u16 get_dots();
 		u8 get_scanline();
 	}
-	
+
+	namespace input
+	{
+		u8 get_button_register(bool is_directional);
+	}
+
 	namespace memory_module
 	{
 		enum MEMORY_TYPE
@@ -155,6 +160,33 @@ namespace gameboy
 
 		u8 read_memory(u16 addr, bool force = false)
 		{
+			if (addr == 0xFF00) // special handle for joypad
+			{
+				u8 mem = mbc::memory[0xFF00];
+				u8 result = 0xCF; // bit 6 and 7 are always 1
+
+				result |= (mem & 0x30); // bring selection bits 4 and 5
+
+				// check which button set is selected
+				if ((mem & 0x20) == 0) // bit 5 = 0 - select action buttons
+				{
+					result &= 0xF0; // clears lower bits
+					result |= (input::get_button_register(false) & 0x0F); // add input button lower bits
+				}
+				else if ((mem & 0x10) == 0) // bit 4 = 0 - select direction buttons
+				{
+					result &= 0xF0; // clears lower bits
+					result |= (input::get_button_register(true) & 0x0F); // add input directional lower bits
+				}
+				else
+				{
+					// nothing select bit 0 - 3 are high
+					result |= 0x0F;
+				}
+
+				return result;
+			}
+
 			// loop though memory map
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
 			{
@@ -197,7 +229,14 @@ namespace gameboy
 				return;
 			}
 
-			if (addr == 0xFF02 && (*value & 0x80)) // Serial transfer control - bit 7 set = transfer
+			if (addr == 0xFF00) // joypad registry
+			{
+				// only bits 4 and 5 are writable
+				u8 cur_value = mbc::memory[0xFF00];
+				u8 masked_value = (cur_value & 0x0F) | (*value & 0x30) | 0xC0; // bits 6 and 7 are always high, take value bits 4 and 5 to write
+				mbc::memory[0xFF00] = masked_value;
+			}
+			else if (addr == 0xFF02 && (*value & 0x80)) // Serial transfer control - bit 7 set = transfer
 			{
 				u8 serial_data = mbc::memory[0xFF01]; // read serial data register
 				printf("%c", serial_data); // print char

@@ -2599,7 +2599,7 @@ namespace gameboy
 			}
 			
 			// update the joypad register
-			u8 joypad_register = memory_module::read_memory(0xFF00);
+			/*u8 joypad_register = memory_module::read_memory(0xFF00);
 			joypad_register &= 0xF0; // keep upper bits
 
 			if ((joypad_register & 0x20) == 0)
@@ -2611,7 +2611,7 @@ namespace gameboy
 			{
 				joypad_register |= (get_button_register(true) & 0xF); // only lower 4 bits
 			}
-			memory_module::write_memory(0xFF00, joypad_register);
+			memory_module::write_memory(0xFF00, joypad_register);*/
 
 			u8 cycles = 0;
 
