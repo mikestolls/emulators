@@ -37,7 +37,7 @@
 
 namespace gameboy
 {
-	int update_peripherals(u8 cycles);
+	//int update_peripherals(u8 cycles);
 
 	namespace gpu
 	{
@@ -72,7 +72,6 @@ namespace gameboy
 			ROTATE_SHIFT,
 			CONDITION,
 			IME,
-			PUSH_STACK,
 			TEST_BIT,
 			RESET_BIT,
 			SET_BIT
@@ -146,13 +145,18 @@ namespace gameboy
 		u8* interrupt_enable_flag;
 		u8* interrupt_request_flag;
 
+		s32 internal_divider;
+		bool skip_next_tima_increment; // Skip next TIMA increment after write
+
 		u8* timer_value;
 		u8* timer_controller;
 		u8* timer_modulator;
-		s32 timer_counter;
+		u8 timer_last_bit;
+
+
+		u8 timer_overflow_state = 0;
 
 		u8* divide_value;
-		s32 divide_counter;
 
 		u16 current_pc = 0x0;
 
@@ -277,25 +281,6 @@ namespace gameboy
 		u16* register_pairs2[] = { &R.bc, &R.de, &R.hl, &R.af };
 		u8* register_single[] = { &R.b, &R.c, &R.d, &R.e, &R.h, &R.l, 0, &R.a };
 		
-		// stack functions
-		inline void push_sp_to_stack(u16 addr)
-		{
-			u8 low = (addr & 0x00FF);
-			u8 high = (addr >> 8);
-
-			R.sp -= 2;
-			memory_module::write_memory(R.sp, &low, 1);
-			memory_module::write_memory(R.sp + 1, &high, 1);
-		}
-
-		inline u16 pop_from_stack()
-		{
-			u8 low = memory_module::read_memory(R.sp++) & 0xFF;
-			u8 high = memory_module::read_memory(R.sp++) & 0xFF;
-
-			return (high << 8) | low;
-		}
-
 		// set and get flag helpers
 		inline void set_flag(u8& reg, u8 flag)
 		{
@@ -769,8 +754,6 @@ namespace gameboy
 
 		void service_interrupt(u8 interrupt)
 		{
-			push_sp_to_stack(R.pc);
-
 			interrupt_master = false; // servicing an interrupt will disable the master
 
 			u16 addr = 0;
@@ -797,7 +780,30 @@ namespace gameboy
 				break;
 			}
 
-			R.pc = addr;
+			last_temp_value = addr;
+
+			// STACK PUSH
+			MicroOp write_high;
+			write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+			write_high.value_ptr = ((u8*)&R.pc) + 1; // high byte of PC
+			write_high.dest_ptr = (u8*)&R.sp;
+			write_high.addr_offset = -1;  // write to (sp-1)
+			write_high.dest_modify = -1;  // decrement sp
+			micro_op_queue.push_back(write_high);
+
+			MicroOp write_low;
+			write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+			write_low.value_ptr = (u8*)&R.pc; // low byte of PC
+			write_low.dest_ptr = (u8*)&R.sp;
+			write_low.addr_offset = -1;  // write to (sp-1)
+			write_low.dest_modify = -1;  // decrement sp
+			micro_op_queue.push_back(write_low);
+
+			MicroOp assign_pc;
+			assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+			assign_pc.src_ptr = (u8*)&last_temp_value;
+			assign_pc.dest_ptr = (u8*)&R.pc;
+			micro_op_queue.push_back(assign_pc);
 		}
 
 		int check_interrupts()
@@ -847,10 +853,137 @@ namespace gameboy
 		}
 
 		// functions for the timer
-		bool timer_enabled()
+		void reset_divider()
 		{
-			return (*timer_controller & 0x4 ? true : false); // bit 2 is on/off flag
+			// Check if the timer bit goes from 1->0 due to this reset
+			// This can cause TIMA to increment immediately (falling edge detection)
+			if (is_timer_enabled(*timer_controller))
+			{
+				u8 bit_index = get_timer_frequency_bit(*timer_controller);
+				bool old_bit = (internal_divider >> bit_index) & 1;
+
+				if (old_bit)  // If bit was 1, resetting to 0 causes falling edge
+				{
+					increment_tima();
+				}
+			}
+
+			internal_divider = 0;
+			*divide_value = 0x0;
+			update_last_timer_bit();
 		}
+
+		s32 get_internal_divider()
+		{
+			return internal_divider;
+		}
+		bool is_timer_enabled(u8 timer_control)
+		{
+			return (timer_control & 0x4 ? true : false); // bit 2 is on/off flag
+		}
+
+		u32 get_timer_frequency_bit(u8 timer_control)
+		{
+			switch (timer_control & 0x3) // bit 0 and 1 are the frequency flags. cycles_per_sec / frequency
+			{
+			case 0: 
+				return 9;   // 1024 T-cycles
+			case 1: 
+				return 3;   // 16 T-cycles
+			case 2: 
+				return 5;   // 64 T-cycles
+			case 3: 
+				return 7;   // 256 T-cycles
+			}
+		}
+
+		bool is_tima_overflow_pending()
+		{
+			return timer_overflow_state > 0;
+		}
+
+		void cancel_tima_overflow()
+		{
+			timer_overflow_state = 0;
+		}
+
+		void increment_tima()
+		{
+			u8 old_value = *timer_value;
+			(*timer_value)++;
+
+			if (*timer_value == 0x00) // Overflow from 0xFF to 0x00
+			{
+				timer_overflow_state = 1;
+			}
+		}
+
+		void update_last_timer_bit()
+		{
+			u8 old_bit = timer_last_bit;
+
+			if (is_timer_enabled(*timer_controller))
+			{
+				u8 bit_index = get_timer_frequency_bit(*timer_controller);
+				timer_last_bit = (internal_divider >> bit_index) & 0x1;
+			}
+			else
+			{
+				// When timer is disabled, the effective bit is always 0
+				timer_last_bit = 0;
+			}
+		}
+
+		void set_timer_last_bit(u8 value)
+		{
+			timer_last_bit = value;
+		}
+
+		void set_skip_next_tima_increment(bool value)
+		{
+			skip_next_tima_increment = value;
+		}
+
+		int update_timer(u8 cycles)
+		{
+			for (u8 i = 0; i < cycles; i++) // iterate oer t cycle
+			{
+				// handle pending reload from previous cycle
+				if (i % 4 && timer_overflow_state == 1) // check on first t cycle
+				{
+					*timer_value = *timer_modulator;
+					set_request_interrupt_flag(INTERRUPT_TIMER);
+					timer_overflow_state = 0;
+				}
+
+				u8 old_tima = *timer_value;
+
+				internal_divider++;
+
+				// DIV is bits 15-8
+				*divide_value = (internal_divider >> 8) & 0xFF;
+
+				// ONLY update timer_last_bit and check for edges if timer is enabled
+				if (is_timer_enabled(*timer_controller))
+				{
+					u8 bit_index = get_timer_frequency_bit(*timer_controller);
+					u8 current_bit = (internal_divider >> bit_index) & 0x1;
+
+					// Falling edge detection (1→0)
+					if (timer_last_bit == 1 && current_bit == 0)
+					{
+						increment_tima();
+					}
+
+					// Update timer_last_bit only when timer is enabled
+					timer_last_bit = current_bit;
+				}
+			}
+
+			return 0;
+		}
+
+		/*
 
 		u32 get_timer_frequency()
 		{
@@ -875,14 +1008,66 @@ namespace gameboy
 			return cycles;
 		}
 
+		static bool log_to_file = false;
+		static bool timer_debug = false;
+		static int total_cycles = 0;
+		static int timer_overflow_delay = -1;
+		static FILE* fptr = fopen("output.txt", "w");
+
+		bool is_reset_timer = false;
+
 		void reset_timer_counter()
 		{
-			timer_counter = get_timer_frequency();
-			*timer_value = *timer_modulator;
+			//timer_counter = get_timer_frequency();
+			//*timer_value = *timer_modulator;
+			is_reset_timer = true;
+
+			if (log_to_file)
+			{
+				fprintf(fptr, "reset_timer_counter: freq=%d TIMA=0x%02X TMA=0x%02X TAC=0x%02X PC=0x%04X\n",
+					timer_counter, *timer_value, *timer_modulator, *timer_controller, R.pc);
+			}
 		}
 
 		int update_timer(u8 cycles)
 		{
+			// Start debug when TAC is set to 0x05
+			if (!timer_debug && *timer_controller == 0x05 && timer_enabled())
+			{
+				timer_debug = true;
+
+				if (log_to_file)
+				{
+					fprintf(fptr, "\n=== TIMER DEBUG START ===\n");
+					fprintf(fptr, "Initial: TIMA=0x%02X TMA=0x%02X TAC=0x%02X freq=%d counter=%d\n",
+						*timer_value, *timer_modulator, *timer_controller, get_timer_frequency(), timer_counter);
+				}
+			}
+
+			if (timer_debug)
+			{
+				total_cycles += cycles;
+			}
+
+			// Handle overflow delay first (if pending)
+			if (timer_overflow_delay >= 0)
+			{
+				timer_overflow_delay -= cycles;
+				if (timer_overflow_delay < 0)
+				{
+					// Reload TIMA with TMA and set interrupt
+					*timer_value = *timer_modulator;
+					set_request_interrupt_flag(INTERRUPT_TIMER);
+
+					if (timer_debug && log_to_file)
+					{
+						fprintf(fptr, "[%d] OVERFLOW RELOAD: TIMA->0x%02X (TMA) IF=0x%02X\n",
+							total_cycles, *timer_value, *interrupt_request_flag);
+					}
+					timer_overflow_delay = -1;  // Clear overflow state
+				}
+			}
+
 			// update divide register first
 			divide_counter -= cycles;
 
@@ -897,29 +1082,64 @@ namespace gameboy
 				return 0;
 			}
 
-			timer_counter -= cycles;
-
-			while (timer_counter <= 0)
+			if (!is_reset_timer)
 			{
-				// check if overflow. set timer_counter to modulator. increase timer
-				if (*timer_value == 0xFF)
-				{
-					*timer_value = *timer_modulator;
+				timer_counter -= cycles;
 
-					// interrupt
-					set_request_interrupt_flag(INTERRUPT_TIMER);
-				}
-				else
+				while (timer_counter <= 0)
 				{
-					(*timer_value)++;
-				}
+					// check if overflow. set timer_counter to modulator. increase timer
+					if (*timer_value == 0xFF)
+					{
+						*timer_value = *timer_modulator;
 
-				// set counter back to frequency
-				timer_counter += get_timer_frequency();
+						// interrupt
+						set_request_interrupt_flag(INTERRUPT_TIMER);
+
+						*timer_value = 0x00;
+						timer_overflow_delay = 4;  // 4 T-cycles until TMA reload
+
+						if (timer_debug)
+						{
+							if (log_to_file)
+							{
+								fprintf(fptr, "[%d] OVERFLOW: TIMA 0xFF->0x%02X counter=%d IF=0x%02X\n",
+									total_cycles, *timer_value, timer_counter, *interrupt_request_flag);
+							}
+						}
+					}
+					else
+					{
+						(*timer_value)++;
+					}
+
+					// set counter back to frequency
+					timer_counter += get_timer_frequency();
+
+					if (timer_debug && log_to_file)
+					{
+						u8 old_val = *timer_value - 1;
+						fprintf(fptr, "[%d] TIMA: 0x%02X->0x%02X counter=%d\n",
+							total_cycles, old_val, *timer_value, timer_counter);
+					}
+				}
+			}
+
+			if (timer_debug && log_to_file && total_cycles > 400)
+			{
+				timer_debug = false;
+				fprintf(fptr, "=== TIMER DEBUG END ===\n\n");
+			}
+
+			if (is_reset_timer)
+			{
+				is_reset_timer = false;
+				timer_counter = get_timer_frequency() * 2;
 			}
 
 			return 0;
 		}
+		*/
 
 		int reset()
 		{
@@ -967,10 +1187,12 @@ namespace gameboy
 			timer_value = memory_module::get_memory(0xFF05);
 			timer_modulator = memory_module::get_memory(0xFF06);
 			timer_controller = memory_module::get_memory(0xFF07);
-			timer_counter = 0;
 			
 			divide_value = memory_module::get_memory(0xFF04);
-			divide_counter = 256;
+			internal_divider = 0;
+			timer_last_bit = 0;
+			skip_next_tima_increment = false;
+			timer_overflow_state = 0;
 
 			is_opcode_complete = false;
 			last_opcode = 0x0;
@@ -2251,13 +2473,25 @@ namespace gameboy
 						MicroOp cond;
 						cond.micro_op_type = MICRO_OP_TYPE::CONDITION;
 						cond.condition_index = y;
-						cond.condition_fail_pop_count = 2;
+						cond.condition_fail_pop_count = 3;
 						micro_op_queue.push_back(cond);
 
-						MicroOp push;
-						push.micro_op_type = MICRO_OP_TYPE::PUSH_STACK;
-						push.value_ptr = (u8*)&R.pc;
-						micro_op_queue.push_back(push);
+						// STACK PUSH
+						MicroOp write_high;
+						write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write_high.value_ptr = ((u8*)&R.pc) + 1; // high byte of PC
+						write_high.dest_ptr = (u8*)&R.sp;
+						write_high.addr_offset = -1;  // write to (sp-1)
+						write_high.dest_modify = -1;  // decrement sp
+						micro_op_queue.push_back(write_high);
+
+						MicroOp write_low;
+						write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write_low.value_ptr = (u8*)&R.pc; // low byte of PC
+						write_low.dest_ptr = (u8*)&R.sp;
+						write_low.addr_offset = -1;  // write to (sp-1)
+						write_low.dest_modify = -1;  // decrement sp
+						micro_op_queue.push_back(write_low);
 
 						MicroOp assign_pc;
 						assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
@@ -2285,23 +2519,22 @@ namespace gameboy
 					if (q == 0)
 					{
 						// PUSH register_pairs2[p]
-						MicroOp push;
-						push.micro_op_type = MICRO_OP_TYPE::PUSH_STACK;
-						push.value_ptr = (u8*)register_pairs2[p];
-						micro_op_queue.push_back(push);
+						// STACK PUSH
+						MicroOp write_high;
+						write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write_high.value_ptr = ((u8*)register_pairs2[p]) + 1; // high byte of reg
+						write_high.dest_ptr = (u8*)&R.sp;
+						write_high.addr_offset = -1;  // write to (sp-1)
+						write_high.dest_modify = -1;  // decrement sp
+						micro_op_queue.push_back(write_high);
 
-						// padding
-						MicroOp nop0;
-						nop0.micro_op_type = MICRO_OP_TYPE::NOP;
-						micro_op_queue.push_back(nop0);
-
-						MicroOp nop1;
-						nop1.micro_op_type = MICRO_OP_TYPE::NOP;
-						micro_op_queue.push_back(nop1);
-
-						MicroOp nop2;
-						nop2.micro_op_type = MICRO_OP_TYPE::NOP;
-						micro_op_queue.push_back(nop2);
+						MicroOp write_low;
+						write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write_low.value_ptr = (u8*)register_pairs2[p]; // low byte of reg
+						write_low.dest_ptr = (u8*)&R.sp;
+						write_low.addr_offset = -1;  // write to (sp-1)
+						write_low.dest_modify = -1;  // decrement sp
+						micro_op_queue.push_back(write_low);
 					}
 					else
 					{
@@ -2318,10 +2551,22 @@ namespace gameboy
 							fetch_high.dest_ptr = ((u8*)&last_temp_value) + 1;
 							micro_op_queue.push_back(fetch_high);
 
-							MicroOp push;
-							push.micro_op_type = MICRO_OP_TYPE::PUSH_STACK;
-							push.value_ptr = (u8*)&R.pc;
-							micro_op_queue.push_back(push);
+							// STACK PUSH
+							MicroOp write_high;
+							write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+							write_high.value_ptr = ((u8*)&R.pc) + 1; // high byte of PC
+							write_high.dest_ptr = (u8*)&R.sp;
+							write_high.addr_offset = -1;  // write to (sp-1)
+							write_high.dest_modify = -1;  // decrement sp
+							micro_op_queue.push_back(write_high);
+
+							MicroOp write_low;
+							write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+							write_low.value_ptr = (u8*)&R.pc; // low byte of PC
+							write_low.dest_ptr = (u8*)&R.sp;
+							write_low.addr_offset = -1;  // write to (sp-1)
+							write_low.dest_modify = -1;  // decrement sp
+							micro_op_queue.push_back(write_low);
 
 							MicroOp assign_pc;
 							assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
@@ -2355,11 +2600,31 @@ namespace gameboy
 				}
 				case 0x7: // z = 7
 				{
+					// Debug: print RST info
+					u8 rst_opcode = 0xC7 | (y << 3);
+					printf("RST instruction: opcode=0x%02X, y=%d, PC=0x%04X\n", rst_opcode, y, R.pc);
+
 					// RST at pc 7 * 8. basically a CALL
-					MicroOp push;
-					push.micro_op_type = MICRO_OP_TYPE::PUSH_STACK;
-					push.value_ptr = (u8*)&R.pc;
-					micro_op_queue.push_back(push);
+					MicroOp nop;
+					nop.micro_op_type = MICRO_OP_TYPE::NOP;
+					micro_op_queue.push_back(nop);
+
+					// STACK PUSH
+					MicroOp write_high;
+					write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+					write_high.value_ptr = ((u8*)&R.pc) + 1; // high byte of PC
+					write_high.dest_ptr = (u8*)&R.sp;
+					write_high.addr_offset = -1;  // write to (sp-1)
+					write_high.dest_modify = -1;  // decrement sp
+					micro_op_queue.push_back(write_high);
+
+					MicroOp write_low;
+					write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+					write_low.value_ptr = (u8*)&R.pc; // low byte of PC
+					write_low.dest_ptr = (u8*)&R.sp;
+					write_low.addr_offset = -1;  // write to (sp-1)
+					write_low.dest_modify = -1;  // decrement sp
+					micro_op_queue.push_back(write_low);
 
 					MicroOp assign_pc;
 					assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
@@ -3431,26 +3696,6 @@ namespace gameboy
 						break;
 					}
 				}
-
-				break;
-			}
-			case MICRO_OP_TYPE::PUSH_STACK:
-			{
-				u16 value = 0x0;
-				if (op.is_use_value)
-				{
-					value = op.value;
-				}
-				else if (op.value_ptr != nullptr)
-				{
-					value = *((u16*)op.value_ptr);
-				}
-				else if (op.src_ptr != nullptr)
-				{
-					value = *((u16*)op.src_ptr);
-				}
-
-				push_sp_to_stack(value);
 
 				break;
 			}
