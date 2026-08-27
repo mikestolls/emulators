@@ -55,14 +55,14 @@ namespace gameboy
 		bool success = framebuffer_texture.resize(sf::Vector2u(gpu::width, gpu::height));
 
 		// init input map
-		input_map[sf::Keyboard::Key::Left] = { DIRECTION_LEFT, true };
-		input_map[sf::Keyboard::Key::Right] = { DIRECTION_RIGHT, true };
-		input_map[sf::Keyboard::Key::Up] = { DIRECTION_UP, true };
-		input_map[sf::Keyboard::Key::Down] = { DIRECTION_DOWN, true };
-		input_map[sf::Keyboard::Key::A] = { BUTTON_A, false };
-		input_map[sf::Keyboard::Key::B] = { BUTTON_B, false };
-		input_map[sf::Keyboard::Key::Enter] = { BUTTON_START, false };
-		input_map[sf::Keyboard::Key::RShift] = { BUTTON_SELECT, false };
+		input_map[sf::Keyboard::Key::Left] = { input::DIRECTION_LEFT, true };
+		input_map[sf::Keyboard::Key::Right] = { input::DIRECTION_RIGHT, true };
+		input_map[sf::Keyboard::Key::Up] = { input::DIRECTION_UP, true };
+		input_map[sf::Keyboard::Key::Down] = { input::DIRECTION_DOWN, true };
+		input_map[sf::Keyboard::Key::A] = { input::BUTTON_A, false };
+		input_map[sf::Keyboard::Key::B] = { input::BUTTON_B, false };
+		input_map[sf::Keyboard::Key::Enter] = { input::BUTTON_START, false };
+		input_map[sf::Keyboard::Key::RShift] = { input::BUTTON_SELECT, false };
 
 		// init cpu and load rom
 #ifdef USE_BOOT_ROM
@@ -134,7 +134,7 @@ namespace gameboy
 			if (itr != input_map.end())
 			{
 				// handle joypad input
-				set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
+				input::set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
 			}
 		}
 		else if (const auto* keyReleased = event->getIf<sf::Event::KeyReleased>())
@@ -145,7 +145,7 @@ namespace gameboy
 			if (itr != input_map.end())
 			{
 				// handle joypad input
-				set_button_released(itr->second.joypad_map, itr->second.is_directional);
+				input::set_button_released(itr->second.joypad_map, itr->second.is_directional);
 			}
 		}
 
