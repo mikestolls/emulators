@@ -963,7 +963,7 @@ namespace gameboy
 				// DIV is bits 15-8
 				*divide_value = (internal_divider >> 8) & 0xFF;
 
-				// ONLY update timer_last_bit and check for edges if timer is enabled
+				// only update timer_last_bit and check for edges if timer is enabled
 				if (is_timer_enabled(*timer_controller))
 				{
 					u8 bit_index = get_timer_frequency_bit(*timer_controller);

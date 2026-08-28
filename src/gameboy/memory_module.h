@@ -6,9 +6,7 @@
 
 #include <cstdarg>
 
-//#include "mbc_base.h"
-
-#define FORCE_VRAM_OAM
+//#define MEMORY_ACCESS_HARD_BLOCK
 
 namespace gameboy
 {
@@ -138,20 +136,13 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
-#ifdef FORCE_VRAM_OAM
-					if (i == MEMORY_VRAM)
+					if ((memory_map[i].access & MEMORY_READABLE) == 0)
 					{
-						force = true;
-					}
+						print_warning("Warning - reading from memory map that is not readable: 0x%X\n", addr);
+						
+#ifdef MEMORY_ACCESS_HARD_BLOCK
+						return 0;
 #endif
-
-					if (!force)
-					{
-						if ((memory_map[i].access & MEMORY_READABLE) == 0)
-						{
-							print_warning("Warning - reading from memory map that is not readable: 0x%X\n", addr);
-							return 0;
-						}
 					}
 					
 					if (memory_map[i].memory_ptr == nullptr)
@@ -201,21 +192,14 @@ namespace gameboy
 			{
 				if (addr <= memory_map[i].addr_max)
 				{
-#ifdef FORCE_VRAM_OAM
-					if (i == MEMORY_VRAM)
+					if ((memory_map[i].access & MEMORY_READABLE) == 0)
 					{
-						force = true;
-					}
-#endif
+						printf("Warning - reading from memory map %d that is not readable: 0x%X LCD Mode: %d Dot: %d Scanline: %d PC: 0x%X\n",
+							i, addr, gpu::get_lcd_status_mode(), gpu::get_dots(), gpu::get_scanline(), cpu::get_current_pc());
 
-					if (!force)
-					{
-						if ((memory_map[i].access & MEMORY_READABLE) == 0)
-						{
-							printf("Warning - reading from memory map %d that is not readable: 0x%X LCD Mode: %d Dot: %d Scanline: %d PC: 0x%X\n",
-								i, addr, gpu::get_lcd_status_mode(), gpu::get_dots(), gpu::get_scanline(), cpu::get_current_pc());
-							return 0;
-						}
+#ifdef MEMORY_ACCESS_HARD_BLOCK
+						return 0;
+#endif
 					}
 
 					if (memory_map[i].memory_ptr == nullptr || *memory_map[i].memory_ptr == nullptr)
@@ -416,28 +400,15 @@ namespace gameboy
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
 			{
 				if (addr <= memory_map[i].addr_max)
-				{
-#ifdef FORCE_VRAM_OAM
-					if (i == MEMORY_VRAM)
+				{					
+					if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
 					{
-						if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
-						{
-							printf("Warning - writing to memory map %d that is not writable: 0x%X LCD Mode: %d Dot: %d Scanline: %d PC: 0x%X\n",
-								i, addr, gpu::get_lcd_status_mode(), gpu::get_dots(), gpu::get_scanline(), cpu::get_current_pc());
-						}
-
-						force = true;
-					}
+						printf("Warning - writing to memory map %d that is not writable: 0x%X LCD Mode: %d Dot: %d Scanline: %d PC: 0x%X\n",
+							i, addr, gpu::get_lcd_status_mode(), gpu::get_dots(), gpu::get_scanline(), cpu::get_current_pc());
+						
+#ifdef MEMORY_ACCESS_HARD_BLOCK
+						return;
 #endif
-
-					if (!force)
-					{						
-						if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
-						{
-							printf("Warning - writing to memory map %d that is not writable: 0x%X LCD Mode: %d Dot: %d Scanline: %d PC: 0x%X\n",
-								i, addr, gpu::get_lcd_status_mode(), gpu::get_dots(), gpu::get_scanline(), cpu::get_current_pc());
-							return;
-						}
 					}
 
 					if (memory_map[i].memory_ptr == nullptr)

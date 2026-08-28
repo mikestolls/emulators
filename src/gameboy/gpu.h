@@ -653,8 +653,6 @@ namespace gameboy
 					dot = 0;
 					switch_lcd_mode(MODE_HBLANK, false);
 					clear_screen();
-
-					//printf("LCD Disabled - PC: 0x%X\n", cpu::get_current_pc());
 				}
 
 				return 0;
@@ -669,8 +667,6 @@ namespace gameboy
 				window_scanline_counter = 0;
 				dot = 0;
 				switch_lcd_mode(MODE_HBLANK, false);
-
-				//printf("LCD Enabling - PC: 0x%X\n", cpu::get_current_pc());
 			}
 
 			u8 old_mode = get_lcd_status_mode();
@@ -692,8 +688,6 @@ namespace gameboy
 					{
 						switch_lcd_mode(MODE_OAM_ACCESS, false);
 					}
-
-					//printf("LCD Enabled - PC: 0x%X\n", cpu::get_current_pc());
 				}
 
 				return 0;
