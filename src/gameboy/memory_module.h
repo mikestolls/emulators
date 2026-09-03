@@ -6,7 +6,7 @@
 
 #include <cstdarg>
 
-//#define MEMORY_ACCESS_HARD_BLOCK
+#define MEMORY_ACCESS_HARD_BLOCK
 
 namespace gameboy
 {
