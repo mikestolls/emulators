@@ -184,10 +184,15 @@ namespace gameboy
 		while (!gpu::vblank_occurred)
 		{
 			// update cpu to fetch new opcode or execute mico ops. 1 micro op at a time. 
-			u8 cycles = cpu::update();
+			int cycles = 0;
+			while (cycles == 0) // some micro ops dont consume cycles
+			{
+				cycles = cpu::update();
+			}
+
 			cpu::update_timer(cycles);
-			
-			if (cycles == 0)
+
+			if (cycles == -1)
 			{
 				// cpu is paused
 				break;
@@ -195,7 +200,6 @@ namespace gameboy
 
 			gpu::update(cycles);
 			apu::update(cycles);
-			//total_cycles += cycles;
 
 			//check_test_status();
 
@@ -204,16 +208,8 @@ namespace gameboy
 				// Check for interrupts after instruction
 				cycles = cpu::check_interrupts();
 				cpu::update_timer(cycles);
-				//total_cycles += cycles;
-				//cpu::update_timer(total_cycles);
-				//total_cycles = 0;
 			}
 		}
-
-		//if (cycle_count < cycles_needed)
-		//{
-		//	printf("Cycle Count: %d Cycles Needed: %d\n", cycle_count, cycles_needed);
-		//}
 
 		if (!cpu::paused && cpu::running)
 		{

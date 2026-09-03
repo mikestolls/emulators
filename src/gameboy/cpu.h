@@ -5,36 +5,6 @@
 #include "memory_module.h"
 #include "input.h"
 
-//Opcode  Z80				GMB
-//---------------------------------------------
-//08      EX   AF, AF		LD(nn), SP				done
-//10      DJNZ PC + dd      STOP					done
-//22      LD(nn), HL		LDI(HL), A				done
-//2A      LD   HL, (nn)		LDI  A, (HL)			done
-//32      LD(nn), A			LDD(HL), A				done
-//3A      LD   A, (nn)		LDD  A, (HL)			done
-//D3      OUT(n), A			-						done
-//D9      EXX				RETI					done
-//DB      IN   A, (n)		-						done
-//DD      <IX>				-						done
-//E0      RET  PO			LD(FF00 + n), A			done
-//E2      JP   PO, nn		LD(FF00 + C), A			done
-//E3      EX(SP), HL		-						done
-//E4      CALL P0, nn		-						done
-//E8      RET  PE			ADD  SP, d				done
-//EA      JP   PE, nn		LD(nn), A				done
-//EB      EX   DE, HL		-						done
-//EC      CALL PE, nn		-						done
-//ED      <pref>			-						done
-//F0      RET  P			LD   A, (FF00 + n)		done
-//F2      JP   P, nn		LD   A, (FF00 + C)		done
-//F4      CALL P, nn		-						done
-//F8      RET  M			LD   HL, SP + d			done
-//FA      JP   M, nn		LD   A, (nn)			done
-//FC      CALL M, nn		-						done
-//FD      <IY>				-						done
-//CB3X    SLL  r / (HL)		SWAP r / (HL)			done
-
 namespace gameboy
 {
 	//int update_peripherals(u8 cycles);
@@ -113,9 +83,14 @@ namespace gameboy
 			bool is_use_addr = false;
 			bool is_signed = false;
 			ROTATE_TYPE rotate_type = ROTATE_TYPE::LEFT_CIRCULAR;
+			bool is_consuming_cycles = true;
 		};
 
 		bool is_opcode_complete = false;
+		bool is_interrupt_service = false;
+		bool last_opcode_is_cb = false;
+		bool last_condition_result = false;
+		u8 last_opcode_cycles = 0;
 		u8 last_opcode = 0x0;
 		s32 last_temp_value = 0x0;
 		u16 last_read_reg = 0x0;
@@ -686,7 +661,7 @@ namespace gameboy
 
 		inline void set_double_speed(bool double_speed)
 		{
-			is_double_speed = false;
+			is_double_speed = double_speed;
 		}
 
 		// interrupt functionality
@@ -781,6 +756,7 @@ namespace gameboy
 			}
 
 			last_temp_value = addr;
+			is_interrupt_service = true;
 
 			// STACK PUSH
 			MicroOp write_high;
@@ -789,6 +765,7 @@ namespace gameboy
 			write_high.dest_ptr = (u8*)&R.sp;
 			write_high.addr_offset = -1;  // write to (sp-1)
 			write_high.dest_modify = -1;  // decrement sp
+			write_high.is_consuming_cycles = false;
 			micro_op_queue.push_back(write_high);
 
 			MicroOp write_low;
@@ -797,12 +774,14 @@ namespace gameboy
 			write_low.dest_ptr = (u8*)&R.sp;
 			write_low.addr_offset = -1;  // write to (sp-1)
 			write_low.dest_modify = -1;  // decrement sp
+			write_low.is_consuming_cycles = false;
 			micro_op_queue.push_back(write_low);
 
 			MicroOp assign_pc;
 			assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
 			assign_pc.src_ptr = (u8*)&last_temp_value;
 			assign_pc.dest_ptr = (u8*)&R.pc;
+			assign_pc.is_consuming_cycles = false;
 			micro_op_queue.push_back(assign_pc);
 		}
 
@@ -1278,6 +1257,7 @@ namespace gameboy
 						// NOP
 						MicroOp op;
 						op.micro_op_type = MICRO_OP_TYPE::NOP;
+						op.is_consuming_cycles = false;
 						micro_op_queue.push_back(op);
 
 						break;
@@ -1317,6 +1297,7 @@ namespace gameboy
 						MicroOp fetch;
 						fetch.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
 						fetch.dest_ptr = (u8*)&last_temp_value;
+						fetch.is_consuming_cycles = false;
 						micro_op_queue.push_back(fetch);
 
 						u8 key1 = memory_module::read_memory(0xFF4D);
@@ -1333,6 +1314,7 @@ namespace gameboy
 							write.addr = 0xFF4D;
 							write.value = key1;							
 							write.is_use_value = true;
+							write.is_consuming_cycles = false;
 							micro_op_queue.push_back(write);
 						}
 
@@ -1371,6 +1353,7 @@ namespace gameboy
 						cond.micro_op_type = MICRO_OP_TYPE::CONDITION;
 						cond.condition_index = y - 4;
 						cond.condition_fail_pop_count = 1; // pop jump if condition fails
+						cond.is_consuming_cycles = false;
 						micro_op_queue.push_back(cond);
 
 						if (condition_funct[y - 4]())
@@ -1408,6 +1391,7 @@ namespace gameboy
 						assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
 						assign.src_ptr = (u8*)&last_temp_value;
 						assign.dest_ptr = (u8*)register_pairs[p];
+						assign.is_consuming_cycles = false;
 						micro_op_queue.push_back(assign);
 
 						break;
@@ -1419,6 +1403,7 @@ namespace gameboy
 						read.micro_op_type = MICRO_OP_TYPE::READ_REG_16;
 						read.src_ptr = (u8*)register_pairs[p];
 						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
 						micro_op_queue.push_back(read);
 
 						u8 flag = 0x0;
@@ -1457,6 +1442,7 @@ namespace gameboy
 							read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 							read.src_ptr = (u8*)&R.a;
 							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
 							micro_op_queue.push_back(read);
 
 							MicroOp write;
@@ -1474,6 +1460,7 @@ namespace gameboy
 							read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 							read.src_ptr = (u8*)&R.a;
 							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
 							micro_op_queue.push_back(read);
 
 							MicroOp write;
@@ -1491,6 +1478,7 @@ namespace gameboy
 							read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 							read.src_ptr = (u8*)&R.a;
 							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
 							micro_op_queue.push_back(read);
 
 							MicroOp write;
@@ -1509,6 +1497,7 @@ namespace gameboy
 							read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 							read.src_ptr = (u8*)&R.a;
 							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
 							micro_op_queue.push_back(read);
 
 							MicroOp write;
@@ -1534,6 +1523,7 @@ namespace gameboy
 							read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
 							read.src_ptr = (u8*)&R.bc;
 							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
 							micro_op_queue.push_back(read);
 
 							MicroOp write;
@@ -1551,6 +1541,7 @@ namespace gameboy
 							read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
 							read.src_ptr = (u8*)&R.de;
 							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
 							micro_op_queue.push_back(read);
 
 							MicroOp write;
@@ -1575,6 +1566,7 @@ namespace gameboy
 							write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
 							write.src_ptr = (u8*)&last_temp_value;
 							write.dest_ptr = (u8*)&R.a;
+							write.is_consuming_cycles = false;
 							micro_op_queue.push_back(write);
 
 							break;
@@ -1593,6 +1585,7 @@ namespace gameboy
 							write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
 							write.src_ptr = (u8*)&last_temp_value;
 							write.dest_ptr = (u8*)&R.a;
+							write.is_consuming_cycles = false;
 							micro_op_queue.push_back(write);
 
 							break;
@@ -1614,6 +1607,7 @@ namespace gameboy
 						read.micro_op_type = MICRO_OP_TYPE::READ_REG_16;
 						read.src_ptr = (u8*)register_pairs[p];
 						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
 						micro_op_queue.push_back(read);
 
 						MicroOp add;
@@ -1634,6 +1628,7 @@ namespace gameboy
 						read.micro_op_type = MICRO_OP_TYPE::READ_REG_16;
 						read.src_ptr = (u8*)register_pairs[p];
 						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
 						micro_op_queue.push_back(read);
 
 						MicroOp add;
@@ -1659,6 +1654,7 @@ namespace gameboy
 						read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
 						read.src_ptr = (u8*)&R.hl;
 						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
 						micro_op_queue.push_back(read);
 
 						u8 flag = 0x0;
@@ -1669,6 +1665,7 @@ namespace gameboy
 						u8 reset_flag = 0x0;
 						set_flag(reset_flag, FLAG_SUBTRACTION);
 
+						// consuming cycles to read from HL
 						MicroOp inc;
 						inc.micro_op_type = MICRO_OP_TYPE::ADD_8;
 						inc.value = 1;
@@ -1692,6 +1689,7 @@ namespace gameboy
 						read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 						read.src_ptr = (u8*)register_single[y];
 						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
 						micro_op_queue.push_back(read);
 
 						u8 flag = 0x0;
@@ -1711,6 +1709,7 @@ namespace gameboy
 						inc.is_signed = true;
 						inc.set_flags = flag;
 						inc.reset_flags = reset_flag;
+						inc.is_consuming_cycles = false;
 						micro_op_queue.push_back(inc);
 					}
 
@@ -1725,6 +1724,7 @@ namespace gameboy
 						read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
 						read.src_ptr = (u8*)&R.hl;
 						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
 						micro_op_queue.push_back(read);
 
 						u8 flag = 0x0;
@@ -1732,6 +1732,7 @@ namespace gameboy
 						set_flag(flag, FLAG_SUBTRACTION);
 						set_flag(flag, FLAG_HALFCARRY);
 
+						// consuming cycles to grab from (HL)
 						MicroOp inc;
 						inc.micro_op_type = MICRO_OP_TYPE::ADD_8;
 						inc.value = -1;
@@ -1754,6 +1755,7 @@ namespace gameboy
 						read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 						read.src_ptr = (u8*)register_single[y];
 						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
 						micro_op_queue.push_back(read);
 
 						u8 flag = 0x0;
@@ -1769,6 +1771,7 @@ namespace gameboy
 						inc.dest_ptr = (u8*)register_single[y];
 						inc.is_signed = true;
 						inc.set_flags = flag;
+						inc.is_consuming_cycles = false;
 						micro_op_queue.push_back(inc);
 					}
 
@@ -1796,6 +1799,7 @@ namespace gameboy
 						write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
 						write.src_ptr = (u8*)&last_temp_value;
 						write.dest_ptr = (u8*)register_single[y];
+						write.is_consuming_cycles = false;
 						micro_op_queue.push_back(write);
 					}
 
@@ -1811,6 +1815,7 @@ namespace gameboy
 						MicroOp rot;
 						rot.micro_op_type = MICRO_OP_TYPE::ROTATE_ACCUMULATOR;
 						rot.rotate_type = ROTATE_TYPE::LEFT_CIRCULAR;
+						rot.is_consuming_cycles = false;
 						micro_op_queue.push_back(rot);
 
 						break;
@@ -1821,6 +1826,7 @@ namespace gameboy
 						MicroOp rot;
 						rot.micro_op_type = MICRO_OP_TYPE::ROTATE_ACCUMULATOR;
 						rot.rotate_type = ROTATE_TYPE::RIGHT_CIRCULAR;
+						rot.is_consuming_cycles = false;
 						micro_op_queue.push_back(rot);
 
 						break;
@@ -1831,6 +1837,7 @@ namespace gameboy
 						MicroOp rot;
 						rot.micro_op_type = MICRO_OP_TYPE::ROTATE_ACCUMULATOR;
 						rot.rotate_type = ROTATE_TYPE::LEFT_THROUGH_CARRY;
+						rot.is_consuming_cycles = false;
 						micro_op_queue.push_back(rot);
 
 						break;
@@ -1841,6 +1848,7 @@ namespace gameboy
 						MicroOp rot;
 						rot.micro_op_type = MICRO_OP_TYPE::ROTATE_ACCUMULATOR;
 						rot.rotate_type = ROTATE_TYPE::RIGHT_THROUGH_CARRY;
+						rot.is_consuming_cycles = false;
 						micro_op_queue.push_back(rot);
 
 						break;
@@ -1850,6 +1858,7 @@ namespace gameboy
 						// DAA
 						MicroOp op;
 						op.micro_op_type = MICRO_OP_TYPE::DAA;
+						op.is_consuming_cycles = false;
 						micro_op_queue.push_back(op);
 
 						break;
@@ -1859,6 +1868,7 @@ namespace gameboy
 						// CPL
 						MicroOp op;
 						op.micro_op_type = MICRO_OP_TYPE::CPL;
+						op.is_consuming_cycles = false;
 						micro_op_queue.push_back(op);
 
 						break;
@@ -1868,6 +1878,7 @@ namespace gameboy
 						// SCF
 						MicroOp op;
 						op.micro_op_type = MICRO_OP_TYPE::SCF;
+						op.is_consuming_cycles = false;
 						micro_op_queue.push_back(op);
 
 						break;
@@ -1877,6 +1888,7 @@ namespace gameboy
 						// CCF
 						MicroOp op;
 						op.micro_op_type = MICRO_OP_TYPE::CCF;
+						op.is_consuming_cycles = false;
 						micro_op_queue.push_back(op);
 
 						break;
@@ -1894,6 +1906,7 @@ namespace gameboy
 					// HALT
 					MicroOp op;
 					op.micro_op_type = MICRO_OP_TYPE::HALT;
+					op.is_consuming_cycles = false;
 					micro_op_queue.push_back(op);
 				}
 				else if (y == 6)
@@ -1903,6 +1916,7 @@ namespace gameboy
 					read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 					read.src_ptr = (u8*)register_single[z];
 					read.dest_ptr = (u8*)&last_temp_value;
+					read.is_consuming_cycles = false;
 					micro_op_queue.push_back(read);
 
 					MicroOp write;
@@ -1924,6 +1938,7 @@ namespace gameboy
 					write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
 					write.src_ptr = (u8*)&last_temp_value;
 					write.dest_ptr = (u8*)register_single[y];
+					write.is_consuming_cycles = false;
 					micro_op_queue.push_back(write);
 				}
 				else
@@ -1933,12 +1948,14 @@ namespace gameboy
 					read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 					read.src_ptr = (u8*)register_single[z];
 					read.dest_ptr = (u8*)&last_temp_value;
+					read.is_consuming_cycles = false;
 					micro_op_queue.push_back(read);
 
 					MicroOp write;
 					write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
 					write.src_ptr = (u8*)&last_temp_value;
 					write.dest_ptr = (u8*)register_single[y];
+					write.is_consuming_cycles = false;
 					micro_op_queue.push_back(write);
 				}
 
@@ -1960,6 +1977,7 @@ namespace gameboy
 					read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 					read.src_ptr = (u8*)register_single[z];
 					read.dest_ptr = (u8*)&last_temp_value;
+					read.is_consuming_cycles = false;
 					micro_op_queue.push_back(read);
 				}
 
@@ -1968,6 +1986,7 @@ namespace gameboy
 				alu.micro_op_type = MICRO_OP_TYPE::ALU;
 				alu.src_ptr = (u8*)&last_temp_value;
 				alu.alu_rot_index = y;
+				alu.is_consuming_cycles = false;
 				micro_op_queue.push_back(alu);
 
 				break;
@@ -2029,6 +2048,7 @@ namespace gameboy
 						add.value = 0xFF00;
 						add.src_ptr = (u8*)&last_temp_value;
 						add.dest_ptr = (u8*)&last_temp_value;
+						add.is_consuming_cycles = false;
 						micro_op_queue.push_back(add);
 
 						MicroOp write;
@@ -2069,6 +2089,7 @@ namespace gameboy
 						assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
 						assign.src_ptr = (u8*)&last_temp_value;
 						assign.dest_ptr = (u8*)&R.sp;
+						assign.is_consuming_cycles = false;
 						micro_op_queue.push_back(assign);
 
 						// adding to pad timing
@@ -2092,6 +2113,7 @@ namespace gameboy
 						add.value = 0xFF00;
 						add.src_ptr = (u8*)&last_temp_value;
 						add.dest_ptr = (u8*)&last_temp_value;
+						add.is_consuming_cycles = false;
 						micro_op_queue.push_back(add);
 
 						MicroOp read;
@@ -2132,6 +2154,7 @@ namespace gameboy
 						assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
 						assign.src_ptr = (u8*)&last_temp_value;
 						assign.dest_ptr = (u8*)&R.hl;
+						assign.is_consuming_cycles = false;
 						micro_op_queue.push_back(assign);
 						break;
 					}
@@ -2162,6 +2185,7 @@ namespace gameboy
 						assign.src_ptr = (u8*)&last_temp_value;
 						assign.dest_ptr = (u8*)register_pairs2[p];
 						assign.dest_mask = (p == 3 ? 0xFFF0 : 0xFFFF); // p == 3 means its writing to AF so we mask
+						assign.is_consuming_cycles = false;
 						micro_op_queue.push_back(assign);
 					}
 					else
@@ -2189,6 +2213,7 @@ namespace gameboy
 							assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
 							assign.src_ptr = (u8*)&last_temp_value;
 							assign.dest_ptr = (u8*)&R.pc;
+							assign.is_consuming_cycles = false;
 							micro_op_queue.push_back(assign);
 
 							MicroOp nop;
@@ -2218,6 +2243,7 @@ namespace gameboy
 							assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
 							assign.src_ptr = (u8*)&last_temp_value;
 							assign.dest_ptr = (u8*)&R.pc;
+							assign.is_consuming_cycles = false;
 							micro_op_queue.push_back(assign);
 
 							MicroOp ime;
@@ -2235,6 +2261,7 @@ namespace gameboy
 							assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
 							assign.src_ptr = (u8*)&R.hl;
 							assign.dest_ptr = (u8*)&R.pc;
+							assign.is_consuming_cycles = false;
 							micro_op_queue.push_back(assign);
 
 							break;
@@ -2278,6 +2305,7 @@ namespace gameboy
 						cond.micro_op_type = MICRO_OP_TYPE::CONDITION;
 						cond.condition_index = y;
 						cond.condition_fail_pop_count = 1;
+						cond.is_consuming_cycles = false;
 						micro_op_queue.push_back(cond);
 
 						MicroOp assign_pc;
@@ -2295,6 +2323,7 @@ namespace gameboy
 						read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 						read.src_ptr = (u8*)&R.c;
 						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
 						micro_op_queue.push_back(read);
 
 						MicroOp write;
@@ -2322,6 +2351,7 @@ namespace gameboy
 						MicroOp read_a;
 						read_a.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 						read_a.src_ptr = (u8*)&R.a; // just reading not storing
+						read_a.is_consuming_cycles = false;
 						micro_op_queue.push_back(read_a);
 
 						MicroOp write;
@@ -2339,6 +2369,7 @@ namespace gameboy
 						load.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 						load.src_ptr = (u8*)&R.c;
 						load.dest_ptr = (u8*)&last_temp_value;
+						load.is_consuming_cycles = false;
 						micro_op_queue.push_back(load);
 
 						MicroOp read;
@@ -2373,6 +2404,7 @@ namespace gameboy
 						assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
 						assign.src_ptr = (u8*)&last_temp_value;
 						assign.dest_ptr = (u8*)&R.a;
+						assign.is_consuming_cycles = false;
 						micro_op_queue.push_back(assign);
 
 						break;
@@ -2405,6 +2437,7 @@ namespace gameboy
 						assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
 						assign_pc.src_ptr = (u8*)&last_temp_value;
 						assign_pc.dest_ptr = (u8*)&R.pc;
+						assign_pc.is_consuming_cycles = false;
 						micro_op_queue.push_back(assign_pc);
 
 						break;
@@ -2433,6 +2466,7 @@ namespace gameboy
 						ime.micro_op_type = MICRO_OP_TYPE::IME;
 						ime.value = IME_MODE::DISABLE;
 						ime.is_use_value = true;
+						ime.is_consuming_cycles = false;
 						micro_op_queue.push_back(ime);
 
 						break;
@@ -2444,6 +2478,7 @@ namespace gameboy
 						ime.micro_op_type = MICRO_OP_TYPE::IME;
 						ime.value = IME_MODE::ENABLE_DELAYED;
 						ime.is_use_value = true;
+						ime.is_consuming_cycles = false;
 						micro_op_queue.push_back(ime);
 
 						break;
@@ -2474,6 +2509,7 @@ namespace gameboy
 						cond.micro_op_type = MICRO_OP_TYPE::CONDITION;
 						cond.condition_index = y;
 						cond.condition_fail_pop_count = 3;
+						cond.is_consuming_cycles = false;
 						micro_op_queue.push_back(cond);
 
 						// STACK PUSH
@@ -2493,6 +2529,7 @@ namespace gameboy
 						write_low.dest_modify = -1;  // decrement sp
 						micro_op_queue.push_back(write_low);
 
+						// counting cycles here as there is normally an internal delay
 						MicroOp assign_pc;
 						assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
 						assign_pc.src_ptr = (u8*)&last_temp_value;
@@ -2519,6 +2556,10 @@ namespace gameboy
 					if (q == 0)
 					{
 						// PUSH register_pairs2[p]
+						// adding internal delay
+						MicroOp nop;
+						micro_op_queue.push_back(nop);
+
 						// STACK PUSH
 						MicroOp write_high;
 						write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
@@ -2568,6 +2609,7 @@ namespace gameboy
 							write_low.dest_modify = -1;  // decrement sp
 							micro_op_queue.push_back(write_low);
 
+							// this is writing PC so its consuming cycles
 							MicroOp assign_pc;
 							assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
 							assign_pc.src_ptr = (u8*)&last_temp_value;
@@ -2594,16 +2636,13 @@ namespace gameboy
 					alu.micro_op_type = MICRO_OP_TYPE::ALU;
 					alu.src_ptr = (u8*)&last_temp_value;
 					alu.alu_rot_index = y;
+					alu.is_consuming_cycles = false;
 					micro_op_queue.push_back(alu);
 
 					break;
 				}
 				case 0x7: // z = 7
 				{
-					// Debug: print RST info
-					u8 rst_opcode = 0xC7 | (y << 3);
-					printf("RST instruction: opcode=0x%02X, y=%d, PC=0x%04X\n", rst_opcode, y, R.pc);
-
 					// RST at pc 7 * 8. basically a CALL
 					MicroOp nop;
 					nop.micro_op_type = MICRO_OP_TYPE::NOP;
@@ -2631,6 +2670,7 @@ namespace gameboy
 					assign_pc.value = y * 8;
 					assign_pc.is_use_value = true;
 					assign_pc.dest_ptr = (u8*)&R.pc;
+					assign_pc.is_consuming_cycles = false;
 					micro_op_queue.push_back(assign_pc);
 
 					break;
@@ -2681,6 +2721,7 @@ namespace gameboy
 					rot.src_ptr = (u8*)&last_temp_value;
 					rot.dest_ptr = (u8*)&last_temp_value;
 					rot.alu_rot_index = y;
+					rot.is_consuming_cycles = false;
 					micro_op_queue.push_back(rot);
 
 					MicroOp write;
@@ -2695,6 +2736,7 @@ namespace gameboy
 					read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
 					read.src_ptr = register_single[z];
 					read.dest_ptr = (u8*)&last_temp_value;
+					read.is_consuming_cycles = false;
 					micro_op_queue.push_back(read);
 
 					MicroOp rot;
@@ -2702,12 +2744,14 @@ namespace gameboy
 					rot.src_ptr = (u8*)&last_temp_value;
 					rot.dest_ptr = (u8*)&last_temp_value;
 					rot.alu_rot_index = y;
+					rot.is_consuming_cycles = false;
 					micro_op_queue.push_back(rot);
 
 					MicroOp write;
 					write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
 					write.src_ptr = (u8*)&last_temp_value;
 					write.dest_ptr = register_single[z];
+					write.is_consuming_cycles = false;
 					micro_op_queue.push_back(write);
 				}
 
@@ -2729,6 +2773,7 @@ namespace gameboy
 					test_bit.micro_op_type = MICRO_OP_TYPE::TEST_BIT;
 					test_bit.src_ptr = (u8*)&last_temp_value;
 					test_bit.value = y; // bit index
+					test_bit.is_consuming_cycles = false;
 					micro_op_queue.push_back(test_bit);
 				}
 				else
@@ -2737,6 +2782,7 @@ namespace gameboy
 					test_bit.micro_op_type = MICRO_OP_TYPE::TEST_BIT;
 					test_bit.src_ptr = register_single[z];
 					test_bit.value = y; // bit index
+					test_bit.is_consuming_cycles = false;
 					micro_op_queue.push_back(test_bit);
 				}
 
@@ -2757,6 +2803,7 @@ namespace gameboy
 					reset_bit.micro_op_type = MICRO_OP_TYPE::RESET_BIT;
 					reset_bit.src_ptr = (u8*)&last_temp_value;
 					reset_bit.value = y; // bit index
+					reset_bit.is_consuming_cycles = false;
 					micro_op_queue.push_back(reset_bit);
 
 					MicroOp write;
@@ -2771,6 +2818,7 @@ namespace gameboy
 					reset_bit.micro_op_type = MICRO_OP_TYPE::RESET_BIT;
 					reset_bit.src_ptr = register_single[z];
 					reset_bit.value = y; // bit index
+					reset_bit.is_consuming_cycles = false;
 					micro_op_queue.push_back(reset_bit);
 				}
 
@@ -2791,6 +2839,7 @@ namespace gameboy
 					reset_bit.micro_op_type = MICRO_OP_TYPE::SET_BIT;
 					reset_bit.src_ptr = (u8*)&last_temp_value;
 					reset_bit.value = y; // bit index
+					reset_bit.is_consuming_cycles = false;
 					micro_op_queue.push_back(reset_bit);
 
 					MicroOp write;
@@ -2805,6 +2854,7 @@ namespace gameboy
 					reset_bit.micro_op_type = MICRO_OP_TYPE::SET_BIT;
 					reset_bit.src_ptr = register_single[z];
 					reset_bit.value = y; // bit index
+					reset_bit.is_consuming_cycles = false;
 					micro_op_queue.push_back(reset_bit);
 				}
 
@@ -2817,6 +2867,7 @@ namespace gameboy
 			return cycles;
 		}
 		
+#if 0
 		int execute_opcode()
 		{
 			if (!running || (paused && !breakpoint_disable_one_instr))
@@ -2908,6 +2959,7 @@ namespace gameboy
 
 			return cycles;
 		}
+#endif
 
 		int execute_micro_op(MicroOp& op)
 		{
@@ -2924,12 +2976,15 @@ namespace gameboy
 				if (last_opcode == 0xCB)
 				{
 					u8 opcode = readpc_u8();
+					last_opcode = opcode;
+					last_opcode_is_cb = true;
 					decode_prefixed_cb(opcode); // decode functions will push their own operations
 				}
 				else
 				{
 					current_pc = R.pc;
 					u8 opcode = readpc_u8();
+					last_opcode_is_cb = false;
 
 					if (opcode == 0xCB)
 					{
@@ -2953,10 +3008,11 @@ namespace gameboy
 
 					// store last op code mainly for CB fetching
 					last_opcode = opcode;
-				}
 
-				// set this as we have started a new opcode
-				is_opcode_complete = false;
+					// set this as we have started a new opcode
+					is_opcode_complete = false;
+					last_opcode_cycles = 0;
+				}
 
 				break;
 			}
@@ -3661,8 +3717,11 @@ namespace gameboy
 			}
 			case MICRO_OP_TYPE::CONDITION:
 			{
+				last_condition_result = true;
 				if (!condition_funct[op.condition_index]())
 				{
+					last_condition_result = false;
+
 					// condition not met. pop number of micro ops
 					for (int i = 0; i < op.condition_fail_pop_count; i++)
 					{
@@ -3814,9 +3873,9 @@ namespace gameboy
 
 			if (paused && !breakpoint_disable_one_instr)
 			{
-				return 0;
+				return -1;
 			}
-
+			
 			// now we can process a micro op at a time
 			MicroOp op = micro_op_queue.front();
 			micro_op_queue.pop_front();
@@ -3825,7 +3884,42 @@ namespace gameboy
 
 			is_opcode_complete = micro_op_queue.empty(); // if its empty then we completed opcode
 
-			return 4;
+			if (op.is_consuming_cycles)
+			{
+				last_opcode_cycles += 4;
+			}
+
+			if (is_interrupt_service)
+			{
+				last_opcode_cycles = 0;
+			}
+
+			if (is_opcode_complete && !is_interrupt_service)
+			{
+				if (last_opcode_is_cb)
+				{
+					assert(last_opcode_cycles / 4 == instruction_times_cb[last_opcode]);
+				}
+				else
+				{
+					if (last_condition_result)
+					{
+						assert(last_opcode_cycles / 4 == instruction_times_condition[last_opcode]);
+					}
+					else
+					{
+						assert(last_opcode_cycles / 4 == instruction_times_nocondition[last_opcode]);
+					}
+				}
+			}
+
+			if (is_opcode_complete)
+			{
+				is_interrupt_service = false;
+				last_opcode_cycles = 0;
+			}
+
+			return op.is_consuming_cycles ? 4 : 0;
 		}
 	}
 }
