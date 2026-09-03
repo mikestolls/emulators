@@ -152,7 +152,7 @@ namespace gameboy
 		return 0;
 	}
 
-	/*int update_peripherals(u8 cycles)
+	int update_peripherals(u8 cycles)
 	{
 		u8 peripheral_cycle = cycles;
 		if (cpu::is_double_speed)
@@ -164,12 +164,8 @@ namespace gameboy
 		gpu::update(peripheral_cycle);
 		apu::update(peripheral_cycle);
 
-		cpu::update_timer(cycles);
-
 		return 0;
-	}*/
-
-	//int total_cycles = 0;
+	}
 
 	int update(const sf::Time& deltaTime)
 	{
@@ -198,8 +194,7 @@ namespace gameboy
 				break;
 			}
 
-			gpu::update(cycles);
-			apu::update(cycles);
+			update_peripherals(cycles);
 
 			//check_test_status();
 
@@ -208,6 +203,8 @@ namespace gameboy
 				// Check for interrupts after instruction
 				cycles = cpu::check_interrupts();
 				cpu::update_timer(cycles);
+
+				update_peripherals(cycles);
 			}
 		}
 

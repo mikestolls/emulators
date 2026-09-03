@@ -3,12 +3,11 @@
 #include "defines.h"
 
 #include "memory_module.h"
-#include "input.h"
+
+#define DEBUG_ASSERT_INSTR_TIMINGS
 
 namespace gameboy
 {
-	//int update_peripherals(u8 cycles);
-
 	namespace gpu
 	{
 		int update(u8 cycles);
@@ -88,8 +87,8 @@ namespace gameboy
 
 		bool is_opcode_complete = false;
 		bool is_interrupt_service = false;
-		bool last_opcode_is_cb = false;
-		bool last_condition_result = false;
+		bool is_last_opcode_cb = false;
+		bool is_last_condition_pass = false;
 		u8 last_opcode_cycles = 0;
 		u8 last_opcode = 0x0;
 		s32 last_temp_value = 0x0;
@@ -137,6 +136,7 @@ namespace gameboy
 
 		std::deque<MicroOp> micro_op_queue;
 		
+#ifdef DEBUG_ASSERT_INSTR_TIMINGS
 		// debug instruction timings
 		static const int instruction_times_nocondition[] = {
 			1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1,
@@ -194,6 +194,7 @@ namespace gameboy
 			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
 			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
 		};
+#endif
 
 		// cpus register structure
 		struct Registers
@@ -806,8 +807,6 @@ namespace gameboy
 							R.pc++;
 						}
 
-						//gameboy::update_peripherals(cycles);
-
 						service_interrupt(i);
 						clear_request_interrupt_flag(i);
 
@@ -962,164 +961,6 @@ namespace gameboy
 			return 0;
 		}
 
-		/*
-
-		u32 get_timer_frequency()
-		{
-			u32 cycles = 0;
-
-			switch (*timer_controller & 0x3) // bit 0 and 1 are the frequency flags. cycles_per_sec / frequency
-			{
-			case 0x0: // 4096 hz
-				cycles = 1024;
-				break;
-			case 0x1: // 262144 hz
-				cycles = 16;
-				break;
-			case 0x2: // 65536 hz
-				cycles = 64;
-				break;
-			case 0x3: // 16384 hz
-				cycles = 256;
-				break;
-			}
-
-			return cycles;
-		}
-
-		static bool log_to_file = false;
-		static bool timer_debug = false;
-		static int total_cycles = 0;
-		static int timer_overflow_delay = -1;
-		static FILE* fptr = fopen("output.txt", "w");
-
-		bool is_reset_timer = false;
-
-		void reset_timer_counter()
-		{
-			//timer_counter = get_timer_frequency();
-			//*timer_value = *timer_modulator;
-			is_reset_timer = true;
-
-			if (log_to_file)
-			{
-				fprintf(fptr, "reset_timer_counter: freq=%d TIMA=0x%02X TMA=0x%02X TAC=0x%02X PC=0x%04X\n",
-					timer_counter, *timer_value, *timer_modulator, *timer_controller, R.pc);
-			}
-		}
-
-		int update_timer(u8 cycles)
-		{
-			// Start debug when TAC is set to 0x05
-			if (!timer_debug && *timer_controller == 0x05 && timer_enabled())
-			{
-				timer_debug = true;
-
-				if (log_to_file)
-				{
-					fprintf(fptr, "\n=== TIMER DEBUG START ===\n");
-					fprintf(fptr, "Initial: TIMA=0x%02X TMA=0x%02X TAC=0x%02X freq=%d counter=%d\n",
-						*timer_value, *timer_modulator, *timer_controller, get_timer_frequency(), timer_counter);
-				}
-			}
-
-			if (timer_debug)
-			{
-				total_cycles += cycles;
-			}
-
-			// Handle overflow delay first (if pending)
-			if (timer_overflow_delay >= 0)
-			{
-				timer_overflow_delay -= cycles;
-				if (timer_overflow_delay < 0)
-				{
-					// Reload TIMA with TMA and set interrupt
-					*timer_value = *timer_modulator;
-					set_request_interrupt_flag(INTERRUPT_TIMER);
-
-					if (timer_debug && log_to_file)
-					{
-						fprintf(fptr, "[%d] OVERFLOW RELOAD: TIMA->0x%02X (TMA) IF=0x%02X\n",
-							total_cycles, *timer_value, *interrupt_request_flag);
-					}
-					timer_overflow_delay = -1;  // Clear overflow state
-				}
-			}
-
-			// update divide register first
-			divide_counter -= cycles;
-
-			while (divide_counter <= 0) // divide register is 16382 hz
-			{
-				(*divide_value)++;
-				divide_counter += 256;
-			}
-
-			if (!timer_enabled())
-			{
-				return 0;
-			}
-
-			if (!is_reset_timer)
-			{
-				timer_counter -= cycles;
-
-				while (timer_counter <= 0)
-				{
-					// check if overflow. set timer_counter to modulator. increase timer
-					if (*timer_value == 0xFF)
-					{
-						*timer_value = *timer_modulator;
-
-						// interrupt
-						set_request_interrupt_flag(INTERRUPT_TIMER);
-
-						*timer_value = 0x00;
-						timer_overflow_delay = 4;  // 4 T-cycles until TMA reload
-
-						if (timer_debug)
-						{
-							if (log_to_file)
-							{
-								fprintf(fptr, "[%d] OVERFLOW: TIMA 0xFF->0x%02X counter=%d IF=0x%02X\n",
-									total_cycles, *timer_value, timer_counter, *interrupt_request_flag);
-							}
-						}
-					}
-					else
-					{
-						(*timer_value)++;
-					}
-
-					// set counter back to frequency
-					timer_counter += get_timer_frequency();
-
-					if (timer_debug && log_to_file)
-					{
-						u8 old_val = *timer_value - 1;
-						fprintf(fptr, "[%d] TIMA: 0x%02X->0x%02X counter=%d\n",
-							total_cycles, old_val, *timer_value, timer_counter);
-					}
-				}
-			}
-
-			if (timer_debug && log_to_file && total_cycles > 400)
-			{
-				timer_debug = false;
-				fprintf(fptr, "=== TIMER DEBUG END ===\n\n");
-			}
-
-			if (is_reset_timer)
-			{
-				is_reset_timer = false;
-				timer_counter = get_timer_frequency() * 2;
-			}
-
-			return 0;
-		}
-		*/
-
 		int reset()
 		{
 			memset(&R, 0x0, sizeof(R)); // init registers to 0
@@ -1229,8 +1070,6 @@ namespace gameboy
 			return false;
 		}
 
-		u8 opcode_state = 0;
-
 		int decode_nonprefixed(u8 opcode)
 		{
 			u8 x = (opcode >> 6);
@@ -1312,7 +1151,8 @@ namespace gameboy
 							MicroOp write;
 							write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
 							write.addr = 0xFF4D;
-							write.value = key1;							
+							write.value = key1;			
+							write.is_use_addr = true;
 							write.is_use_value = true;
 							write.is_consuming_cycles = false;
 							micro_op_queue.push_back(write);
@@ -2680,16 +2520,7 @@ namespace gameboy
 			}
 			}
 
-			/*if (is_condition)
-			{
-				assert(cycles / 4 == instruction_times_condition[opcode]);
-			}
-			else
-			{
-				assert(cycles / 4 == instruction_times_nocondition[opcode]);
-			}*/
-
-			return cycles;
+			return 0;
 		}
 
 		int decode_prefixed_cb(u8 opcode)
@@ -2862,105 +2693,9 @@ namespace gameboy
 			}
 			}
 
-			//assert(cycles / 4 == instruction_times_cb[opcode]);
-
-			return cycles;
+			return 0;
 		}
 		
-#if 0
-		int execute_opcode()
-		{
-			if (!running || (paused && !breakpoint_disable_one_instr))
-			{
-				// processor is stopped
-				return 0;
-			}
-
-			// check for hitting breakpoints to pause
-			if (!breakpoint_disable_one_instr)
-			{
-				if (breakpoints.size() > 0)
-				{
-					auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
-					if (breakpoint_itr != breakpoints.end())
-					{
-						paused = true;
-						breakpoint_hit = true;
-						return 0;
-					}
-				}
-
-				// soft breakpoints are used for step over. not visible
-				if (soft_breakpoints.size() > 0)
-				{
-					auto breakpoint_itr = std::find(soft_breakpoints.begin(), soft_breakpoints.end(), R.pc);
-					if (breakpoint_itr != soft_breakpoints.end())
-					{
-						if (memory_breakpoint_last_addr == -1) // hacky to get mem breakpoints working
-						{
-							paused = true;
-							breakpoint_hit = true;
-						}
-
-						soft_breakpoints.erase(breakpoint_itr);
-						return 0;
-					}
-				}
-			}
-
-			if (breakpoint_disable_one_instr)
-			{
-				breakpoint_hit = true;
-				breakpoint_disable_one_instr = false;
-			}
-			
-			// update the joypad register
-			/*u8 joypad_register = memory_module::read_memory(0xFF00);
-			joypad_register &= 0xF0; // keep upper bits
-
-			if ((joypad_register & 0x20) == 0)
-			{
-				// directional keys are set
-				joypad_register |= (get_button_register(false) & 0xF); // only lower 4 bits
-			}
-			else
-			{
-				joypad_register |= (get_button_register(true) & 0xF); // only lower 4 bits
-			}
-			memory_module::write_memory(0xFF00, joypad_register);*/
-
-			u8 cycles = 0;
-
-			// fetch the opcode
-			current_pc = R.pc;
-			u8 opcode = readpc_u8();
-
-			if (halt_bug)
-			{
-				R.pc--;
-				halt_bug = false;
-			}
-
-			// decode. gameboy only has CB prefix
-			if (opcode == 0xCB)
-			{
-				opcode = readpc_u8();
-				cycles = decode_prefixed_cb(opcode);
-			}
-			else
-			{
-				cycles = decode_nonprefixed(opcode);
-			}
-
-			if (cycles == 0)
-			{
-				printf("Error - 0 cycles returned from opcode\n");
-			}
-
-			return cycles;
-		}
-#endif
-
 		int execute_micro_op(MicroOp& op)
 		{
 			switch (op.micro_op_type)
@@ -2977,14 +2712,14 @@ namespace gameboy
 				{
 					u8 opcode = readpc_u8();
 					last_opcode = opcode;
-					last_opcode_is_cb = true;
+					is_last_opcode_cb = true;
 					decode_prefixed_cb(opcode); // decode functions will push their own operations
 				}
 				else
 				{
 					current_pc = R.pc;
 					u8 opcode = readpc_u8();
-					last_opcode_is_cb = false;
+					is_last_opcode_cb = false;
 
 					if (opcode == 0xCB)
 					{
@@ -3441,7 +3176,7 @@ namespace gameboy
 				u32 addr = 0x0;
 				if (op.is_use_addr) // prio is last value
 				{
-					addr = addr;
+					addr = op.addr;
 				}
 				else if (op.dest_ptr != nullptr) // then we look if src ptr
 				{
@@ -3717,10 +3452,10 @@ namespace gameboy
 			}
 			case MICRO_OP_TYPE::CONDITION:
 			{
-				last_condition_result = true;
+				is_last_condition_pass = true;
 				if (!condition_funct[op.condition_index]())
 				{
-					last_condition_result = false;
+					is_last_condition_pass = false;
 
 					// condition not met. pop number of micro ops
 					for (int i = 0; i < op.condition_fail_pop_count; i++)
@@ -3894,15 +3629,16 @@ namespace gameboy
 				last_opcode_cycles = 0;
 			}
 
+#ifdef DEBUG_ASSERT_INSTR_TIMINGS
 			if (is_opcode_complete && !is_interrupt_service)
 			{
-				if (last_opcode_is_cb)
+				if (is_last_opcode_cb)
 				{
 					assert(last_opcode_cycles / 4 == instruction_times_cb[last_opcode]);
 				}
 				else
 				{
-					if (last_condition_result)
+					if (is_last_condition_pass)
 					{
 						assert(last_opcode_cycles / 4 == instruction_times_condition[last_opcode]);
 					}
@@ -3912,6 +3648,7 @@ namespace gameboy
 					}
 				}
 			}
+#endif
 
 			if (is_opcode_complete)
 			{
