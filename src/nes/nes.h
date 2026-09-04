@@ -7,6 +7,7 @@
 #include "cpu.h"
 #include "gpu.h"
 #include "rom.h"
+#include "cpu_memory_module.h"
 
 namespace nes
 {
@@ -21,6 +22,10 @@ namespace nes
 
 		// load the boot rom file
 		bool success = framebuffer_texture.resize(sf::Vector2u(gpu::width, gpu::height));
+
+		cpu_memory_module::initialize(&loaded_rom);
+
+		cpu::initialize();
 
 		return 0;
 	}

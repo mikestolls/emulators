@@ -138,7 +138,7 @@ namespace gameboy
 				{
 					if ((memory_map[i].access & MEMORY_READABLE) == 0)
 					{
-						print_warning("Warning - reading from memory map that is not readable: 0x%X\n", addr);
+						print_warning("Warning - reading from memory map %d that is not readable: 0x%X\n", i, addr);
 						
 #ifdef MEMORY_ACCESS_HARD_BLOCK
 						return 0;

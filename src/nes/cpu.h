@@ -2,7 +2,7 @@
 
 #include "defines.h"
 
-//#include "memory_module.h"
+#include "cpu_memory_module.h"
 
 #define DEBUG_ASSERT_INSTR_TIMINGS
 
@@ -22,14 +22,37 @@ namespace nes
 		};
 
 		bool running = true;
-		u16 current_pc = 0x0;
+		u16 pc = 0x0;
 		bool is_opcode_complete;
 
 		std::deque<MicroOp> micro_op_queue;
 		
+		// read 8 and 16 bit at PC. increment PC
+		inline u8 readpc_u8()
+		{
+			u8 val = cpu_memory_module::read_memory(pc++);
+
+			return val;
+		}
+
+		inline u16 readpc_u16()
+		{
+			// lsb is first in memory
+			u16 val = cpu_memory_module::read_memory(pc++);
+			val |= (cpu_memory_module::read_memory(pc++) << 8);
+
+			return val;
+		}
+
+		inline u16 get_current_pc()
+		{
+			return pc;
+		}
+
 		int reset()
 		{
 			running = true;
+			pc = 0x0;
 			is_opcode_complete = false;
 
 			micro_op_queue.clear();
@@ -40,6 +63,13 @@ namespace nes
 		int initialize()
 		{			
 			reset();
+
+			// need to first read the reset vector
+			u8 reset_low = cpu_memory_module::read_memory(0xFFFC);
+			u16 reset_high = cpu_memory_module::read_memory(0xFFFD);
+
+			pc = cpu_memory_module::read_memory(0xFFFC);
+			pc |= cpu_memory_module::read_memory(0xFFFD) << 8;
 
 			return 0;
 		}
@@ -55,6 +85,10 @@ namespace nes
 			}
 			case MICRO_OP_TYPE::FETCH_OP:
 			{
+				u8 opcode = readpc_u8();
+
+				// set this as we have started a new opcode
+				is_opcode_complete = false;
 				break;
 			}
 			}

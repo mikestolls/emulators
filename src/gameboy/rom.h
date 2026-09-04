@@ -11,7 +11,7 @@ namespace gameboy
 
 	struct rom
 	{
-		struct rom_header
+		struct header
 		{
 			u8 entry_point[4];
 			u8 nintendo_character_area[48];
@@ -26,7 +26,7 @@ namespace gameboy
 		u8* rom_data;
 		u64 rom_size;
 		std::string filename;
-		rom_header rom_header;
+		header rom_header;
 
 		rom()
 		{
