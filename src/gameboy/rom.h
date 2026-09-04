@@ -11,54 +11,71 @@ namespace gameboy
 	{
 		struct rom_header
 		{
-			u8 entryPoint[4];
-			u8 nintendoCharacterArea[48];
-			u8 gameTitle[16];
-			CATRIDGE_TYPE cartridgeType;
-			ROM_SIZE romSize;
-			RAM_SIZE ramSize;
+			u8 entry_point[4];
+			u8 nintendo_character_area[48];
+			u8 game_title[16];
+			CATRIDGE_TYPE cartridge_type;
+			ROM_SIZE rom_size;
+			RAM_SIZE ram_size;
 			u8 version;
-			u8 cgbFlag;
+			u8 cgb_flag;
 		};
 
 
-		u8* romdata;
-		u64 romsize;
+		u8* rom_data;
+		u64 rom_size;
 		std::string filename;
-		rom_header romheader;
+		rom_header rom_header;
 
-		void open(const char* path)
+		rom()
 		{
-			filename = path;
+			filename = "";
+			rom_size = 0x0;
+			rom_data = nullptr;
+			memset(&rom_header, 0x0, sizeof(rom_header));
+		}
 
+		rom(const std::string& filename)
+		{
+			load(filename);
+		}
+
+		void load(const std::string& filename)
+		{
 			FILE* file = 0;
 			fopen_s(&file, filename.c_str(), "rb");
 
+			if (!file)
+			{
+				printf("Error - Failed to open ROM file: %s\n", filename.c_str());
+				return;
+			}
+
 			// get size
 			fseek(file, 0, SEEK_END);
-			romsize = ftell(file);
+			rom_size = ftell(file);
 			fseek(file, 0, SEEK_SET);
 
 			// read header
-			romdata = new u8[romsize];
-			size_t size = fread(romdata, 1, romsize, file);
+			rom_data = new u8[rom_size];
+			size_t size = fread(rom_data, 1, rom_size, file);
 
-			assert(size == romsize);
+			assert(size == rom_size);
 
 			fclose(file);
 
 			// copy to header for reference. header starts at 0x100 of the ROM
-			memset(&romheader, 0x0, sizeof(rom_header));
-			memcpy(romheader.entryPoint, &romdata[0x100], sizeof(romheader.entryPoint));
-			memcpy(romheader.nintendoCharacterArea, &romdata[0x104], sizeof(romheader.nintendoCharacterArea));
-			memcpy(romheader.gameTitle, &romdata[0x134], sizeof(romheader.gameTitle));
-			romheader.cartridgeType = (CATRIDGE_TYPE)romdata[0x147];
-			romheader.romSize = (ROM_SIZE)romdata[0x148];
-			romheader.ramSize = (RAM_SIZE)romdata[0x149];
-			romheader.version = romdata[0x14C];
-			romheader.cgbFlag = romdata[0x143];
+			memset(&rom_header, 0x0, sizeof(rom_header));
+			memcpy(rom_header.entry_point, &rom_data[0x100], sizeof(rom_header.entry_point));
+			memcpy(rom_header.nintendo_character_area, &rom_data[0x104], sizeof(rom_header.nintendo_character_area));
+			memcpy(rom_header.game_title, &rom_data[0x134], sizeof(rom_header.game_title));
+			rom_header.cartridge_type = (CATRIDGE_TYPE)rom_data[0x147];
+			rom_header.rom_size = (ROM_SIZE)rom_data[0x148];
+			rom_header.ram_size = (RAM_SIZE)rom_data[0x149];
+			rom_header.version = rom_data[0x14C];
+			rom_header.cgb_flag = rom_data[0x143];
 
-			switch (romheader.cartridgeType)
+			switch (rom_header.cartridge_type)
 			{
 			case ROM_ONLY:
 				break;
@@ -76,24 +93,11 @@ namespace gameboy
 			}
 		}
 
-		rom()
-		{
-			filename = "";
-			romsize = 0x0;
-			romdata = nullptr;
-			memset(&romheader, 0x0, sizeof(rom_header));
-		}
-
-		rom(const char* path)
-		{
-			open(path);
-		}
-
 		~rom()
 		{
-			if (romdata)
+			if (rom_data)
 			{
-				delete[] romdata;
+				delete[] rom_data;
 			}
 		}
 	};

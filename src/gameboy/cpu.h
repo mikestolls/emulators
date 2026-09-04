@@ -3,57 +3,109 @@
 #include "defines.h"
 
 #include "memory_module.h"
-#include "input.h"
 
-//Opcode  Z80				GMB
-//---------------------------------------------
-//08      EX   AF, AF		LD(nn), SP				done
-//10      DJNZ PC + dd      STOP					done
-//22      LD(nn), HL		LDI(HL), A				done
-//2A      LD   HL, (nn)		LDI  A, (HL)			done
-//32      LD(nn), A			LDD(HL), A				done
-//3A      LD   A, (nn)		LDD  A, (HL)			done
-//D3      OUT(n), A			-						done
-//D9      EXX				RETI					done
-//DB      IN   A, (n)		-						done
-//DD      <IX>				-						done
-//E0      RET  PO			LD(FF00 + n), A			done
-//E2      JP   PO, nn		LD(FF00 + C), A			done
-//E3      EX(SP), HL		-						done
-//E4      CALL P0, nn		-						done
-//E8      RET  PE			ADD  SP, d				done
-//EA      JP   PE, nn		LD(nn), A				done
-//EB      EX   DE, HL		-						done
-//EC      CALL PE, nn		-						done
-//ED      <pref>			-						done
-//F0      RET  P			LD   A, (FF00 + n)		done
-//F2      JP   P, nn		LD   A, (FF00 + C)		done
-//F4      CALL P, nn		-						done
-//F8      RET  M			LD   HL, SP + d			done
-//FA      JP   M, nn		LD   A, (nn)			done
-//FC      CALL M, nn		-						done
-//FD      <IY>				-						done
-//CB3X    SLL  r / (HL)		SWAP r / (HL)			done
+#define DEBUG_ASSERT_INSTR_TIMINGS
 
 namespace gameboy
 {
 	namespace gpu
 	{
 		int update(u8 cycles);
-		void check_coincidence_flag();
 	}
 
 	namespace cpu
 	{
+		// used for micro op processing
+		enum MICRO_OP_TYPE
+		{
+			NOP,
+			FETCH_OP,
+			FETCH_PC,
+			READ_REG_8,
+			READ_REG_16,
+			ASSIGN_REG_8,
+			ASSIGN_REG_16,
+			ADD_8,
+			ADD_16,
+			ADD_8_TO_16,
+			READ_ADDR_8,
+			WRITE_ADDR_8,
+			JUMP,
+			ROTATE_ACCUMULATOR,
+			DAA,
+			CPL,
+			SCF,
+			CCF,
+			HALT,
+			ALU,
+			ROTATE_SHIFT,
+			CONDITION,
+			IME,
+			TEST_BIT,
+			RESET_BIT,
+			SET_BIT
+		};
+
+		enum ROTATE_TYPE
+		{
+			LEFT_CIRCULAR,
+			LEFT_THROUGH_CARRY,
+			RIGHT_CIRCULAR,
+			RIGHT_THROUGH_CARRY,
+		};
+
+		enum IME_MODE
+		{
+			DISABLE,
+			ENABLE,
+			ENABLE_DELAYED
+		};
+
+		struct MicroOp
+		{			
+			MICRO_OP_TYPE micro_op_type;
+			u8* src_ptr = nullptr;
+			u8* dest_ptr = nullptr;
+			u16 dest_mask = 0xFFFF;
+			u16 addr = 0;
+			u16 addr_offset = 0x0;
+			s16 value = 0;
+			u8* value_ptr = nullptr;
+			s8 src_modify = 0;
+			s8 dest_modify = 0;
+			u8 alu_rot_index = 0;
+			u8 condition_index = 0;
+			u8 condition_fail_pop_count = 0;
+			u8 set_flags = 0x0;
+			u8 reset_flags = 0x0;
+			bool is_use_value = false;
+			bool is_use_addr = false;
+			bool is_signed = false;
+			ROTATE_TYPE rotate_type = ROTATE_TYPE::LEFT_CIRCULAR;
+			bool is_consuming_cycles = true;
+		};
+
+		bool is_opcode_complete = false;
+		bool is_interrupt_service = false;
+		bool is_last_opcode_cb = false;
+		bool is_last_condition_pass = false;
+		u8 last_opcode_cycles = 0;
+		u8 last_opcode = 0x0;
+		s32 last_temp_value = 0x0;
+		u16 last_read_reg = 0x0;
+
 		const u32 cycles_per_sec = 4194304;
+		const u32 cycles_per_line = 456;
+		const u32 lines_per_frame = 154;
+		const u32 cycles_per_frame = cycles_per_line * lines_per_frame;  // = 70224
 		const u32 fps = 60;
 
 		bool running = true;
-		bool eiOcccurred = false;
+		u8 ei_occcurred = 0;
 		bool halt = false;
 		bool halt_bug = false;
-		bool halt_continue_exec = false;
 		bool paused = false;
+		bool is_double_speed = false;
 
 		std::vector<u16> breakpoints;
 		std::vector<u16> soft_breakpoints;
@@ -61,23 +113,34 @@ namespace gameboy
 		bool breakpoint_hit;
 		bool breakpoint_disable_one_instr;
 		s32 memory_breakpoint_last_addr;
+		u16 memory_breakpoint_last_pc;
 
 		bool interrupt_master;
 		u8* interrupt_enable_flag;
 		u8* interrupt_request_flag;
 
+		s32 internal_divider;
+		bool skip_next_tima_increment; // Skip next TIMA increment after write
+
 		u8* timer_value;
 		u8* timer_controller;
 		u8* timer_modulator;
-		s32 timer_counter;
+		u8 timer_last_bit;
+
+
+		u8 timer_overflow_state = 0;
 
 		u8* divide_value;
-		s32 divide_counter;
+
+		u16 current_pc = 0x0;
+
+		std::deque<MicroOp> micro_op_queue;
 		
+#ifdef DEBUG_ASSERT_INSTR_TIMINGS
 		// debug instruction timings
 		static const int instruction_times_nocondition[] = {
 			1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1,
-			0, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
+			1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1,
 			2, 3, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1,
 			2, 3, 2, 2, 3, 3, 3, 1, 2, 2, 2, 2, 1, 1, 2, 1,
 			1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
@@ -131,9 +194,10 @@ namespace gameboy
 			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
 			2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2,
 		};
+#endif
 
 		// cpus register structure
-		struct registers
+		struct Registers
 		{
 			struct
 			{
@@ -193,26 +257,25 @@ namespace gameboy
 		u16* register_pairs2[] = { &R.bc, &R.de, &R.hl, &R.af };
 		u8* register_single[] = { &R.b, &R.c, &R.d, &R.e, &R.h, &R.l, 0, &R.a };
 		
-		// stack functions
-		inline void push_sp_to_stack(u16 addr)
-		{
-			u8 low = (addr & 0x00FF);
-			u8 high = (addr >> 8);
-
-			R.sp -= 2;
-			memory_module::write_memory(R.sp, &low, 1);
-			memory_module::write_memory(R.sp + 1, &high, 1);
-		}
-
-		inline u16 pop_from_stack()
-		{
-			u8 low = memory_module::read_memory(R.sp++) & 0xFF;
-			u8 high = memory_module::read_memory(R.sp++) & 0xFF;
-
-			return (high << 8) | low;
-		}
-
 		// set and get flag helpers
+		inline void set_flag(u8& reg, u8 flag)
+		{
+			flag = (1 << flag);
+			reg |= flag;
+		}
+
+		inline void clear_flag(u8& reg, u8 flag)
+		{
+			flag = (1 << flag);
+			reg &= ~flag; // clear the bit
+		}
+
+		inline u8 get_flag(u8& reg, u8 flag)
+		{
+			return ((reg & (1 << flag)) >> flag);
+		}
+
+		// flag helpers to the register
 		inline void set_flag(u8 flag)
 		{
 			flag = (1 << flag);
@@ -592,6 +655,16 @@ namespace gameboy
 			return val;
 		}
 
+		inline u16 get_current_pc()
+		{
+			return current_pc;
+		}
+
+		inline void set_double_speed(bool double_speed)
+		{
+			is_double_speed = double_speed;
+		}
+
 		// interrupt functionality
 		enum INTERRUPT_FLAG
 		{
@@ -600,19 +673,20 @@ namespace gameboy
 			INTERRUPT_TIMER,
 			INTERRUPT_SERIAL_IO_END,
 			INTERRUPT_JOYPAD,
+			INTERRUPT_COUNT
 		};
 
 		inline void set_request_interrupt_flag(u8 flag)
 		{
-			flag = (1 << flag);
-			*interrupt_request_flag |= flag;
+			u8 flag_mask = (1 << flag);
+			*interrupt_request_flag |= flag_mask;
 			*interrupt_request_flag |= 0xE0;
 		}
 
 		inline void clear_request_interrupt_flag(u8 flag)
 		{
-			flag = (1 << flag);
-			*interrupt_request_flag &= ~flag; // clear the bit
+			u8 flag_mask = (1 << flag);
+			*interrupt_request_flag &= ~flag_mask; // clear the bit
 			*interrupt_request_flag |= 0xE0;
 		}
 
@@ -634,14 +708,14 @@ namespace gameboy
 		// interrupt enable function
 		inline void set_enabled_interrupt_flag(u8 flag)
 		{
-			flag = (1 << flag);
-			*interrupt_enable_flag |= flag;
+			u8 flag_mask = (1 << flag);
+			*interrupt_enable_flag |= flag_mask;
 		}
 
 		inline void clear_enabled_interrupt_flag(u8 flag)
 		{
-			flag = (1 << flag);
-			*interrupt_enable_flag &= ~flag; // clear the bit
+			u8 flag_mask = (1 << flag);
+			*interrupt_enable_flag &= ~flag_mask; // clear the bit
 		}
 
 		inline u8 get_enabled_interrupt_flag(u8 flag)
@@ -656,7 +730,7 @@ namespace gameboy
 
 		void service_interrupt(u8 interrupt)
 		{
-			push_sp_to_stack(R.pc);
+			interrupt_master = false; // servicing an interrupt will disable the master
 
 			u16 addr = 0;
 			switch (interrupt)
@@ -682,19 +756,39 @@ namespace gameboy
 				break;
 			}
 
-			R.pc = addr;
+			last_temp_value = addr;
+			is_interrupt_service = true;
+
+			// STACK PUSH
+			MicroOp write_high;
+			write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+			write_high.value_ptr = ((u8*)&R.pc) + 1; // high byte of PC
+			write_high.dest_ptr = (u8*)&R.sp;
+			write_high.addr_offset = -1;  // write to (sp-1)
+			write_high.dest_modify = -1;  // decrement sp
+			write_high.is_consuming_cycles = false;
+			micro_op_queue.push_back(write_high);
+
+			MicroOp write_low;
+			write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+			write_low.value_ptr = (u8*)&R.pc; // low byte of PC
+			write_low.dest_ptr = (u8*)&R.sp;
+			write_low.addr_offset = -1;  // write to (sp-1)
+			write_low.dest_modify = -1;  // decrement sp
+			write_low.is_consuming_cycles = false;
+			micro_op_queue.push_back(write_low);
+
+			MicroOp assign_pc;
+			assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+			assign_pc.src_ptr = (u8*)&last_temp_value;
+			assign_pc.dest_ptr = (u8*)&R.pc;
+			assign_pc.is_consuming_cycles = false;
+			micro_op_queue.push_back(assign_pc);
 		}
 
 		int check_interrupts()
 		{
-			if (eiOcccurred)
-			{
-				eiOcccurred = false;
-				interrupt_master = true;
-				return 0;
-			}
-
-			for (u8 i = 0; i <= INTERRUPT_JOYPAD; i++)
+			for (u8 i = 0; i < INTERRUPT_COUNT; i++)
 			{
 				if (get_request_interrupt_flag(i) && get_enabled_interrupt_flag(i))
 				{
@@ -715,16 +809,15 @@ namespace gameboy
 
 						return cycles;
 					}
-					else if (halt_continue_exec)
+					else if (halt)
 					{
 						R.pc++;
 						halt = false;
-						halt_continue_exec = false;
-						return 4;
+						return 0;
 					}
 					else
 					{
-						return 4;
+						return 0;
 					}
 				}
 			}
@@ -733,72 +826,131 @@ namespace gameboy
 		}
 
 		// functions for the timer
-		bool timer_enabled()
+		void reset_divider()
 		{
-			return (*timer_controller & 0x4 ? true : false); // bit 2 is on/off flag
-		}
-
-		u32 get_timer_frequency()
-		{
-			switch (*timer_controller & 0x3) // bit 0 and 1 are the frequency flags. cycles_per_sec / frequency
+			// Check if the timer bit goes from 1->0 due to this reset
+			// This can cause TIMA to increment immediately (falling edge detection)
+			if (is_timer_enabled(*timer_controller))
 			{
-			case 0x0: // 4096 hz
-				return 1024;
-			case 0x1: // 262144 hz
-				return 16;
-			case 0x2: // 65536 hz
-				return 64;
-			case 0x3: // 16384 hz
-				return 256;
+				u8 bit_index = get_timer_frequency_bit(*timer_controller);
+				bool old_bit = (internal_divider >> bit_index) & 1;
+
+				if (old_bit)  // If bit was 1, resetting to 0 causes falling edge
+				{
+					increment_tima();
+				}
 			}
 
-			return 0;
+			internal_divider = 0;
+			*divide_value = 0x0;
+			update_last_timer_bit();
 		}
 
-		void reset_timer_counter()
+		s32 get_internal_divider()
 		{
-			timer_counter = get_timer_frequency();
-			*timer_value = *timer_modulator;
+			return internal_divider;
+		}
+		bool is_timer_enabled(u8 timer_control)
+		{
+			return (timer_control & 0x4 ? true : false); // bit 2 is on/off flag
+		}
+
+		u32 get_timer_frequency_bit(u8 timer_control)
+		{
+			switch (timer_control & 0x3) // bit 0 and 1 are the frequency flags. cycles_per_sec / frequency
+			{
+			case 0: 
+				return 9;   // 1024 T-cycles
+			case 1: 
+				return 3;   // 16 T-cycles
+			case 2: 
+				return 5;   // 64 T-cycles
+			case 3: 
+				return 7;   // 256 T-cycles
+			}
+		}
+
+		bool is_tima_overflow_pending()
+		{
+			return timer_overflow_state > 0;
+		}
+
+		void cancel_tima_overflow()
+		{
+			timer_overflow_state = 0;
+		}
+
+		void increment_tima()
+		{
+			u8 old_value = *timer_value;
+			(*timer_value)++;
+
+			if (*timer_value == 0x00) // Overflow from 0xFF to 0x00
+			{
+				timer_overflow_state = 1;
+			}
+		}
+
+		void update_last_timer_bit()
+		{
+			u8 old_bit = timer_last_bit;
+
+			if (is_timer_enabled(*timer_controller))
+			{
+				u8 bit_index = get_timer_frequency_bit(*timer_controller);
+				timer_last_bit = (internal_divider >> bit_index) & 0x1;
+			}
+			else
+			{
+				// When timer is disabled, the effective bit is always 0
+				timer_last_bit = 0;
+			}
+		}
+
+		void set_timer_last_bit(u8 value)
+		{
+			timer_last_bit = value;
+		}
+
+		void set_skip_next_tima_increment(bool value)
+		{
+			skip_next_tima_increment = value;
 		}
 
 		int update_timer(u8 cycles)
 		{
-			gpu::update(cycles);
-			gpu::check_coincidence_flag();
-
-			// update divide register first
-			divide_counter -= cycles;
-
-			while (divide_counter <= 0) // divide register is 16382 hz
+			for (u8 i = 0; i < cycles; i++) // iterate oer t cycle
 			{
-				(*divide_value)++;
-				divide_counter += 256;
-			}
-
-			if (!timer_enabled())
-			{
-				return 0;
-			}
-
-			timer_counter -= cycles;
-
-			while (timer_counter <= 0)
-			{
-				// check if overflow. set timer_counter to modulator. increase timer
-				if (*timer_value == 0xFF)
+				// handle pending reload from previous cycle
+				if (i % 4 && timer_overflow_state == 1) // check on first t cycle
 				{
 					*timer_value = *timer_modulator;
-
-					// interrupt
 					set_request_interrupt_flag(INTERRUPT_TIMER);
-				}
-				else
-				{
-					(*timer_value)++;
+					timer_overflow_state = 0;
 				}
 
-				// set counter back to frequency
-				timer_counter += get_timer_frequency();
+				u8 old_tima = *timer_value;
+
+				internal_divider++;
+
+				// DIV is bits 15-8
+				*divide_value = (internal_divider >> 8) & 0xFF;
+
+				// only update timer_last_bit and check for edges if timer is enabled
+				if (is_timer_enabled(*timer_controller))
+				{
+					u8 bit_index = get_timer_frequency_bit(*timer_controller);
+					u8 current_bit = (internal_divider >> bit_index) & 0x1;
+
+					// Falling edge detection (1→0)
+					if (timer_last_bit == 1 && current_bit == 0)
+					{
+						increment_tima();
+					}
+
+					// Update timer_last_bit only when timer is enabled
+					timer_last_bit = current_bit;
+				}
 			}
 
 			return 0;
@@ -817,10 +969,25 @@ namespace gameboy
 
 			if (!memory_module::boot_ptr)
 			{
-				R.af = 0x01B0;
-				R.bc = 0x0013;
-				R.de = 0x00D8;
-				R.hl = 0x014D;
+				bool is_cgb_mode = (memory_module::rom_ptr->rom_header.cgb_flag == 0x80 ||
+					memory_module::rom_ptr->rom_header.cgb_flag == 0xC0);
+
+				if (is_cgb_mode)
+				{
+					// CGB initial register values
+					R.af = 0x1180;  // A = 0x11 (CGB identifier), F = 0x80
+					R.bc = 0x0000;
+					R.de = 0xFF56;
+					R.hl = 0x000D;
+				}
+				else
+				{
+					// DMG initial register values
+					R.af = 0x01B0;
+					R.bc = 0x0013;
+					R.de = 0x00D8;
+					R.hl = 0x014D;
+				}
 
 				R.pc = 0x0100; // starting entry point of the ROM
 				R.sp = 0xFFFE;
@@ -831,24 +998,34 @@ namespace gameboy
 			interrupt_master = false;
 			interrupt_enable_flag = memory_module::get_memory(0xFFFF);
 			interrupt_request_flag = memory_module::get_memory(0xFF0F);
-			
+
 			timer_value = memory_module::get_memory(0xFF05);
 			timer_modulator = memory_module::get_memory(0xFF06);
 			timer_controller = memory_module::get_memory(0xFF07);
-			timer_counter = 0;
 			
 			divide_value = memory_module::get_memory(0xFF04);
-			divide_counter = 256;
+			internal_divider = 0;
+			timer_last_bit = 0;
+			skip_next_tima_increment = false;
+			timer_overflow_state = 0;
+
+			is_opcode_complete = false;
+			last_opcode = 0x0;
+			last_temp_value = 0x0;
+			last_read_reg = 0x0;
 
 			paused = false;
 			running = true;
-			eiOcccurred = false;
+			ei_occcurred = 0;
 			halt = false;
 			halt_bug = false;
-			halt_continue_exec = false;
+			is_double_speed = false;
 			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
 			memory_breakpoint_last_addr = -1;
+			memory_breakpoint_last_pc = -1;
+
+			micro_op_queue.clear();
 
 			return 0;
 		}
@@ -865,6 +1042,7 @@ namespace gameboy
 			if (addr == memory_breakpoint_last_addr)
 			{
 				memory_breakpoint_last_addr = -1;
+				memory_breakpoint_last_pc = -1;
 				return false;
 			}
 
@@ -876,6 +1054,7 @@ namespace gameboy
 					paused = true;
 					breakpoint_hit = true;
 					memory_breakpoint_last_addr = addr;
+					memory_breakpoint_last_pc = pc;
 
 					R.pc = pc; // assuming we back 1 byte to previous opcode. assuming non prefix dont write memory
 					soft_breakpoints.push_back(R.pc);
@@ -908,51 +1087,117 @@ namespace gameboy
 					switch (y)
 					{
 					case 0x0:
+					{
 						// NOP
-						cycles = 4;
-						update_timer(4);
+						MicroOp op;
+						op.micro_op_type = MICRO_OP_TYPE::NOP;
+						op.is_consuming_cycles = false;
+						micro_op_queue.push_back(op);
+
 						break;
+					}
 					case 0x1:
 					{
 						// LD mem NN with SP
-						u16 addr = readpc_u16();
-						if (check_memory_breakpoint(R.pc - 3, addr))
-						{
-							return 0;
-						}
+						MicroOp fetch_low;
+						fetch_low.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_low.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(fetch_low);
 
-						memory_module::write_memory(addr, (const u8*)&R.sp, 2);
-						cycles = 20;
-						update_timer(20);
+						MicroOp fetch_high;
+						fetch_high.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_high.dest_ptr = ((u8*)&last_temp_value) + 1;
+						micro_op_queue.push_back(fetch_high);
+
+						MicroOp write_low;
+						write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write_low.value_ptr = (u8*)&R.sp;
+						write_low.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(write_low);
+
+						MicroOp write_high;
+						write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write_high.value_ptr = ((u8*)&R.sp) + 1;
+						write_high.dest_ptr = (u8*)&last_temp_value;
+						write_high.addr_offset = 0x1; // writing second byte of sp
+						micro_op_queue.push_back(write_high);
+
 						break;
 					}
 					case 0x2:
+					{
 						// STOP
-						running = false;
+						// fetch and discard. next byte which should be 0x0
+						MicroOp fetch;
+						fetch.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch.dest_ptr = (u8*)&last_temp_value;
+						fetch.is_consuming_cycles = false;
+						micro_op_queue.push_back(fetch);
+
+						u8 key1 = memory_module::read_memory(0xFF4D);
+
+						// CGB speed swap case
+						if (key1 & 0x01)  // Bit 0 set = prepare speed switch
+						{
+							// CGB speed switch. toggle bit 7 (current speed). clear bit 0 - speed switch flag
+							key1 ^= 0x80;
+							key1 &= ~0x01;
+
+							MicroOp write;
+							write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+							write.addr = 0xFF4D;
+							write.value = key1;			
+							write.is_use_addr = true;
+							write.is_use_value = true;
+							write.is_consuming_cycles = false;
+							micro_op_queue.push_back(write);
+						}
+
 						break;
+					}
 					case 0x3:
+					{
 						// JR d
-						R.pc += (s8)readpc_u8(); // relative jump is singed offset
-						cycles = 12;
-						update_timer(12);
+						MicroOp fetch;
+						fetch.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch.dest_ptr = (u8*)&last_temp_value;
+						fetch.is_signed = true;
+						micro_op_queue.push_back(fetch);
+
+						MicroOp jump;
+						jump.micro_op_type = MICRO_OP_TYPE::JUMP;
+						jump.value_ptr = (u8*)&last_temp_value;
+						jump.is_signed = true;
+						micro_op_queue.push_back(jump);
+
 						break;
+					}
 					case 0x4:
 					case 0x5:
 					case 0x6:
 					case 0x7:
 					{
-						cycles = 8; // if condition true 12, if false 8
-						update_timer(8);
-
-						s8 val = (s8)readpc_u8();
-
 						// JR conditions[y - 4], d - relative jump
+						MicroOp fetch;
+						fetch.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch.dest_ptr = (u8*)&last_temp_value;
+						fetch.is_signed = true;
+						micro_op_queue.push_back(fetch);
+
+						MicroOp cond;
+						cond.micro_op_type = MICRO_OP_TYPE::CONDITION;
+						cond.condition_index = y - 4;
+						cond.condition_fail_pop_count = 1; // pop jump if condition fails
+						cond.is_consuming_cycles = false;
+						micro_op_queue.push_back(cond);
+
 						if (condition_funct[y - 4]())
 						{
-							R.pc += val; // relative jump is singed offset
-							cycles += 4;
-							update_timer(4);
-							is_condition = true;
+							MicroOp jump;
+							jump.micro_op_type = MICRO_OP_TYPE::JUMP;
+							jump.value_ptr = (u8*)&last_temp_value;
+							jump.is_signed = true;
+							micro_op_queue.push_back(jump);
 						}
 
 						break;
@@ -965,42 +1210,55 @@ namespace gameboy
 					switch (q)
 					{
 					case 0x0:
+					{
 						// LD register_pairs[p] with nn
-						*register_pairs[p] = readpc_u16();
-						cycles = 12;
-						update_timer(12);
+						MicroOp fetch_low;
+						fetch_low.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_low.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(fetch_low);
+
+						MicroOp fetch_high;
+						fetch_high.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_high.dest_ptr = ((u8*)&last_temp_value) + 1;
+						micro_op_queue.push_back(fetch_high);
+
+						MicroOp assign;
+						assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+						assign.src_ptr = (u8*)&last_temp_value;
+						assign.dest_ptr = (u8*)register_pairs[p];
+						assign.is_consuming_cycles = false;
+						micro_op_queue.push_back(assign);
+
 						break;
+					}
 					case 0x1:
+					{
 						// ADD HL with register_pairs[p]
-						u32 res = R.hl + *register_pairs[p];
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_REG_16;
+						read.src_ptr = (u8*)register_pairs[p];
+						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
+						micro_op_queue.push_back(read);
 
-						// check for carry
-						if (res & 0xFFFF0000)
-						{
-							set_flag(FLAG_CARRY);
-						}
-						else
-						{
-							clear_flag(FLAG_CARRY);
-						}
+						u8 flag = 0x0;
+						set_flag(flag, FLAG_HALFCARRY);
+						set_flag(flag, FLAG_CARRY);
 
-						// check for the half carry.
-						if ((R.hl & 0xFFF) + (*register_pairs[p] & 0xFFF) > 0xFFF)
-						{
-							set_flag(FLAG_HALFCARRY);
-						}
-						else
-						{
-							clear_flag(FLAG_HALFCARRY);
-						}
+						u8 reset_flag = 0x0;
+						set_flag(reset_flag, FLAG_SUBTRACTION);
 
-						clear_flag(FLAG_SUBTRACTION);
+						MicroOp add;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
+						add.src_ptr = (u8*)&R.hl;
+						add.value_ptr = (u8*)&last_temp_value;
+						add.dest_ptr = (u8*)&R.hl;
+						add.set_flags = flag;
+						add.reset_flags = reset_flag;
+						micro_op_queue.push_back(add);
 
-						R.hl = (u16)(res & 0xFFFF);
-
-						cycles = 8;
-						update_timer(8);
 						break;
+					}
 					}
 					break;
 				}
@@ -1013,51 +1271,79 @@ namespace gameboy
 						switch (p)
 						{
 						case 0x0:
+						{
 							// LD (BC) with A
-							if (check_memory_breakpoint(R.pc - 1, R.bc))
-							{
-								return 0;
-							}
+							MicroOp read;
+							read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+							read.src_ptr = (u8*)&R.a;
+							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
+							micro_op_queue.push_back(read);
 
-							memory_module::write_memory(R.bc, &R.a, 1);
-							cycles = 8;
-							update_timer(8);
+							MicroOp write;
+							write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+							write.value_ptr = (u8*)&last_temp_value;
+							write.dest_ptr = (u8*)&R.bc;
+							micro_op_queue.push_back(write);
+
 							break;
+						}
 						case 0x1:
+						{
 							// LD (DE) with A
-							if (check_memory_breakpoint(R.pc - 1, R.de))
-							{
-								return 0;
-							}
+							MicroOp read;
+							read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+							read.src_ptr = (u8*)&R.a;
+							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
+							micro_op_queue.push_back(read);
 
-							memory_module::write_memory(R.de, &R.a, 1);
-							cycles = 8;
-							update_timer(8);
+							MicroOp write;
+							write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+							write.value_ptr = (u8*)&last_temp_value;
+							write.dest_ptr = (u8*)&R.de;
+							micro_op_queue.push_back(write);
+
 							break;
+						}
 						case 0x2:
+						{
 							// LDI (HL) with A. inc HL
-							if (check_memory_breakpoint(R.pc - 1, R.hl))
-							{
-								return 0;
-							}
+							MicroOp read;
+							read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+							read.src_ptr = (u8*)&R.a;
+							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
+							micro_op_queue.push_back(read);
 
-							memory_module::write_memory(R.hl, &R.a, 1);
-							R.hl++;
-							cycles = 8;
-							update_timer(8);
+							MicroOp write;
+							write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+							write.value_ptr = (u8*)&last_temp_value;
+							write.dest_ptr = (u8*)&R.hl;
+							write.dest_modify = 1;
+							micro_op_queue.push_back(write);
+
 							break;
+						}
 						case 0x3:
+						{
 							// LDD (HL) with A. decr HL
-							if (check_memory_breakpoint(R.pc - 1, R.hl))
-							{
-								return 0;
-							}
+							MicroOp read;
+							read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+							read.src_ptr = (u8*)&R.a;
+							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
+							micro_op_queue.push_back(read);
 
-							memory_module::write_memory(R.hl, &R.a, 1);
-							R.hl--;
-							cycles = 8;
-							update_timer(8);
+							MicroOp write;
+							write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+							write.value_ptr = (u8*)&last_temp_value;
+							write.dest_ptr = (u8*)&R.hl;
+							write.dest_modify = -1;
+							micro_op_queue.push_back(write);
+
 							break;
+						}
 						}
 						break;
 					}
@@ -1066,31 +1352,79 @@ namespace gameboy
 						switch (p)
 						{
 						case 0x0:
+						{
 							// LD A with (BC)
-							R.a = memory_module::read_memory(R.bc);
-							cycles = 8;
-							update_timer(8);
+							MicroOp read;
+							read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+							read.src_ptr = (u8*)&R.bc;
+							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
+							micro_op_queue.push_back(read);
+
+							MicroOp write;
+							write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
+							write.src_ptr = (u8*)&last_temp_value;
+							write.dest_ptr = (u8*)&R.a;
+							micro_op_queue.push_back(write);
+
 							break;
+						}
 						case 0x1:
+						{
 							// LD A with (DE)
-							R.a = memory_module::read_memory(R.de);
-							cycles = 8;
-							update_timer(8);
+							MicroOp read;
+							read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+							read.src_ptr = (u8*)&R.de;
+							read.dest_ptr = (u8*)&last_temp_value;
+							read.is_consuming_cycles = false;
+							micro_op_queue.push_back(read);
+
+							MicroOp write;
+							write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
+							write.src_ptr = (u8*)&last_temp_value;
+							write.dest_ptr = (u8*)&R.a;
+							micro_op_queue.push_back(write);
+
 							break;
+						}
 						case 0x2:
+						{
 							// LDI A with (HL). inc HL
-							R.a = memory_module::read_memory(R.hl);
-							R.hl++;
-							cycles = 8;
-							update_timer(8);
+							MicroOp read;
+							read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+							read.src_ptr = (u8*)&R.hl;
+							read.dest_ptr = (u8*)&last_temp_value;
+							read.src_modify = 1;
+							micro_op_queue.push_back(read);
+
+							MicroOp write;
+							write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
+							write.src_ptr = (u8*)&last_temp_value;
+							write.dest_ptr = (u8*)&R.a;
+							write.is_consuming_cycles = false;
+							micro_op_queue.push_back(write);
+
 							break;
+						}
 						case 0x3:
+						{
 							// LDD A with (HL). decr HL
-							R.a = memory_module::read_memory(R.hl);
-							R.hl--;
-							cycles = 8;
-							update_timer(8);
+							MicroOp read;
+							read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+							read.src_ptr = (u8*)&R.hl;
+							read.dest_ptr = (u8*)&last_temp_value;
+							read.src_modify = -1;
+							micro_op_queue.push_back(read);
+
+							MicroOp write;
+							write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
+							write.src_ptr = (u8*)&last_temp_value;
+							write.dest_ptr = (u8*)&R.a;
+							write.is_consuming_cycles = false;
+							micro_op_queue.push_back(write);
+
 							break;
+						}
 						}
 						break;
 					}
@@ -1102,123 +1436,210 @@ namespace gameboy
 					switch (q)
 					{
 					case 0x0:
+					{
 						// INC register_pairs[p]
-						(*register_pairs[p])++;
-						cycles = 8;
-						update_timer(8);
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_REG_16;
+						read.src_ptr = (u8*)register_pairs[p];
+						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
+						micro_op_queue.push_back(read);
+
+						MicroOp add;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
+						add.value = 1;
+						add.is_use_value = true;
+						add.src_ptr = (u8*)&last_temp_value;
+						add.dest_ptr = (u8*)register_pairs[p];
+						add.is_signed = true;
+						micro_op_queue.push_back(add);
+
 						break;
+					}
 					case 0x1:
+					{
 						// DEC register_pairs[p]
-						(*register_pairs[p])--;
-						cycles = 8;
-						update_timer(8);
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_REG_16;
+						read.src_ptr = (u8*)register_pairs[p];
+						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
+						micro_op_queue.push_back(read);
+
+						MicroOp add;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
+						add.value = -1;
+						add.is_use_value = true;
+						add.src_ptr = (u8*)&last_temp_value;
+						add.dest_ptr = (u8*)register_pairs[p];
+						add.is_signed = true;
+						micro_op_queue.push_back(add);
+
 						break;
+					}
 					}
 					break;
 				}
 				case 0x4: // z = 4
 				{
 					// INC register_single[y]
-					// check for the half carry only
-					if ((*register_single[y] & 0xF) == 0x0F)
+					if (y == 6) // using (HL) register
 					{
-						set_flag(FLAG_HALFCARRY);
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+						read.src_ptr = (u8*)&R.hl;
+						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
+						micro_op_queue.push_back(read);
+
+						u8 flag = 0x0;
+						set_flag(flag, FLAG_ZERO);
+						set_flag(flag, FLAG_SUBTRACTION);
+						set_flag(flag, FLAG_HALFCARRY);
+
+						u8 reset_flag = 0x0;
+						set_flag(reset_flag, FLAG_SUBTRACTION);
+
+						// consuming cycles to read from HL
+						MicroOp inc;
+						inc.micro_op_type = MICRO_OP_TYPE::ADD_8;
+						inc.value = 1;
+						inc.is_use_value = true;
+						inc.src_ptr = (u8*)&last_temp_value; 
+						inc.dest_ptr = (u8*)&last_temp_value;
+						inc.is_signed = true;
+						inc.set_flags = flag;
+						inc.reset_flags = reset_flag;
+						micro_op_queue.push_back(inc);
+
+						MicroOp write;
+						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write.value_ptr = (u8*)&last_temp_value;
+						write.dest_ptr = (u8*)&R.hl;
+						micro_op_queue.push_back(write);
 					}
 					else
 					{
-						clear_flag(FLAG_HALFCARRY);
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+						read.src_ptr = (u8*)register_single[y];
+						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
+						micro_op_queue.push_back(read);
+
+						u8 flag = 0x0;
+						set_flag(flag, FLAG_ZERO);
+						set_flag(flag, FLAG_SUBTRACTION);
+						set_flag(flag, FLAG_HALFCARRY);
+
+						u8 reset_flag = 0x0;
+						set_flag(reset_flag, FLAG_SUBTRACTION);
+
+						MicroOp inc;
+						inc.micro_op_type = MICRO_OP_TYPE::ADD_8;
+						inc.value = 1;
+						inc.is_use_value = true;
+						inc.src_ptr = (u8*)&last_temp_value;
+						inc.dest_ptr = (u8*)register_single[y];
+						inc.is_signed = true;
+						inc.set_flags = flag;
+						inc.reset_flags = reset_flag;
+						inc.is_consuming_cycles = false;
+						micro_op_queue.push_back(inc);
 					}
 
-					u8 val = *register_single[y] + 1;
-
-					if (y == 6) // register (HL)
-					{
-						cycles += 4;
-						update_timer(4);
-					}
-
-					// set new value
-					*register_single[y] = val;
-
-					if (y == 6) // register (HL)
-					{
-						cycles += 4;
-						update_timer(4);
-					}
-
-					if (*register_single[y] == 0)
-					{
-						set_flag(FLAG_ZERO);
-					}
-					else
-					{
-						clear_flag(FLAG_ZERO);
-					}
-
-					clear_flag(FLAG_SUBTRACTION);
-
-					cycles += 4;
-					update_timer(4);
 					break;
 				}
 				case 0x5: // z = 5
 				{
 					// DEC register_single[y]
-					// check for the half carry only
-					if (*register_single[y] & 0x0F)
+					if (y == 6) // using (HL) register
 					{
-						clear_flag(FLAG_HALFCARRY);
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+						read.src_ptr = (u8*)&R.hl;
+						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
+						micro_op_queue.push_back(read);
+
+						u8 flag = 0x0;
+						set_flag(flag, FLAG_ZERO);
+						set_flag(flag, FLAG_SUBTRACTION);
+						set_flag(flag, FLAG_HALFCARRY);
+
+						// consuming cycles to grab from (HL)
+						MicroOp inc;
+						inc.micro_op_type = MICRO_OP_TYPE::ADD_8;
+						inc.value = -1;
+						inc.is_use_value = true;
+						inc.src_ptr = (u8*)&last_temp_value;
+						inc.dest_ptr = (u8*)&last_temp_value;
+						inc.is_signed = true;
+						inc.set_flags = flag;
+						micro_op_queue.push_back(inc);
+
+						MicroOp write;
+						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write.value_ptr = (u8*)&last_temp_value;
+						write.dest_ptr = (u8*)&R.hl;
+						micro_op_queue.push_back(write);
 					}
 					else
 					{
-						set_flag(FLAG_HALFCARRY);
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+						read.src_ptr = (u8*)register_single[y];
+						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
+						micro_op_queue.push_back(read);
+
+						u8 flag = 0x0;
+						set_flag(flag, FLAG_ZERO);
+						set_flag(flag, FLAG_SUBTRACTION);
+						set_flag(flag, FLAG_HALFCARRY);
+
+						MicroOp inc;
+						inc.micro_op_type = MICRO_OP_TYPE::ADD_8;
+						inc.value = -1;
+						inc.is_use_value = true;
+						inc.src_ptr = (u8*)&last_temp_value;
+						inc.dest_ptr = (u8*)register_single[y];
+						inc.is_signed = true;
+						inc.set_flags = flag;
+						inc.is_consuming_cycles = false;
+						micro_op_queue.push_back(inc);
 					}
 
-					u8 val = *register_single[y] - 1;
-
-					if (y == 6) // register (HL)
-					{
-						cycles += 4;
-						update_timer(4);
-					}
-
-					// set new value
-					*register_single[y] = val;
-
-					if (y == 6) // register (HL)
-					{
-						cycles += 4;
-						update_timer(4);
-					}
-
-					if (*register_single[y] == 0)
-					{
-						set_flag(FLAG_ZERO);
-					}
-					else
-					{
-						clear_flag(FLAG_ZERO);
-					}
-
-					set_flag(FLAG_SUBTRACTION);
-
-					cycles += 4;
-					update_timer(4);
 					break;
 				}
 				case 0x6: // z = 6
+				{
 					// LD register_single[y] with n
+					MicroOp fetch;
+					fetch.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+					fetch.dest_ptr = (u8*)&last_temp_value;
+					micro_op_queue.push_back(fetch);
+
 					if (y == 6) // register is (HL)
 					{
-						cycles += 4;
-						update_timer(4);
+						MicroOp write;
+						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write.value_ptr = (u8*)&last_temp_value;
+						write.dest_ptr = (u8*)&R.hl;
+						micro_op_queue.push_back(write);
+					}
+					else
+					{
+						MicroOp write;
+						write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
+						write.src_ptr = (u8*)&last_temp_value;
+						write.dest_ptr = (u8*)register_single[y];
+						write.is_consuming_cycles = false;
+						micro_op_queue.push_back(write);
 					}
 
-					*register_single[y] = readpc_u8();
-
-					cycles += 8;
-					update_timer(8);
 					break;
+				}
 				case 0x7: // z = 7
 				{
 					switch (y)
@@ -1226,148 +1647,87 @@ namespace gameboy
 					case 0x0:
 					{
 						// RLC A
-						u8 carry = R.a >> 7;
-						R.a = (R.a << 1) | carry;
-						clear_all_flags(); // reset flags
-						if (carry)
-						{
-							set_flag(FLAG_CARRY);
-						}
+						MicroOp rot;
+						rot.micro_op_type = MICRO_OP_TYPE::ROTATE_ACCUMULATOR;
+						rot.rotate_type = ROTATE_TYPE::LEFT_CIRCULAR;
+						rot.is_consuming_cycles = false;
+						micro_op_queue.push_back(rot);
 
-						cycles = 4;
-						update_timer(4);
 						break;
 					}
 					case 0x1:
 					{
 						// RRC A
-						u8 carry = R.a & 0x1;
-						R.a = (R.a >> 1) | (carry << 7);
-						clear_all_flags(); // reset flags
-						if (carry)
-						{
-							set_flag(FLAG_CARRY);
-						}
+						MicroOp rot;
+						rot.micro_op_type = MICRO_OP_TYPE::ROTATE_ACCUMULATOR;
+						rot.rotate_type = ROTATE_TYPE::RIGHT_CIRCULAR;
+						rot.is_consuming_cycles = false;
+						micro_op_queue.push_back(rot);
 
-						cycles = 4;
-						update_timer(4);
 						break;
 					}
 					case 0x2:
 					{
 						// RL A
-						u8 carry = R.a >> 7;
-						R.a = (R.a << 1) | get_flag(FLAG_CARRY); // rotate with carry flag
-						clear_all_flags(); // reset flags
-						if (carry)
-						{
-							set_flag(FLAG_CARRY);
-						}
+						MicroOp rot;
+						rot.micro_op_type = MICRO_OP_TYPE::ROTATE_ACCUMULATOR;
+						rot.rotate_type = ROTATE_TYPE::LEFT_THROUGH_CARRY;
+						rot.is_consuming_cycles = false;
+						micro_op_queue.push_back(rot);
 
-						cycles = 4;
-						update_timer(4);
 						break;
 					}
 					case 0x3:
 					{
 						// RR A
-						u8 carry = R.a & 0x1;
-						R.a = (R.a >> 1) | (get_flag(FLAG_CARRY) << 7); // rotate with carry flag
-						clear_all_flags(); // reset flags
-						if (carry)
-						{
-							set_flag(FLAG_CARRY);
-						}
+						MicroOp rot;
+						rot.micro_op_type = MICRO_OP_TYPE::ROTATE_ACCUMULATOR;
+						rot.rotate_type = ROTATE_TYPE::RIGHT_THROUGH_CARRY;
+						rot.is_consuming_cycles = false;
+						micro_op_queue.push_back(rot);
 
-						cycles = 4;
-						update_timer(4);
 						break;
 					}
 					case 0x4:
 					{
 						// DAA
-						u16 a = R.a;
+						MicroOp op;
+						op.micro_op_type = MICRO_OP_TYPE::DAA;
+						op.is_consuming_cycles = false;
+						micro_op_queue.push_back(op);
 
-						if (get_flag(FLAG_SUBTRACTION) != 0)
-						{
-							if (get_flag(FLAG_HALFCARRY) != 0)
-							{
-								a = (a - 0x06) & 0xFF;
-							}
-
-							if (get_flag(FLAG_CARRY) != 0)
-							{
-								a -= 0x60;
-							}
-						}
-						else 
-						{
-							if (get_flag(FLAG_HALFCARRY) != 0 || (a & 0xF) > 9)
-							{
-								a += 0x06;
-							}
-
-							if (get_flag(FLAG_CARRY) != 0 || a > 0x9F)
-							{
-								a += 0x60;
-							}
-						}
-
-						R.a = (u8)(a & 0xFF);
-						clear_flag(FLAG_HALFCARRY);
-
-						if (R.a) 
-						{
-							clear_flag(FLAG_ZERO);
-						}
-						else
-						{
-							set_flag(FLAG_ZERO);
-						}
-
-						if (a >= 0x100)
-						{
-							set_flag(FLAG_CARRY);
-						}
-
-						cycles = 4;
-						update_timer(4);
 						break;
 					}
 					case 0x5:
+					{
 						// CPL
-						R.a = ~R.a;
-						set_flag(FLAG_HALFCARRY);
-						set_flag(FLAG_SUBTRACTION);
+						MicroOp op;
+						op.micro_op_type = MICRO_OP_TYPE::CPL;
+						op.is_consuming_cycles = false;
+						micro_op_queue.push_back(op);
 
-						cycles = 4;
-						update_timer(4);
 						break;
+					}
 					case 0x6:
+					{
 						// SCF
-						set_flag(FLAG_CARRY);
-						clear_flag(FLAG_HALFCARRY);
-						clear_flag(FLAG_SUBTRACTION);
+						MicroOp op;
+						op.micro_op_type = MICRO_OP_TYPE::SCF;
+						op.is_consuming_cycles = false;
+						micro_op_queue.push_back(op);
 
-						cycles = 4;
-						update_timer(4);
 						break;
+					}
 					case 0x7:
+					{
 						// CCF
-						if (get_flag(FLAG_CARRY))
-						{
-							clear_flag(FLAG_CARRY);
-						}
-						else
-						{
-							set_flag(FLAG_CARRY);
-						}
-						clear_flag(FLAG_HALFCARRY);
-						clear_flag(FLAG_SUBTRACTION);
+						MicroOp op;
+						op.micro_op_type = MICRO_OP_TYPE::CCF;
+						op.is_consuming_cycles = false;
+						micro_op_queue.push_back(op);
 
-						cycles = 4;
-						update_timer(4);
 						break;
+					}
 					}
 					break;
 				}
@@ -1376,60 +1736,94 @@ namespace gameboy
 			} // end x = 0
 			case 0x1: // x = 1
 			{
-				if (z == 6 && y== 6)
+				if (z == 6 && y == 6)
 				{
 					// HALT
-					if (interrupt_master) // interrupt servicing enabled
-					{
-						halt = true;
-						R.pc--;
-					}
-					else // interrupt servicing disabled
-					{
-						if ((*interrupt_enable_flag & *interrupt_request_flag & 0x1F) != 0x0) // halt bug if pending interrupts
-						{
-							halt_bug = true;
-						}
-						else // no pending. we halt but dont service interrupt
-						{
-							halt = true;
-							halt_continue_exec = true;
-							R.pc--;
-						}
-					}
+					MicroOp op;
+					op.micro_op_type = MICRO_OP_TYPE::HALT;
+					op.is_consuming_cycles = false;
+					micro_op_queue.push_back(op);
+				}
+				else if (y == 6)
+				{
+					// LD (HL), r
+					MicroOp read;
+					read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+					read.src_ptr = (u8*)register_single[z];
+					read.dest_ptr = (u8*)&last_temp_value;
+					read.is_consuming_cycles = false;
+					micro_op_queue.push_back(read);
 
-					cycles += 4;
-					update_timer(4);
+					MicroOp write;
+					write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+					write.value_ptr = (u8*)&last_temp_value;
+					write.dest_ptr = (u8*)&R.hl;
+					micro_op_queue.push_back(write);
+				}
+				else if (z == 6)
+				{
+					// LD r, (HL)
+					MicroOp read;
+					read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+					read.src_ptr = (u8*)&R.hl;
+					read.dest_ptr = (u8*)&last_temp_value;
+					micro_op_queue.push_back(read);
+
+					MicroOp write;
+					write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
+					write.src_ptr = (u8*)&last_temp_value;
+					write.dest_ptr = (u8*)register_single[y];
+					write.is_consuming_cycles = false;
+					micro_op_queue.push_back(write);
 				}
 				else
 				{
-					// LD register_single[y] with register_single[z]
-					*register_single[y] = *register_single[z];
+					// LD r, r'
+					MicroOp read;
+					read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+					read.src_ptr = (u8*)register_single[z];
+					read.dest_ptr = (u8*)&last_temp_value;
+					read.is_consuming_cycles = false;
+					micro_op_queue.push_back(read);
 
-					if (y == 6 || z == 6) // LD (HL), A,B,C,F,E,F,H,L or LD A,B,C,F,E,H,L, (HL)
-					{
-						cycles += 4;
-						update_timer(4);
-					}
-					
-					cycles += 4;
-					update_timer(4);
+					MicroOp write;
+					write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
+					write.src_ptr = (u8*)&last_temp_value;
+					write.dest_ptr = (u8*)register_single[y];
+					write.is_consuming_cycles = false;
+					micro_op_queue.push_back(write);
 				}
+
 				break;
 			} // end x = 1
 			case 0x2: // x = 2
 			{
-				// alu[y] with register_single[z]
-				alu_function[y](register_single[z]);
-
 				if (z == 6) // using (HL) register
 				{
-					cycles += 4;
-					update_timer(4);
+					MicroOp read;
+					read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+					read.src_ptr = (u8*)&R.hl;
+					read.dest_ptr = (u8*)&last_temp_value;
+					micro_op_queue.push_back(read);
+				}
+				else
+				{
+					MicroOp read;
+					read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+					read.src_ptr = (u8*)register_single[z];
+					read.dest_ptr = (u8*)&last_temp_value;
+					read.is_consuming_cycles = false;
+					micro_op_queue.push_back(read);
 				}
 
-				cycles += 4;
-				update_timer(4);
+				// ALU operation (A is always the destination)
+				MicroOp alu;
+				alu.micro_op_type = MICRO_OP_TYPE::ALU;
+				alu.src_ptr = (u8*)&last_temp_value;
+				alu.alu_rot_index = y;
+				alu.is_consuming_cycles = false;
+				micro_op_queue.push_back(alu);
+
 				break;
 			}
 			case 0x3: // x = 3
@@ -1444,125 +1838,159 @@ namespace gameboy
 					case 0x1:
 					case 0x2:
 					case 0x3:
+					{
 						// RET if condition_funct[y]
-						if (condition_funct[y]())
-						{
-							R.pc = pop_from_stack();
-							cycles += 12;
-							update_timer(12);
-							is_condition = true;
-						}
+						MicroOp cond;
+						cond.micro_op_type = MICRO_OP_TYPE::CONDITION;
+						cond.condition_index = y;
+						cond.condition_fail_pop_count = 3; // if condition fails, pop 3 
+						micro_op_queue.push_back(cond);
 
-						cycles += 8;
-						update_timer(8);
+						// adding the 3 micro ops if condition passes. will clear them when ececuting condition if it fails
+						MicroOp pop_lo;
+						pop_lo.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+						pop_lo.src_ptr = (u8*)&R.sp;
+						pop_lo.dest_ptr = (u8*)&last_temp_value;
+						pop_lo.src_modify = 1;
+						micro_op_queue.push_back(pop_lo);
+
+						MicroOp pop_hi;
+						pop_hi.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+						pop_hi.src_ptr = (u8*)&R.sp; // sp already modified
+						pop_hi.dest_ptr = ((u8*)&last_temp_value) + 1;
+						pop_hi.src_modify = 1;
+						micro_op_queue.push_back(pop_hi);
+
+						MicroOp assign_pc;
+						assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+						assign_pc.src_ptr = (u8*)&last_temp_value;
+						assign_pc.dest_ptr = (u8*)&R.pc;
+						micro_op_queue.push_back(assign_pc);
+
 						break;
+					}
 					case 0x4:
 					{
 						// LD mem(FF00 + n) with A
-						u8 addr = readpc_u8();
-						
-						if (check_memory_breakpoint(R.pc - 2, addr))
-						{
-							return 0;
-						}
+						MicroOp fetch;
+						fetch.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(fetch);
 
-						cycles = 4;
-						update_timer(4);
+						MicroOp add;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
+						add.is_use_value = true;
+						add.value = 0xFF00;
+						add.src_ptr = (u8*)&last_temp_value;
+						add.dest_ptr = (u8*)&last_temp_value;
+						add.is_consuming_cycles = false;
+						micro_op_queue.push_back(add);
 
-						memory_module::write_memory(0xFF00 + addr, &R.a, 1);
+						MicroOp write;
+						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write.value_ptr = (u8*)&R.a;
+						write.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(write);
 
-						cycles += 8;
-						update_timer(8);
 						break;
 					}
 					case 0x5:
 					{
 						// ADD SP with (signed)n
-						u8 val = readpc_u8();
-						s32 result = R.sp + (s8)val;
-						u16 sp_low = R.sp & 0xFF;
-						u16 result_flag = sp_low + val;
+						MicroOp fetch;
+						fetch.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(fetch);
 
-						// half carry and carry flags are determined from (sp & 0xFF) + (u8)value
-						if (result_flag & 0xFF00)
-						{
-							set_flag(FLAG_CARRY);
-						}
-						else
-						{
-							clear_flag(FLAG_CARRY);
-						}
+						u8 flag = 0x0;
+						set_flag(flag, FLAG_HALFCARRY);
+						set_flag(flag, FLAG_CARRY);
 
-						R.sp = result & 0xFFFF;
+						u8 reset_flag = 0x0;
+						set_flag(reset_flag, FLAG_ZERO);
+						set_flag(reset_flag, FLAG_SUBTRACTION);
 
-						if ((sp_low ^ val ^ result_flag) & 0x10)
-						{
-							set_flag(FLAG_HALFCARRY);
-						}
-						else
-						{
-							clear_flag(FLAG_HALFCARRY);
-						}
+						MicroOp add;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_8_TO_16;
+						add.src_ptr = ((u8*)&R.sp);
+						add.value_ptr = (u8*)&last_temp_value;
+						add.dest_ptr = (u8*)&last_temp_value;
+						add.is_signed = true;
+						add.set_flags = flag;
+						add.reset_flags = reset_flag;
+						micro_op_queue.push_back(add);
 
-						clear_flag(FLAG_ZERO);
-						clear_flag(FLAG_SUBTRACTION);
-												
-						cycles = 16;
-						update_timer(16);
+						MicroOp assign;
+						assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+						assign.src_ptr = (u8*)&last_temp_value;
+						assign.dest_ptr = (u8*)&R.sp;
+						assign.is_consuming_cycles = false;
+						micro_op_queue.push_back(assign);
+
+						// adding to pad timing
+						MicroOp nop0;
+						nop0.micro_op_type = MICRO_OP_TYPE::NOP;
+						micro_op_queue.push_back(nop0);
+
 						break;
 					}
 					case 0x6:
 					{
 						// LD A with mem(FF00 + n)
-						u8 addr = readpc_u8();
+						MicroOp fetch;
+						fetch.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(fetch);
 
-						cycles = 4;
-						update_timer(4);
+						MicroOp add;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_16;
+						add.is_use_value = true;
+						add.value = 0xFF00;
+						add.src_ptr = (u8*)&last_temp_value;
+						add.dest_ptr = (u8*)&last_temp_value;
+						add.is_consuming_cycles = false;
+						micro_op_queue.push_back(add);
 
-						u8 val = memory_module::read_memory(0xFF00 + addr);
-						
-						cycles += 4;
-						update_timer(4);
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+						read.src_ptr = (u8*)&last_temp_value;
+						read.dest_ptr = (u8*)&R.a;
+						micro_op_queue.push_back(read);
 
-						R.a = val;
-
-						cycles += 4;
-						update_timer(4);
 						break;
 					}
 					case 0x7:
 					{
 						// ADD (signed)n to SP then LD HL with SP
-						u8 val = readpc_u8();
-						s32 result = R.sp + (s8)val;
-						u16 sp_low = R.sp & 0xFF;
-						u16 result_flag = sp_low + val;
+						MicroOp fetch;
+						fetch.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(fetch);
 
-						// half carry and carry flags are determined from (sp & 0xFF) + (u8)value
-						if (result_flag & 0xFF00)
-						{
-							set_flag(FLAG_CARRY);
-						}
-						else
-						{
-							clear_flag(FLAG_CARRY);
-						}
+						u8 flag = 0x0;
+						set_flag(flag, FLAG_HALFCARRY);
+						set_flag(flag, FLAG_CARRY);
 
-						R.hl = result & 0xFFFF;
+						u8 reset_flag = 0x0;
+						set_flag(reset_flag, FLAG_ZERO);
+						set_flag(reset_flag, FLAG_SUBTRACTION);
 
-						if ((sp_low ^ val ^ result_flag) & 0x10)
-						{
-							set_flag(FLAG_HALFCARRY);
-						}
-						else
-						{
-							clear_flag(FLAG_HALFCARRY);
-						}
+						MicroOp add;
+						add.micro_op_type = MICRO_OP_TYPE::ADD_8_TO_16;
+						add.src_ptr = (u8*)&R.sp;
+						add.value_ptr = (u8*)&last_temp_value;
+						add.dest_ptr = (u8*)&last_temp_value;
+						add.is_signed = true;
+						add.set_flags = flag;
+						add.reset_flags = reset_flag;
+						micro_op_queue.push_back(add);
 
-						clear_flag(FLAG_ZERO);
-						clear_flag(FLAG_SUBTRACTION);
-						cycles = 12;
-						update_timer(12);
+						MicroOp assign;
+						assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+						assign.src_ptr = (u8*)&last_temp_value;
+						assign.dest_ptr = (u8*)&R.hl;
+						assign.is_consuming_cycles = false;
+						micro_op_queue.push_back(assign);
 						break;
 					}
 					}
@@ -1573,49 +2001,117 @@ namespace gameboy
 					if (q == 0)
 					{
 						// POP stack ptr to register_pairs2[p]
-						u16 addr = pop_from_stack();
+						MicroOp read_lo;
+						read_lo.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+						read_lo.src_ptr = (u8*)&R.sp;
+						read_lo.dest_ptr = (u8*)&last_temp_value;
+						read_lo.src_modify = 1; // increment SP after read
+						micro_op_queue.push_back(read_lo);
 
-						if (p == 3) // R.af has special case. cant set lower 4 bits of f register
-						{
-							addr &= 0xFFF0;
-						}
+						MicroOp read_hi;
+						read_hi.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+						read_hi.src_ptr = (u8*)&R.sp;
+						read_hi.dest_ptr = ((u8*)&last_temp_value) + 1;
+						read_hi.src_modify = 1; // increment SP after read
+						micro_op_queue.push_back(read_hi);
 
-						*(register_pairs2[p]) = addr;
-						cycles = 12;
-						update_timer(12);
+						MicroOp assign;
+						assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+						assign.src_ptr = (u8*)&last_temp_value;
+						assign.dest_ptr = (u8*)register_pairs2[p];
+						assign.dest_mask = (p == 3 ? 0xFFF0 : 0xFFFF); // p == 3 means its writing to AF so we mask
+						assign.is_consuming_cycles = false;
+						micro_op_queue.push_back(assign);
 					}
 					else
 					{
 						switch (p)
 						{
 						case 0x0:
+						{
 							// RET
-							R.pc = pop_from_stack();
+							MicroOp read_lo;
+							read_lo.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+							read_lo.src_ptr = (u8*)&R.sp;
+							read_lo.dest_ptr = (u8*)&last_temp_value;
+							read_lo.src_modify = 1;
+							micro_op_queue.push_back(read_lo);
 
-							cycles = 16;
-							update_timer(16);
+							MicroOp read_hi;
+							read_hi.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+							read_hi.src_ptr = (u8*)&R.sp;
+							read_hi.dest_ptr = ((u8*)&last_temp_value) + 1;
+							read_hi.src_modify = 1;
+							micro_op_queue.push_back(read_hi);
+
+							MicroOp assign;
+							assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+							assign.src_ptr = (u8*)&last_temp_value;
+							assign.dest_ptr = (u8*)&R.pc;
+							assign.is_consuming_cycles = false;
+							micro_op_queue.push_back(assign);
+
+							MicroOp nop;
+							nop.micro_op_type = MICRO_OP_TYPE::NOP;
+							micro_op_queue.push_back(nop);
+
 							break;
+						}
 						case 0x1:
+						{
 							// RETI
-							R.pc = pop_from_stack();
-							interrupt_master = true;
+							MicroOp read_lo;
+							read_lo.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+							read_lo.src_ptr = (u8*)&R.sp;
+							read_lo.dest_ptr = (u8*)&last_temp_value;
+							read_lo.src_modify = 1;
+							micro_op_queue.push_back(read_lo);
 
-							cycles = 16;
-							update_timer(16);
+							MicroOp read_hi;
+							read_hi.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+							read_hi.src_ptr = (u8*)&R.sp;
+							read_hi.dest_ptr = ((u8*)&last_temp_value) + 1;
+							read_hi.src_modify = 1;
+							micro_op_queue.push_back(read_hi);
+
+							MicroOp assign;
+							assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+							assign.src_ptr = (u8*)&last_temp_value;
+							assign.dest_ptr = (u8*)&R.pc;
+							assign.is_consuming_cycles = false;
+							micro_op_queue.push_back(assign);
+
+							MicroOp ime;
+							ime.micro_op_type = MICRO_OP_TYPE::IME;
+							ime.value = IME_MODE::ENABLE;
+							ime.is_use_value = true;
+							micro_op_queue.push_back(ime);
+
 							break;
+						}
 						case 0x2:
+						{
 							// JP (HL)
-							R.pc = R.hl;
+							MicroOp assign;
+							assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+							assign.src_ptr = (u8*)&R.hl;
+							assign.dest_ptr = (u8*)&R.pc;
+							assign.is_consuming_cycles = false;
+							micro_op_queue.push_back(assign);
 
-							cycles = 4;
-							update_timer(4);
 							break;
+						}
 						case 0x3:
+						{
 							// LD SP with HL
-							R.sp = R.hl;
-							cycles = 8;
-							update_timer(8);
+							MicroOp assign;
+							assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+							assign.src_ptr = (u8*)&R.hl;
+							assign.dest_ptr = (u8*)&R.sp;
+							micro_op_queue.push_back(assign);
+
 							break;
+						}
 						}
 					}
 					break;
@@ -1630,78 +2126,124 @@ namespace gameboy
 					case 0x3:
 					{
 						// JP to nn if condition_funct[y]
-						u16 val = readpc_u16();
-						if (condition_funct[y]())
-						{
-							R.pc = val;
-							cycles += 4;
-							update_timer(4);
-							is_condition = true;
-						}
+						MicroOp fetch_low;
+						fetch_low.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_low.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(fetch_low);
 
-						cycles += 12;
-						update_timer(12);
+						MicroOp fetch_high;
+						fetch_high.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_high.dest_ptr = ((u8*)&last_temp_value) + 1;
+						micro_op_queue.push_back(fetch_high);
+
+						MicroOp cond;
+						cond.micro_op_type = MICRO_OP_TYPE::CONDITION;
+						cond.condition_index = y;
+						cond.condition_fail_pop_count = 1;
+						cond.is_consuming_cycles = false;
+						micro_op_queue.push_back(cond);
+
+						MicroOp assign_pc;
+						assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+						assign_pc.src_ptr = (u8*)&last_temp_value;
+						assign_pc.dest_ptr = (u8*)&R.pc;
+						micro_op_queue.push_back(assign_pc);
+
 						break;
 					}
 					case 0x4:
+					{
 						// LD mem(FF00 + C) with A
-						if (check_memory_breakpoint(R.pc - 1, 0xFF00 + R.c))
-						{
-							return 0;
-						}
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+						read.src_ptr = (u8*)&R.c;
+						read.dest_ptr = (u8*)&last_temp_value;
+						read.is_consuming_cycles = false;
+						micro_op_queue.push_back(read);
 
-						memory_module::write_memory(0xFF00 + R.c, &R.a, 1);
+						MicroOp write;
+						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write.value_ptr = (u8*)&R.a;
+						write.dest_ptr = (u8*)&last_temp_value;
+						write.addr_offset = 0xFF00;
+						micro_op_queue.push_back(write);
 
-						cycles = 8;
-						update_timer(8);
 						break;
+					}
 					case 0x5:
 					{
 						// LD mem(nn) with A
-						u16 addr = readpc_u16();
-						
-						if (check_memory_breakpoint(R.pc - 3, addr))
-						{
-							return 0;
-						}
+						MicroOp fetch_low;
+						fetch_low.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_low.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(fetch_low);
 
-						cycles = 4;
-						update_timer(4);
+						MicroOp fetch_high;
+						fetch_high.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_high.dest_ptr = ((u8*)&last_temp_value) + 1;
+						micro_op_queue.push_back(fetch_high);
 
-						u8 val = R.a;
+						MicroOp read_a;
+						read_a.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+						read_a.src_ptr = (u8*)&R.a; // just reading not storing
+						read_a.is_consuming_cycles = false;
+						micro_op_queue.push_back(read_a);
 
-						cycles += 4;
-						update_timer(4);
+						MicroOp write;
+						write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write.value_ptr = (u8*)&R.a; // value to write
+						write.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(write);
 
-						memory_module::write_memory(addr, &val, 1);
-						
-						cycles += 8;
-						update_timer(8);
 						break;
 					}
 					case 0x6:
+					{
 						// LD A with mem(FF00 + C)
-						R.a = memory_module::read_memory(0xFF00 + R.c);
-						cycles = 8;
-						update_timer(8);
+						MicroOp load;
+						load.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+						load.src_ptr = (u8*)&R.c;
+						load.dest_ptr = (u8*)&last_temp_value;
+						load.is_consuming_cycles = false;
+						micro_op_queue.push_back(load);
+
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+						read.src_ptr = (u8*)&last_temp_value;
+						read.dest_ptr = (u8*)&R.a;
+						read.addr_offset = 0xFF00;
+						micro_op_queue.push_back(read);
+
 						break;
+					}
 					case 0x7:
+					{
 						// LD A with mem(nn)
-						u16 addr = readpc_u16();
+						MicroOp fetch_low;
+						fetch_low.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_low.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(fetch_low);
 
-						cycles = 8;
-						update_timer(8);
+						MicroOp fetch_high;
+						fetch_high.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_high.dest_ptr = ((u8*)&last_temp_value) + 1;
+						micro_op_queue.push_back(fetch_high);
 
-						u8 val = memory_module::read_memory(addr);
+						MicroOp read;
+						read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+						read.src_ptr = (u8*)&last_temp_value;
+						read.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(read);
 
-						cycles += 4;
-						update_timer(4);
+						MicroOp assign;
+						assign.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
+						assign.src_ptr = (u8*)&last_temp_value;
+						assign.dest_ptr = (u8*)&R.a;
+						assign.is_consuming_cycles = false;
+						micro_op_queue.push_back(assign);
 
-						R.a = val;
-
-						cycles += 4;
-						update_timer(4);
 						break;
+					}
 					}
 					break;
 				}
@@ -1710,36 +2252,72 @@ namespace gameboy
 					switch (y)
 					{
 					case 0x0:
+					{
 						// JP nn
-						R.pc = readpc_u16();
+						MicroOp fetch_low;
+						fetch_low.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_low.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(fetch_low);
 
-						cycles = 16;
-						update_timer(16);
+						MicroOp fetch_high;
+						fetch_high.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_high.dest_ptr = ((u8*)&last_temp_value) + 1;
+						micro_op_queue.push_back(fetch_high);
+
+						MicroOp nop;
+						nop.micro_op_type = MICRO_OP_TYPE::NOP;
+						micro_op_queue.push_back(nop);
+
+						MicroOp assign_pc;
+						assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+						assign_pc.src_ptr = (u8*)&last_temp_value;
+						assign_pc.dest_ptr = (u8*)&R.pc;
+						assign_pc.is_consuming_cycles = false;
+						micro_op_queue.push_back(assign_pc);
+
 						break;
+					}
 					case 0x1:
+					{
 						// CB prefix
 						printf("Error - CB prefix opcode should not get here\n");
 						assert(0);
 						break;
+					}
 					case 0x2:
 					case 0x3:
 					case 0x4:
 					case 0x5:
+					{
 						// unsupported by gameboy
 						running = false;
+
 						break;
+					}
 					case 0x6:
+					{
 						// DI - disable interupts
-						interrupt_master = false;
-						cycles = 4;
-						update_timer(4);
+						MicroOp ime;
+						ime.micro_op_type = MICRO_OP_TYPE::IME;
+						ime.value = IME_MODE::DISABLE;
+						ime.is_use_value = true;
+						ime.is_consuming_cycles = false;
+						micro_op_queue.push_back(ime);
+
 						break;
+					}
 					case 0x7:
+					{
 						// EI - enable interupts
-						eiOcccurred = true;
-						cycles = 4;
-						update_timer(4);
+						MicroOp ime;
+						ime.micro_op_type = MICRO_OP_TYPE::IME;
+						ime.value = IME_MODE::ENABLE_DELAYED;
+						ime.is_use_value = true;
+						ime.is_consuming_cycles = false;
+						micro_op_queue.push_back(ime);
+
 						break;
+					}
 					}
 					break;
 				}
@@ -1752,29 +2330,59 @@ namespace gameboy
 					case 0x2:
 					case 0x3:
 					{
-						// CALL nn if condition_funct[y]
-						u16 val = readpc_u16();
-						if (condition_funct[y]())
-						{
-							push_sp_to_stack(R.pc);
+						MicroOp fetch_low;
+						fetch_low.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_low.dest_ptr = (u8*)&last_temp_value;
+						micro_op_queue.push_back(fetch_low);
 
-							R.pc = val;
-							cycles += 12;
-							update_timer(12);
-							is_condition = true;
-						}
+						MicroOp fetch_high;
+						fetch_high.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+						fetch_high.dest_ptr = ((u8*)&last_temp_value) + 1;
+						micro_op_queue.push_back(fetch_high);
 
-						cycles += 12;
-						update_timer(12);
+						MicroOp cond;
+						cond.micro_op_type = MICRO_OP_TYPE::CONDITION;
+						cond.condition_index = y;
+						cond.condition_fail_pop_count = 3;
+						cond.is_consuming_cycles = false;
+						micro_op_queue.push_back(cond);
+
+						// STACK PUSH
+						MicroOp write_high;
+						write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write_high.value_ptr = ((u8*)&R.pc) + 1; // high byte of PC
+						write_high.dest_ptr = (u8*)&R.sp;
+						write_high.addr_offset = -1;  // write to (sp-1)
+						write_high.dest_modify = -1;  // decrement sp
+						micro_op_queue.push_back(write_high);
+
+						MicroOp write_low;
+						write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write_low.value_ptr = (u8*)&R.pc; // low byte of PC
+						write_low.dest_ptr = (u8*)&R.sp;
+						write_low.addr_offset = -1;  // write to (sp-1)
+						write_low.dest_modify = -1;  // decrement sp
+						micro_op_queue.push_back(write_low);
+
+						// counting cycles here as there is normally an internal delay
+						MicroOp assign_pc;
+						assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+						assign_pc.src_ptr = (u8*)&last_temp_value;
+						assign_pc.dest_ptr = (u8*)&R.pc;
+						micro_op_queue.push_back(assign_pc);
+
 						break;
 					}
 					case 0x4:
 					case 0x5:
 					case 0x6:
 					case 0x7:
+					{
 						// unsupported by gameboy
 						running = false;
+
 						break;
+					}
 					}
 					break;
 				}
@@ -1783,22 +2391,65 @@ namespace gameboy
 					if (q == 0)
 					{
 						// PUSH register_pairs2[p]
-						push_sp_to_stack(*register_pairs2[p]);
+						// adding internal delay
+						MicroOp nop;
+						micro_op_queue.push_back(nop);
 
-						cycles = 16;
-						update_timer(16);
+						// STACK PUSH
+						MicroOp write_high;
+						write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write_high.value_ptr = ((u8*)register_pairs2[p]) + 1; // high byte of reg
+						write_high.dest_ptr = (u8*)&R.sp;
+						write_high.addr_offset = -1;  // write to (sp-1)
+						write_high.dest_modify = -1;  // decrement sp
+						micro_op_queue.push_back(write_high);
+
+						MicroOp write_low;
+						write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+						write_low.value_ptr = (u8*)register_pairs2[p]; // low byte of reg
+						write_low.dest_ptr = (u8*)&R.sp;
+						write_low.addr_offset = -1;  // write to (sp-1)
+						write_low.dest_modify = -1;  // decrement sp
+						micro_op_queue.push_back(write_low);
 					}
 					else
 					{
 						if (p == 0)
 						{
 							// CALL nn
-							u16 val = readpc_u16();
-							push_sp_to_stack(R.pc);
-							R.pc = val;
+							MicroOp fetch_low;
+							fetch_low.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+							fetch_low.dest_ptr = (u8*)&last_temp_value;
+							micro_op_queue.push_back(fetch_low);
 
-							cycles = 24;
-							update_timer(24);
+							MicroOp fetch_high;
+							fetch_high.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+							fetch_high.dest_ptr = ((u8*)&last_temp_value) + 1;
+							micro_op_queue.push_back(fetch_high);
+
+							// STACK PUSH
+							MicroOp write_high;
+							write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+							write_high.value_ptr = ((u8*)&R.pc) + 1; // high byte of PC
+							write_high.dest_ptr = (u8*)&R.sp;
+							write_high.addr_offset = -1;  // write to (sp-1)
+							write_high.dest_modify = -1;  // decrement sp
+							micro_op_queue.push_back(write_high);
+
+							MicroOp write_low;
+							write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+							write_low.value_ptr = (u8*)&R.pc; // low byte of PC
+							write_low.dest_ptr = (u8*)&R.sp;
+							write_low.addr_offset = -1;  // write to (sp-1)
+							write_low.dest_modify = -1;  // decrement sp
+							micro_op_queue.push_back(write_low);
+
+							// this is writing PC so its consuming cycles
+							MicroOp assign_pc;
+							assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+							assign_pc.src_ptr = (u8*)&last_temp_value;
+							assign_pc.dest_ptr = (u8*)&R.pc;
+							micro_op_queue.push_back(assign_pc);
 						}
 						else
 						{
@@ -1811,20 +2462,52 @@ namespace gameboy
 				case 0x6: // z = 6
 				{
 					// alu[y] with n
-					u8 value = readpc_u8();
-					alu_function[y](&value);
-					cycles = 8;
-					update_timer(8);
+					MicroOp fetch;
+					fetch.micro_op_type = MICRO_OP_TYPE::FETCH_PC;
+					fetch.dest_ptr = (u8*)&last_temp_value;
+					micro_op_queue.push_back(fetch);
+
+					MicroOp alu;
+					alu.micro_op_type = MICRO_OP_TYPE::ALU;
+					alu.src_ptr = (u8*)&last_temp_value;
+					alu.alu_rot_index = y;
+					alu.is_consuming_cycles = false;
+					micro_op_queue.push_back(alu);
+
 					break;
 				}
 				case 0x7: // z = 7
 				{
 					// RST at pc 7 * 8. basically a CALL
-					push_sp_to_stack(R.pc);
-					R.pc = y * 8;
+					MicroOp nop;
+					nop.micro_op_type = MICRO_OP_TYPE::NOP;
+					micro_op_queue.push_back(nop);
 
-					cycles = 16;
-					update_timer(16);
+					// STACK PUSH
+					MicroOp write_high;
+					write_high.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+					write_high.value_ptr = ((u8*)&R.pc) + 1; // high byte of PC
+					write_high.dest_ptr = (u8*)&R.sp;
+					write_high.addr_offset = -1;  // write to (sp-1)
+					write_high.dest_modify = -1;  // decrement sp
+					micro_op_queue.push_back(write_high);
+
+					MicroOp write_low;
+					write_low.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+					write_low.value_ptr = (u8*)&R.pc; // low byte of PC
+					write_low.dest_ptr = (u8*)&R.sp;
+					write_low.addr_offset = -1;  // write to (sp-1)
+					write_low.dest_modify = -1;  // decrement sp
+					micro_op_queue.push_back(write_low);
+
+					MicroOp assign_pc;
+					assign_pc.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_16;
+					assign_pc.value = y * 8;
+					assign_pc.is_use_value = true;
+					assign_pc.dest_ptr = (u8*)&R.pc;
+					assign_pc.is_consuming_cycles = false;
+					micro_op_queue.push_back(assign_pc);
+
 					break;
 				}
 				}
@@ -1832,16 +2515,7 @@ namespace gameboy
 			}
 			}
 
-			if (is_condition)
-			{
-				assert(cycles / 4 == instruction_times_condition[opcode]);
-			}
-			else
-			{
-				assert(cycles / 4 == instruction_times_nocondition[opcode]);
-			}
-
-			return cycles;
+			return 0;
 		}
 
 		int decode_prefixed_cb(u8 opcode)
@@ -1859,36 +2533,972 @@ namespace gameboy
 			case 0x0:
 			{
 				// rot_function[y] with register_single[z]
+				u8 val;
 				if (z == 6) // (HL) register
 				{
-					cycles = 4;
-					update_timer(4);
+					MicroOp read;
+					read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+					read.src_ptr = (u8*)&R.hl;
+					read.dest_ptr = (u8*)&last_temp_value;
+					micro_op_queue.push_back(read);
+
+					MicroOp rot;
+					rot.micro_op_type = MICRO_OP_TYPE::ROTATE_SHIFT;
+					rot.src_ptr = (u8*)&last_temp_value;
+					rot.dest_ptr = (u8*)&last_temp_value;
+					rot.alu_rot_index = y;
+					rot.is_consuming_cycles = false;
+					micro_op_queue.push_back(rot);
+
+					MicroOp write;
+					write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+					write.value_ptr = (u8*)&last_temp_value;
+					write.dest_ptr = (u8*)&R.hl;
+					micro_op_queue.push_back(write);
 				}
-
-				u8 val = *register_single[z];
-				rot_function[y](&val);
-
-				if (z == 6) // (HL) register
+				else
 				{
-					cycles += 4;
-					update_timer(4);
+					MicroOp read;
+					read.micro_op_type = MICRO_OP_TYPE::READ_REG_8;
+					read.src_ptr = register_single[z];
+					read.dest_ptr = (u8*)&last_temp_value;
+					read.is_consuming_cycles = false;
+					micro_op_queue.push_back(read);
+
+					MicroOp rot;
+					rot.micro_op_type = MICRO_OP_TYPE::ROTATE_SHIFT; 
+					rot.src_ptr = (u8*)&last_temp_value;
+					rot.dest_ptr = (u8*)&last_temp_value;
+					rot.alu_rot_index = y;
+					rot.is_consuming_cycles = false;
+					micro_op_queue.push_back(rot);
+
+					MicroOp write;
+					write.micro_op_type = MICRO_OP_TYPE::ASSIGN_REG_8;
+					write.src_ptr = (u8*)&last_temp_value;
+					write.dest_ptr = register_single[z];
+					write.is_consuming_cycles = false;
+					micro_op_queue.push_back(write);
 				}
 
-				*register_single[z] = val;
-
-				cycles += 8;
-				update_timer(8);
 				break;
 			}
 			case 0x1:
+			{
 				// test bit y from register_single[z]
+				u8 val;
 				if (z == 6) // (HL) register
 				{
-					cycles = 4;
-					update_timer(4);
+					MicroOp read;
+					read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+					read.src_ptr = (u8*)&R.hl;
+					read.dest_ptr = (u8*)&last_temp_value;
+					micro_op_queue.push_back(read);
+
+					MicroOp test_bit;
+					test_bit.micro_op_type = MICRO_OP_TYPE::TEST_BIT;
+					test_bit.src_ptr = (u8*)&last_temp_value;
+					test_bit.value = y; // bit index
+					test_bit.is_consuming_cycles = false;
+					micro_op_queue.push_back(test_bit);
+				}
+				else
+				{
+					MicroOp test_bit;
+					test_bit.micro_op_type = MICRO_OP_TYPE::TEST_BIT;
+					test_bit.src_ptr = register_single[z];
+					test_bit.value = y; // bit index
+					test_bit.is_consuming_cycles = false;
+					micro_op_queue.push_back(test_bit);
 				}
 
-				if (*register_single[z] & (1 << y))
+				break;
+			}
+			case 0x2:
+			{
+				// reset bit y from register_single[z]
+				if (z == 6) // (HL) register
+				{
+					MicroOp read;
+					read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+					read.src_ptr = (u8*)&R.hl;
+					read.dest_ptr = (u8*)&last_temp_value;
+					micro_op_queue.push_back(read);
+
+					MicroOp reset_bit;
+					reset_bit.micro_op_type = MICRO_OP_TYPE::RESET_BIT;
+					reset_bit.src_ptr = (u8*)&last_temp_value;
+					reset_bit.value = y; // bit index
+					reset_bit.is_consuming_cycles = false;
+					micro_op_queue.push_back(reset_bit);
+
+					MicroOp write;
+					write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+					write.value_ptr = (u8*)&last_temp_value;
+					write.dest_ptr = (u8*)&R.hl;
+					micro_op_queue.push_back(write);
+				}
+				else
+				{
+					MicroOp reset_bit;
+					reset_bit.micro_op_type = MICRO_OP_TYPE::RESET_BIT;
+					reset_bit.src_ptr = register_single[z];
+					reset_bit.value = y; // bit index
+					reset_bit.is_consuming_cycles = false;
+					micro_op_queue.push_back(reset_bit);
+				}
+
+				break;
+			}
+			case 0x3:
+			{
+				// reset bit y from register_single[z]
+				if (z == 6) // (HL) register
+				{
+					MicroOp read;
+					read.micro_op_type = MICRO_OP_TYPE::READ_ADDR_8;
+					read.src_ptr = (u8*)&R.hl;
+					read.dest_ptr = (u8*)&last_temp_value;
+					micro_op_queue.push_back(read);
+
+					MicroOp reset_bit;
+					reset_bit.micro_op_type = MICRO_OP_TYPE::SET_BIT;
+					reset_bit.src_ptr = (u8*)&last_temp_value;
+					reset_bit.value = y; // bit index
+					reset_bit.is_consuming_cycles = false;
+					micro_op_queue.push_back(reset_bit);
+
+					MicroOp write;
+					write.micro_op_type = MICRO_OP_TYPE::WRITE_ADDR_8;
+					write.value_ptr = (u8*)&last_temp_value;
+					write.dest_ptr = (u8*)&R.hl;
+					micro_op_queue.push_back(write);
+				}
+				else
+				{
+					MicroOp reset_bit;
+					reset_bit.micro_op_type = MICRO_OP_TYPE::SET_BIT;
+					reset_bit.src_ptr = register_single[z];
+					reset_bit.value = y; // bit index
+					reset_bit.is_consuming_cycles = false;
+					micro_op_queue.push_back(reset_bit);
+				}
+
+				break;
+			}
+			}
+
+			return 0;
+		}
+		
+		int execute_micro_op(MicroOp& op)
+		{
+			switch (op.micro_op_type)
+			{
+			case MICRO_OP_TYPE::NOP:
+			{
+				// do nothing
+				break;
+			}
+			case MICRO_OP_TYPE::FETCH_OP:
+			{
+				// decode. gameboy only has CB prefix
+				if (last_opcode == 0xCB)
+				{
+					u8 opcode = readpc_u8();
+					last_opcode = opcode;
+					is_last_opcode_cb = true;
+					decode_prefixed_cb(opcode); // decode functions will push their own operations
+				}
+				else
+				{
+					current_pc = R.pc;
+					u8 opcode = readpc_u8();
+					is_last_opcode_cb = false;
+
+					if (opcode == 0xCB)
+					{
+						// if CB, add new fetch to the queue
+						MicroOp fetch_op;
+						fetch_op.micro_op_type = MICRO_OP_TYPE::FETCH_OP;
+						fetch_op.src_ptr = (u8*)&R.pc;
+
+						micro_op_queue.push_back(fetch_op);
+					}
+					else
+					{
+						if (halt_bug)
+						{
+							R.pc--;
+							halt_bug = false;
+						}
+
+						decode_nonprefixed(opcode);
+					}
+
+					// store last op code mainly for CB fetching
+					last_opcode = opcode;
+
+					// set this as we have started a new opcode
+					is_opcode_complete = false;
+					last_opcode_cycles = 0;
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::FETCH_PC:
+			{
+				// fetch next 8 bit from PC. store in last_fetch value
+				current_pc = R.pc;
+				s32 value = 0x0;
+
+				if (op.is_signed)
+				{
+					value = (s8)readpc_u8();
+				}
+				else
+				{
+					value = readpc_u8();
+				}
+
+				if (op.dest_ptr != nullptr)
+				{
+					*op.dest_ptr = (u8)value;
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::READ_REG_8:
+			{
+				u8 value = 0x0;
+				if (op.src_ptr != nullptr)
+				{
+					value = *op.src_ptr;
+				}
+
+				if (op.dest_ptr != nullptr)
+				{
+					*op.dest_ptr = value;
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::READ_REG_16:
+			{
+				u16 value = 0x0;
+				if (op.src_ptr != nullptr)
+				{
+					value = *((u16*)op.src_ptr);
+				}
+
+				if (op.dest_ptr != nullptr)
+				{
+					*((u16*)op.dest_ptr) = value;
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::ASSIGN_REG_8:
+			{
+				u8 value = 0x0;
+				if (op.is_use_value)
+				{
+					value = (u8)op.value;
+				}
+				else if (op.src_ptr != nullptr)
+				{
+					value = *op.src_ptr;
+				}
+
+				if (op.dest_ptr != nullptr)
+				{
+					*op.dest_ptr = value & op.dest_mask;
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::ASSIGN_REG_16:
+			{
+				u16 value = op.value;
+				if (op.is_use_value)
+				{
+					value = (u16)op.value;
+				}
+				else if (op.src_ptr != nullptr)
+				{
+					value = (u16)*((u16*)op.src_ptr);
+				}
+				
+				if (op.dest_ptr != nullptr)
+				{
+					*((u16*)op.dest_ptr) = value & op.dest_mask;
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::ADD_8:
+			{
+				if (op.dest_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				if (op.src_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				s32 original = (s8)*((u8*)op.src_ptr);
+				s32 value = 0x0;
+
+				if (op.is_use_value) // if use value we add to total value
+				{
+					value = (s8)op.value;
+				}
+				else if (op.value_ptr != nullptr) // if we passed pointer to value
+				{
+					if (op.is_signed) // note: is signed only works with 8 bit value ptr
+					{
+						value = (s8)*((s8*)op.value_ptr);
+					}
+					else
+					{
+						value = (s8)(*((u8*)op.value_ptr));
+					}
+				}
+
+				// check for carry
+				if (get_flag(op.set_flags, FLAG_CARRY) != 0)
+				{
+					clear_flag(FLAG_CARRY);
+
+					if ((original & 0xF) + (value & 0xF) > 0xF)
+					{
+						set_flag(FLAG_CARRY);
+					}
+				}
+
+				// check for the half carry.				
+				if (get_flag(op.set_flags, FLAG_HALFCARRY) != 0)
+				{
+					clear_flag(FLAG_HALFCARRY);
+
+					if (value >= 0)
+					{
+						if ((original & 0xF) + (value & 0xF) > 0xF)
+						{
+							set_flag(FLAG_HALFCARRY);
+						}
+					}
+					else
+					{
+						if ((original & 0xF) == 0)
+						{
+							set_flag(FLAG_HALFCARRY);
+						}
+					}
+				}
+
+				// Subtract flag
+				if (get_flag(op.set_flags, FLAG_SUBTRACTION) != 0)
+				{
+					if (value < 0)
+					{
+						set_flag(FLAG_SUBTRACTION);
+					}
+					else if (value < 0)
+					{
+						clear_flag(FLAG_SUBTRACTION);
+					}
+				}
+
+				// Zero flag
+				if (get_flag(op.set_flags, FLAG_ZERO) != 0)
+				{
+					if (((original + (u8)value) & 0xFF) == 0)
+					{
+						set_flag(FLAG_ZERO);
+					}
+					else
+					{
+						clear_flag(FLAG_ZERO);
+					}
+				}
+
+				// check for which flags need to be reset
+				for (u8 i = FLAG_CARRY; i <= FLAG_ZERO; i++)
+				{
+					if (get_flag(op.reset_flags, i) != 0)
+					{
+						clear_flag(i);
+					}
+				}
+
+				// set result
+				original += value;
+				*op.dest_ptr = (u8)(original & 0xFF);
+
+				break;
+			}
+			case MICRO_OP_TYPE::ADD_16:
+			{
+				if (op.dest_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				if (op.src_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				s32 original = *((u16*)op.src_ptr);
+				s32 value = 0x0;
+				if (op.is_use_value) // if use value we add to total value
+				{
+					value = (s16)op.value;
+				}
+				else if (op.value_ptr != nullptr) // if we passed pointer to value
+				{
+					if (op.is_signed) // note: is signed only works with 8 bit value ptr
+					{
+						value = (s8)*((s8*)op.value_ptr);
+					}
+					else
+					{
+						value = (u16)(*((u16*)op.value_ptr));
+					}
+				}
+
+				// check for carry
+				if (get_flag(op.set_flags, FLAG_CARRY) != 0)
+				{
+					clear_flag(FLAG_CARRY);
+
+					if ((original & 0xFFFF) + (value & 0xFFFF) > 0xFFFF)
+					{
+						set_flag(FLAG_CARRY);
+					}
+				}
+
+				// check for the half carry.
+				if (get_flag(op.set_flags, FLAG_HALFCARRY) != 0)
+				{
+					clear_flag(FLAG_HALFCARRY);
+
+					if ((original & 0xFFF) + (value & 0xFFF) > 0xFFF)
+					{
+						set_flag(FLAG_HALFCARRY);
+					}
+				}
+
+				// subtract flag
+				if (get_flag(op.set_flags, FLAG_SUBTRACTION) != 0)
+				{
+					if (value < 0)
+					{
+						set_flag(FLAG_SUBTRACTION);
+					}
+					else if (value < 0)
+					{
+						clear_flag(FLAG_SUBTRACTION);
+					}
+				}
+
+				// Zero flag
+				if (get_flag(op.set_flags, FLAG_ZERO) != 0)
+				{
+					if (((original + (u8)value) & 0xFFFF) == 0)
+					{
+						set_flag(FLAG_ZERO);
+					}
+					else
+					{
+						clear_flag(FLAG_ZERO);
+					}
+				}
+
+				// check for which flags need to be reset
+				for (u8 i = FLAG_CARRY; i <= FLAG_ZERO; i++)
+				{
+					if (get_flag(op.reset_flags, i) != 0)
+					{
+						clear_flag(i);
+					}
+				}
+
+				// set the result
+				original += value;
+				*((u16*)op.dest_ptr) = (u16)(original & 0xFFFF);
+
+				break;
+			}
+			case MICRO_OP_TYPE::ADD_8_TO_16:
+			{
+				if (op.dest_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				if (op.src_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				s32 original = *((u16*)op.src_ptr);
+				s32 value = 0x0;
+				if (op.is_use_value) // if use value we add to total value
+				{
+					value = (s16)op.value;
+				}
+				else if (op.value_ptr != nullptr) // if we passed pointer to value
+				{
+					if (op.is_signed) // note: is signed only works with 8 bit value ptr
+					{
+						value = (s8)*((s8*)op.value_ptr);
+					}
+					else
+					{
+						value = (u16)(*((u16*)op.value_ptr));
+					}
+				}
+
+				// check for carry
+				if (get_flag(op.set_flags, FLAG_CARRY) != 0)
+				{
+					clear_flag(FLAG_CARRY);
+
+					if ((original & 0xFF) + (value & 0xFF) > 0xFF)
+					{
+						set_flag(FLAG_CARRY);
+					}
+				}
+
+				// check for the half carry.
+				if (get_flag(op.set_flags, FLAG_HALFCARRY) != 0)
+				{
+					clear_flag(FLAG_HALFCARRY);
+
+					if ((original & 0xF) + (value & 0xF) > 0xF)
+					{
+						set_flag(FLAG_HALFCARRY);
+					}
+				}
+
+				// subtract flag
+				if (get_flag(op.set_flags, FLAG_SUBTRACTION) != 0)
+				{
+					if (value < 0)
+					{
+						set_flag(FLAG_SUBTRACTION);
+					}
+					else if (value < 0)
+					{
+						clear_flag(FLAG_SUBTRACTION);
+					}
+				}
+
+				// Zero flag
+				if (get_flag(op.set_flags, FLAG_ZERO) != 0)
+				{
+					if (((original + (u8)value) & 0xFFFF) == 0)
+					{
+						set_flag(FLAG_ZERO);
+					}
+					else
+					{
+						clear_flag(FLAG_ZERO);
+					}
+				}
+
+				// check for which flags need to be reset
+				for (u8 i = FLAG_CARRY; i <= FLAG_ZERO; i++)
+				{
+					if (get_flag(op.reset_flags, i) != 0)
+					{
+						clear_flag(i);
+					}
+				}
+
+				// set the result
+				original += value;
+				*((u16*)op.dest_ptr) = (u16)(original & 0xFFFF);
+
+				break;
+			}
+			case MICRO_OP_TYPE::READ_ADDR_8:
+			{
+				// handle the read from address. either from op value or last fetch value
+				u32 addr = 0x0;
+				if (op.is_use_addr)
+				{
+					addr = op.addr;
+				}
+				else if (op.src_ptr != nullptr)
+				{
+					addr = *((u16*)op.src_ptr);
+				}
+
+				addr += op.addr_offset; // add a addr offset. mostly used for 0xFF00 + n ops
+
+				if (check_memory_breakpoint(current_pc, addr))
+				{
+					return 0;
+				}
+
+				if (op.dest_ptr != nullptr)
+				{
+					*op.dest_ptr = memory_module::read_memory(addr);
+				}
+
+				// apply modifier for LDI  and LDD
+				if (op.src_ptr != nullptr)
+				{
+					*((u16*)op.src_ptr) += op.src_modify;
+				}
+
+				// apply modifier for LDI  and LDD
+				if (op.dest_ptr != nullptr)
+				{
+					*((u16*)op.dest_ptr) += op.dest_modify;
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::WRITE_ADDR_8:
+			{
+				// handle the write to an address. either from op value or last fetch value
+				u32 addr = 0x0;
+				if (op.is_use_addr) // prio is last value
+				{
+					addr = op.addr;
+				}
+				else if (op.dest_ptr != nullptr) // then we look if src ptr
+				{
+					addr = *((u16*)op.dest_ptr);
+				}
+
+				addr += op.addr_offset; // add a addr offset. mostly used for 0xFF00 + n ops
+
+				if (check_memory_breakpoint(current_pc, addr))
+				{
+					return 0;
+				}
+
+				// write 8 bits to 16 bit addr
+				u8 value = 0x0;
+				if (op.is_use_value)
+				{
+					value = op.value;
+				}
+				else if (op.value_ptr != nullptr)
+				{
+					value = (u8)*op.value_ptr;
+				}
+
+				// write to memory
+				memory_module::write_memory(addr, &value, 1);
+
+				// apply modifier for LDI  and LDD
+				if (op.src_ptr != nullptr)
+				{
+					*((u16*)op.src_ptr) += op.src_modify;
+				}
+
+				// apply modifier for LDI  and LDD
+				if (op.dest_ptr != nullptr)
+				{
+					*((u16*)op.dest_ptr) += op.dest_modify;
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::JUMP:
+			{
+				// handle PC jump offset. either from op.value or last fetch value
+				s32 value = 0x0;
+				if (op.is_use_value)
+				{
+					value = op.value;
+				}
+				else if (op.value_ptr != nullptr)
+				{
+					if (op.is_signed)
+					{
+						value = (s8)(*op.value_ptr);
+					}
+					else
+					{
+						value = *op.value_ptr;
+					}
+				}
+
+				R.pc += value;
+
+				break;
+			}
+			case MICRO_OP_TYPE::ROTATE_ACCUMULATOR:
+			{
+				clear_flag(FLAG_SUBTRACTION);
+				clear_flag(FLAG_HALFCARRY);
+				clear_flag(FLAG_ZERO);
+
+				switch (op.rotate_type)
+				{
+				case ROTATE_TYPE::LEFT_CIRCULAR:
+				{
+					u8 carry = R.a >> 7;
+					R.a = (R.a << 1) | carry;
+					if (carry)
+					{
+						set_flag(FLAG_CARRY);
+					}
+					else
+					{
+						clear_flag(FLAG_CARRY);
+					}
+
+					break;
+				}
+				case ROTATE_TYPE::LEFT_THROUGH_CARRY:
+				{
+					u8 carry = R.a >> 7;
+					R.a = (R.a << 1) | get_flag(FLAG_CARRY);
+					if (carry)
+					{
+						set_flag(FLAG_CARRY);
+					}
+					else
+					{
+						clear_flag(FLAG_CARRY);
+					}
+
+					break;
+				}
+				case ROTATE_TYPE::RIGHT_CIRCULAR:
+				{
+					u8 carry = R.a & 0x1;
+					R.a = (R.a >> 1) | (carry << 7);
+					if (carry)
+					{
+						set_flag(FLAG_CARRY);
+					}
+					else
+					{
+						clear_flag(FLAG_CARRY);
+					}
+
+					break;
+				}
+				case ROTATE_TYPE::RIGHT_THROUGH_CARRY:
+				{
+					u8 carry = R.a & 0x1;
+					R.a = (R.a >> 1) | (get_flag(FLAG_CARRY) << 7);
+					if (carry)
+					{
+						set_flag(FLAG_CARRY);
+					}
+					else
+					{
+						clear_flag(FLAG_CARRY);
+					}
+
+					break;
+				}
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::DAA:
+			{
+				// DAA
+				u16 a = R.a;
+
+				if (get_flag(FLAG_SUBTRACTION) != 0)
+				{
+					if (get_flag(FLAG_HALFCARRY) != 0)
+					{
+						a = (a - 0x06) & 0xFF;
+					}
+
+					if (get_flag(FLAG_CARRY) != 0)
+					{
+						a -= 0x60;
+					}
+				}
+				else
+				{
+					if (get_flag(FLAG_HALFCARRY) != 0 || (a & 0xF) > 9)
+					{
+						a += 0x06;
+					}
+
+					if (get_flag(FLAG_CARRY) != 0 || a > 0x9F)
+					{
+						a += 0x60;
+					}
+				}
+
+				R.a = (u8)(a & 0xFF);
+				clear_flag(FLAG_HALFCARRY);
+
+				if (R.a)
+				{
+					clear_flag(FLAG_ZERO);
+				}
+				else
+				{
+					set_flag(FLAG_ZERO);
+				}
+
+				if (a >= 0x100)
+				{
+					set_flag(FLAG_CARRY);
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::CPL:
+			{
+				// CPL
+				R.a = ~R.a;
+				set_flag(FLAG_HALFCARRY);
+				set_flag(FLAG_SUBTRACTION);
+
+				break;
+			}
+			case MICRO_OP_TYPE::SCF:
+			{
+				// SCF
+				set_flag(FLAG_CARRY);
+				clear_flag(FLAG_HALFCARRY);
+				clear_flag(FLAG_SUBTRACTION);
+
+				break;
+			}
+			case MICRO_OP_TYPE::CCF:
+			{	
+				// CCF
+				if (get_flag(FLAG_CARRY))
+				{
+					clear_flag(FLAG_CARRY);
+				}
+				else
+				{
+					set_flag(FLAG_CARRY);
+				}
+				clear_flag(FLAG_HALFCARRY);
+				clear_flag(FLAG_SUBTRACTION);
+
+				break;
+			}
+			case MICRO_OP_TYPE::HALT:
+			{
+				if (interrupt_master) // interrupt servicing enabled
+				{
+					halt = true;
+					R.pc--;
+				}
+				else // interrupt servicing disabled
+				{
+					if ((*interrupt_enable_flag & *interrupt_request_flag & 0x1F) != 0x0) // halt bug if pending interrupts
+					{
+						halt_bug = true;
+					}
+					else // no pending. we halt but don't service interrupt
+					{
+						halt = true;
+						R.pc--;
+					}
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::ALU:
+			{
+				if (op.src_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				u8 temp = *op.src_ptr;
+				alu_function[op.alu_rot_index](&temp);
+
+				// dest_ptr not used as alu funcs set R register directly
+				break;
+			}
+			case MICRO_OP_TYPE::ROTATE_SHIFT:
+			{
+				if (op.dest_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				if (op.src_ptr == nullptr)
+				{
+					assert(false);
+				}
+
+				u8 temp = *op.src_ptr;
+				rot_function[op.alu_rot_index](&temp);
+				*op.dest_ptr = temp; // set back to destination
+
+				break;
+			}
+			case MICRO_OP_TYPE::CONDITION:
+			{
+				is_last_condition_pass = true;
+				if (!condition_funct[op.condition_index]())
+				{
+					is_last_condition_pass = false;
+
+					// condition not met. pop number of micro ops
+					for (int i = 0; i < op.condition_fail_pop_count; i++)
+					{
+						if (micro_op_queue.empty())
+						{
+							break;
+						}
+						
+						micro_op_queue.pop_front();
+					}
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::IME:
+			{
+				if (op.is_use_value)
+				{
+					switch (op.value)
+					{
+					case IME_MODE::DISABLE:
+						interrupt_master = false;
+						ei_occcurred = 0;
+						break;
+					case IME_MODE::ENABLE:
+						interrupt_master = true;
+						ei_occcurred = 0;
+						break;
+					case IME_MODE::ENABLE_DELAYED:
+						ei_occcurred = 2;
+						break;
+					}
+				}
+
+				break;
+			}
+			case MICRO_OP_TYPE::TEST_BIT:
+			{
+				u8 value = 0;
+				if (op.src_ptr != nullptr)
+				{
+					value = *op.src_ptr;
+				}
+
+				u8 bit = (u8)op.value;
+
+				if (value & (1 << bit))
 				{
 					clear_flag(FLAG_ZERO);
 				}
@@ -1900,161 +3510,153 @@ namespace gameboy
 				set_flag(FLAG_HALFCARRY);
 				clear_flag(FLAG_SUBTRACTION);
 
-				cycles += 8;
-				update_timer(8);
 				break;
-			case 0x2:
+			}
+			case MICRO_OP_TYPE::RESET_BIT:
 			{
-				// reset bit y from register_single[z]
-				if (z == 6) // (HL) register
+				if (op.src_ptr != nullptr)
 				{
-					cycles = 4;
-					update_timer(4);
+					*op.src_ptr &= ~(1 << (u8)op.value);
 				}
 
-				u8 val = *register_single[z];
-				val &= ~(1 << y);
-
-				if (z == 6) // (HL) register
-				{
-					cycles += 4;
-					update_timer(4);
-				}
-
-				*register_single[z] = val;
-
-				cycles += 8;
-				update_timer(8);
 				break;
 			}
-			case 0x3:
+			case MICRO_OP_TYPE::SET_BIT:
 			{
-				// reset bit y from register_single[z]
-				if (z == 6) // (HL) register
+				if (op.src_ptr != nullptr)
 				{
-					cycles = 4;
-					update_timer(4);
+					*op.src_ptr |= (1 << (u8)op.value);
 				}
 
-				u8 val = *register_single[z];
-				val |= (1 << y);
-
-				if (z == 6) // (HL) register
-				{
-					cycles += 4;
-					update_timer(4);
-				}
-
-				*register_single[z] = val;
-
-				cycles += 8;
-				update_timer(8);
 				break;
 			}
 			}
 
-			assert(cycles / 4 == instruction_times_cb[opcode]);
-
-			return cycles;
+			return 0;
 		}
-		
-		int execute_opcode()
+
+		int update()
 		{
-			if (!running || (paused && !breakpoint_disable_one_instr))
+			if (halt)
 			{
-				// processor is stopped
-				return 0;
+				return 4;
 			}
 
-			// check for hitting breakpoints to pause
-			if (!breakpoint_disable_one_instr)
+			// if micro ops is empty. we decode next op code
+			if (micro_op_queue.empty())
 			{
-				if (breakpoints.size() > 0)
+				// clear temp values
+				last_opcode = 0x0;
+				last_temp_value = 0x0;
+
+				// when pulling new op code. if ei occured on delay we enable here
+				if (ei_occcurred > 0)
 				{
-					auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
-					if (breakpoint_itr != breakpoints.end())
+					ei_occcurred--;
+
+					if (ei_occcurred == 0)
 					{
-						paused = true;
-						breakpoint_hit = true;
-						return 0;
+						ei_occcurred = false;
+						interrupt_master = true;
 					}
 				}
 
-				// soft breakpoints are used for step over. not visible
-				if (soft_breakpoints.size() > 0)
+				// fetch the opcode
+				MicroOp fetch_op;
+				fetch_op.micro_op_type = MICRO_OP_TYPE::FETCH_OP;
+
+				micro_op_queue.push_back(fetch_op);
+
+				// handle breakpoitns for the debugger
+				if (!breakpoint_disable_one_instr)
 				{
-					auto breakpoint_itr = std::find(soft_breakpoints.begin(), soft_breakpoints.end(), R.pc);
-					if (breakpoint_itr != soft_breakpoints.end())
+					if (breakpoints.size() > 0)
 					{
-						if (memory_breakpoint_last_addr == -1) // hacky to get mem breakpoints working
+						auto breakpoint_itr = std::find(breakpoints.begin(), breakpoints.end(), R.pc);
+						if (breakpoint_itr != breakpoints.end())
 						{
 							paused = true;
 							breakpoint_hit = true;
+							return 0;
 						}
-
-						soft_breakpoints.erase(breakpoint_itr);
-						return 0;
 					}
+
+					// soft breakpoints are used for step over. not visible
+					if (soft_breakpoints.size() > 0)
+					{
+						auto breakpoint_itr = std::find(soft_breakpoints.begin(), soft_breakpoints.end(), R.pc);
+						if (breakpoint_itr != soft_breakpoints.end())
+						{
+							if (memory_breakpoint_last_addr == -1) // hacky to get mem breakpoints working
+							{
+								paused = true;
+								breakpoint_hit = true;
+							}
+
+							soft_breakpoints.erase(breakpoint_itr);
+							return 0;
+						}
+					}
+				}
+
+				if (breakpoint_disable_one_instr)
+				{
+					breakpoint_hit = true;
+					breakpoint_disable_one_instr = false;
 				}
 			}
 
-			if (breakpoint_disable_one_instr)
+			if (paused && !breakpoint_disable_one_instr)
 			{
-				breakpoint_hit = true;
-				breakpoint_disable_one_instr = false;
+				return 0;
 			}
 			
-			// need to point this to mem. small hack for the (HL) register instructons
-			register_single[6] = memory_module::get_memory(R.hl); 
-			u8 temp_mem = 0xFF;
-			if (register_single[6] == 0x0)
+			// now we can process a micro op at a time
+			MicroOp op = micro_op_queue.front();
+			micro_op_queue.pop_front();
+
+			execute_micro_op(op);
+
+			is_opcode_complete = micro_op_queue.empty(); // if its empty then we completed opcode
+
+			if (op.is_consuming_cycles)
 			{
-				register_single[6] = &temp_mem;
+				last_opcode_cycles += 4;
 			}
 
-			// update the joypad register
-			u8 joypad_register = memory_module::read_memory(0xFF00);
-			joypad_register &= 0xF0; // keep upper bits
-
-			if ((joypad_register & 0x20) == 0)
+			if (is_interrupt_service)
 			{
-				// directional keys are set
-				joypad_register |= (get_button_register(false) & 0xF); // only lower 4 bits
-			}
-			else
-			{
-				joypad_register |= (get_button_register(true) & 0xF); // only lower 4 bits
-			}
-			memory_module::write_memory(0xFF00, joypad_register);
-
-			u8 cycles = 0;
-
-			// fetch the opcode
-			u8 opcode = readpc_u8();
-
-			if (halt_bug)
-			{
-				R.pc--;
-				halt_bug = false;
+				last_opcode_cycles = 0;
 			}
 
-			// decode. gameboy only has CB prefix
-			if (opcode == 0xCB)
+#ifdef DEBUG_ASSERT_INSTR_TIMINGS
+			if (is_opcode_complete && !is_interrupt_service)
 			{
-				opcode = readpc_u8();
-				cycles = decode_prefixed_cb(opcode);
+				if (is_last_opcode_cb)
+				{
+					assert(last_opcode_cycles / 4 == instruction_times_cb[last_opcode]);
+				}
+				else
+				{
+					if (is_last_condition_pass)
+					{
+						assert(last_opcode_cycles / 4 == instruction_times_condition[last_opcode]);
+					}
+					else
+					{
+						assert(last_opcode_cycles / 4 == instruction_times_nocondition[last_opcode]);
+					}
+				}
 			}
-			else
+#endif
+
+			if (is_opcode_complete)
 			{
-				cycles = decode_nonprefixed(opcode);
+				is_interrupt_service = false;
+				last_opcode_cycles = 0;
 			}
 
-			if (cycles == 0)
-			{
-				printf("Error - 0 cycles returned from opcode\n");
-			}
-
-			return cycles;
+			return op.is_consuming_cycles ? 4 : 0;
 		}
 	}
 }

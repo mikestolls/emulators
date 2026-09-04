@@ -137,6 +137,18 @@ namespace gameboy
 				rom_bank_idx &= 0xE0; // clear lower 5 bits
 				rom_bank_idx |= val;
 				
+				// MBC1 quirk: forbidden banks 0x20, 0x40, 0x60
+				if ((rom_bank_idx & 0x1F) == 0)
+				{
+					rom_bank_idx |= 0x01;
+				}
+
+				// Bounds check
+				if (rom_bank_idx >= rom_banks.size())
+				{
+					rom_bank_idx %= rom_banks.size();
+				}
+
 				//printf("Rom bank: %d\n", rom_bank_idx);
 				mbc::memory_switchable_rom = rom_banks[rom_bank_idx];
 
@@ -151,6 +163,18 @@ namespace gameboy
 					// 2 bits are bits 5 and 6 or rom bank
 					rom_bank_idx &= 0x1F; // clear high 3 bits
 					rom_bank_idx |= (bits << 5);
+
+					// MBC1 quirk: forbidden banks 0x20, 0x40, 0x60
+					if ((rom_bank_idx & 0x1F) == 0)
+					{
+						rom_bank_idx |= 0x01;
+					}
+
+					// Bounds check
+					if (rom_bank_idx >= rom_banks.size())
+					{
+						rom_bank_idx %= rom_banks.size();
+					}
 
 					//printf("Rom bank: %d\n", rom_bank_idx);
 					mbc::memory_switchable_rom = rom_banks[rom_bank_idx];

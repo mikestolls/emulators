@@ -100,7 +100,6 @@ namespace chip8
 			u16 opcode = (memory[PC++] << 8);
 			opcode |= memory[PC++];
 
-			drawFlag = false;
 			bool error = false;
 
 			// decode opcode
@@ -368,7 +367,11 @@ namespace chip8
 				printf("Error: Unkown opcode: 0x%X\n", opcode);
 			}
 
-			// update timers
+			return 0;
+		}
+
+		void update_timers()
+		{
 			if (delaytimer > 0)
 			{
 				--delaytimer;
@@ -382,8 +385,6 @@ namespace chip8
 				}
 				--soundtimer;
 			}
-
-			return 0;
 		}
 
 		int set_keys(u8 key, bool pressed)

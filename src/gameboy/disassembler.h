@@ -10,22 +10,12 @@ namespace gameboy
 	{
 		struct symbol
 		{
-			symbol()
-			{
-				addr = 0x0;
-				mnemonic = "";
-				operands = "";
-				opcode = 0x0;
-				cb_opcode = 0x0;
-				comment = "";
-			}
-
-			u16 addr;
-			std::string mnemonic;
-			std::string operands;
-			u8 opcode;
-			u8 cb_opcode;
-			std::string comment;
+			u16 addr = 0x0;
+			std::string mnemonic = "";
+			std::string operands = "";
+			u8 opcode = 0x0;
+			u8 cb_opcode = 0x0;
+			std::string comment = "";
 		};
 
 		std::string condition_function_str[] = { "NZ", "Z", "NC", "C", "INVALID", "INVALID", "INVALID", "INVALID" };
@@ -650,10 +640,10 @@ namespace gameboy
 			return 0;
 		}
 
-		int disassemble_to_file(const char* filename)
+		int disassemble_to_file(const std::string& filename)
 		{
 			// export to file
-			FILE* file = fopen(filename, "w");
+			FILE* file = fopen(filename.c_str(), "w");
 
 			// disasseble the rom data
 			PC = 0x0;

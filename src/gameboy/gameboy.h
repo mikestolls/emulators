@@ -8,12 +8,22 @@
 #include "cpu.h"
 #include "input.h"
 #include "gpu.h"
+#include "apu.h"
 #include "rom.h"
 #include "boot_rom.h"
-#include "debugger.h"
 #include "disassembler.h"
 
 //#define USE_BOOT_ROM
+
+namespace gameboy
+{
+	rom loaded_rom;
+	u32 cycle_count = 0;
+
+	bool is_debugger_visible;
+}
+
+#include "debugger/debugger.h"
 
 namespace gameboy
 {
@@ -34,339 +44,197 @@ namespace gameboy
 	};
 
 	std::map<sf::Keyboard::Key, input_binding> input_map;
-	std::list<unit_test> unit_test_list;
-	
-	int run_emulator_rom(std::string filename, bool show_window = true, s32 abort_pc = -1, std::string vram_checksum = "")
+	sf::Texture framebuffer_texture;
+
+	int init_emulator(const std::string& rom_filename)
 	{
 		// load and run the rom
-		rom rom(filename.c_str());
+		loaded_rom.load(rom_filename);
 
 		// load the boot rom file
-		bool is_window_enabled = false;
-		sf::RenderWindow window;
-		sf::Texture framebuffer_texture;
-		sf::Sprite framebuffer_sprite;
-		sf::Font font;
-		sf::Text fps_text;
-		debugger debugger;
-
-		if (show_window)
-		{
-			// init sfml
-			window.create(sf::VideoMode(gpu::width * pixelSize, gpu::height * pixelSize), "Emulator");
-			framebuffer_texture.create(gpu::width, gpu::height);
-			framebuffer_sprite.setTexture(framebuffer_texture);
-			framebuffer_sprite.setScale(pixelSize, pixelSize);
-
-			// fps counter and profiler
-			font.loadFromFile("courbd.ttf");
-
-			fps_text.setFont(font);
-			fps_text.setFillColor(sf::Color::White);
-			fps_text.setPosition(10, 10);
-			fps_text.setOutlineColor(sf::Color::Black);
-			fps_text.setOutlineThickness(2);
-			fps_text.setCharacterSize(18);
-
-			debugger.initialize(window.getSize().x, window.getSize().y);
-
-			is_window_enabled = true;
-		}
-
-		bool show_debugger = false;
-		u32 fps = 0;
+		bool success = framebuffer_texture.resize(sf::Vector2u(gpu::width, gpu::height));
 
 		// init input map
-		input_map[sf::Keyboard::Left] = { DIRECTION_LEFT, true };
-		input_map[sf::Keyboard::Right] = { DIRECTION_RIGHT, true };
-		input_map[sf::Keyboard::Up] = { DIRECTION_UP, true };
-		input_map[sf::Keyboard::Down] = { DIRECTION_DOWN, true };
-		input_map[sf::Keyboard::A] = { BUTTON_A, false };
-		input_map[sf::Keyboard::B] = { BUTTON_B, false };
-		input_map[sf::Keyboard::Return] = { BUTTON_START, false };
-		input_map[sf::Keyboard::RShift] = { BUTTON_SELECT, false };
-		
-		// init cpu and load rom
-		warning("fix boot rom loading")
+		input_map[sf::Keyboard::Key::Left] = { input::DIRECTION_LEFT, true };
+		input_map[sf::Keyboard::Key::Right] = { input::DIRECTION_RIGHT, true };
+		input_map[sf::Keyboard::Key::Up] = { input::DIRECTION_UP, true };
+		input_map[sf::Keyboard::Key::Down] = { input::DIRECTION_DOWN, true };
+		input_map[sf::Keyboard::Key::A] = { input::BUTTON_A, false };
+		input_map[sf::Keyboard::Key::B] = { input::BUTTON_B, false };
+		input_map[sf::Keyboard::Key::Enter] = { input::BUTTON_START, false };
+		input_map[sf::Keyboard::Key::RShift] = { input::BUTTON_SELECT, false };
 
+		// init cpu and load rom
 #ifdef USE_BOOT_ROM
 		boot_rom boot("gameboy/boot.gb");
-		memory_module::initialize(&boot, &rom);
+		memory_module::initialize(&boot, &loaded_rom);
 #else
-		memory_module::initialize(nullptr, &rom);
+		memory_module::initialize(nullptr, &loaded_rom);
 #endif
 
 		cpu::initialize();
 		gpu::initialize();
-		
-		auto cur_time = std::chrono::high_resolution_clock::now();
-		auto last_time = cur_time;
+		apu::initialize();
 
-		const u32 cycles_per_frame = cpu::cycles_per_sec / cpu::fps;
-		u32 cycle_count = 0;
-		bool running = true;
+		debugger::init_debugger();
+		debugger::window.setVisible(false);
+		is_debugger_visible = false;
 
-		while (running)
+		return 0;
+	}
+
+	int destroy_emulator()
+	{
+		debugger::destroy_debugger();
+
+		return 0;
+	}
+
+	void check_test_status()
+	{
+		static bool is_ended = false;
+		static u16 last_pc = 0;
+
+		// Check if PC is stuck (test might be done)
+		if (!is_ended)
 		{
-			// poll for window events
-			if (is_window_enabled)
+			if (cpu::R.pc == last_pc && cpu::R.pc != 0)
 			{
-				sf::Event event;
-				while (window.pollEvent(event))
+				// Test might be finished, check result register
+				u8 result = gameboy::memory_module::read_memory(0xA000, true);  // Common result address
+
+				if (result != 0)
 				{
-					if (event.type == sf::Event::Closed)
+					printf("Test result at 0xA000: 0x%02X\n", result);
+
+					// Read result string if available
+					for (int i = 0; i < 256; i++)
 					{
-						debugger.destroy();
-						window.close();
+						u8 c = gameboy::memory_module::read_memory(0xA004 + i, true);
+						if (c == 0) break;
+						printf("%c", c);
 					}
-					else if (event.type == sf::Event::KeyPressed)
-					{
-						if (event.key.code == sf::Keyboard::F1)
-						{
-							show_debugger = !show_debugger;
-						}
+					printf("\n");
 
-						if (show_debugger)
-						{
-							if (event.key.code == sf::Keyboard::Space)
-							{
-								cpu::reset();
-								gpu::reset();
-								cycle_count = 0;
-							}
-							else if (event.key.code == sf::Keyboard::F2)
-							{
-								u8* ptr = memory_module::get_memory(0x9800, true);
-								u8* buffer = new u8[0x401];
-								memset(buffer, 0x0, 0x401);
-								memcpy(buffer, ptr, 0x400);
-								//std::string checksum = buffer;
-
-								printf("Checksum: %s", buffer);
-							}
-							else
-							{
-								debugger.on_keypressed(event.key.code);
-							}
-						}
-						else
-						{
-							// check for joypad input
-							auto itr = input_map.find(event.key.code);
-
-							if (itr != input_map.end())
-							{
-								// handle joypad input
-								set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
-							}
-						}
-					}
-					else if (event.type == sf::Event::KeyReleased)
-					{
-						if (show_debugger)
-						{
-
-						}
-						else
-						{
-							// check for joypad input
-							auto itr = input_map.find(event.key.code);
-
-							if (itr != input_map.end())
-							{
-								// handle joypad input
-								set_button_released(itr->second.joypad_map, itr->second.is_directional);
-							}
-						}
-					}
+					is_ended = true;
 				}
-			}
-			
-			while (cycle_count < cycles_per_frame)
-			{
-				// update the cpu emulation
-				u8 cpu_cycles = cpu::check_interrupts();
-				cpu_cycles += cpu::execute_opcode();
-				cycle_count += cpu_cycles;
-				
-				// used for unit testing
-				if (cpu::R.pc == abort_pc)
-				{
-					// used to get vram of test passed
-					//u8* test = new u8[0xF0];
-					//memset(test, 0x0, 0xF0);
-					//u8* vram_test = memory_module::get_memory(0x9800, true);
-					//memcpy(test, vram_test, 0xEF);
-
-					running = false;
-
-					// need to check the checksum
-					u8* vram = memory_module::get_memory(0x9800, true);
-					if (memcmp(vram_checksum.c_str(), vram, vram_checksum.length()) == 0)
-					{
-						return 0;
-					}
-					else
-					{
-						return 2;
-					}
-				}
-
-				if (cpu::paused || !cpu::running)
-				{
-					break;
-				}
-			}
-
-			if (!cpu::paused && cpu::running)
-			{
-				// once we have passed cycles per frame reset cycle count
-				cycle_count -= cycles_per_frame;
-			}
-
-			if (is_window_enabled)
-			{
-				window.clear();
-			}
-
-			// update the framebuffer
-			if (gpu::vblank_occurred)
-			{
-				if (is_window_enabled)
-				{
-					framebuffer_texture.update(gpu::framebuffer, gpu::width, gpu::height, 0, 0);
-				}
-
-				gpu::vblank_occurred = false;
-			}
-			
-			if (is_window_enabled)
-			{
-				// draw framebuffer
-				window.draw(framebuffer_sprite);
-
-				// draw debugger if shown
-				if (show_debugger)
-				{
-					debugger.update();
-
-					window.draw(debugger.window_sprite);
-				}
-
-				// show profliler stats
-				std::stringstream stream;
-				stream << "FPS: " << fps << "\n";
-
-				fps_text.setString(stream.str());
-				window.draw(fps_text);
-
-				// display on windows
-				window.display();
-				running = window.isOpen();
-
-				// limit fps
-				cur_time = std::chrono::high_resolution_clock::now();
-				std::chrono::duration<double, std::milli> delta = cur_time - last_time;
-				std::chrono::duration<double, std::milli> min_frame_time(1000.0 / (float)cpu::fps);
-
-				if (delta < min_frame_time)
-				{
-					std::this_thread::sleep_for(min_frame_time - delta);
-				}
-
-				// recalculate fps
-				cur_time = std::chrono::high_resolution_clock::now();
-				delta = cur_time - last_time;
-
-				if (delta.count() != 0)
-				{
-					fps = (u32)(1000 / delta.count());
-				}
-
-				last_time = cur_time;
 			}
 		}
 
-		if (is_window_enabled)
+		last_pc = cpu::R.pc;
+	}
+
+	int process_event(const sf::Event* event)
+	{
+		if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
 		{
-			// cleanup
-			debugger.destroy();
-			window.close();
+			// check for joypad input
+			auto itr = input_map.find(keyPressed->code);
+
+			if (itr != input_map.end())
+			{
+				// handle joypad input
+				input::set_button_pressed(itr->second.joypad_map, itr->second.is_directional);
+			}
+		}
+		else if (const auto* keyReleased = event->getIf<sf::Event::KeyReleased>())
+		{
+			// check for joypad input
+			auto itr = input_map.find(keyReleased->code);
+
+			if (itr != input_map.end())
+			{
+				// handle joypad input
+				input::set_button_released(itr->second.joypad_map, itr->second.is_directional);
+			}
 		}
 
 		return 0;
 	}
 
-	int run_emulator(int argc, const char* argv[])
+	int update_peripherals(u8 cycles)
 	{
-		// do some arg parsing
-		argparse::ArgumentParser parser("Argument parser for Gameboy");
-		parser.add_argument("-d", "--disassemble", "Disassemble the rom", false);
-		parser.add_argument("-a", "--assemble", "Assemble the rom", false);
-		parser.add_argument("-u", "--unit_test", "Unit test the rom", false);
-		parser.add_argument("-p", "--unit_test_abortpc", "Unit test abort pc (required with unit_test)", false);
-		parser.add_argument("-c", "--unit_test_check", "Unit test check (required with unit_test)", false);
-		parser.add_argument("-r", "--rom_file", "Rom file", true);
-
-		parser.enable_help();
-		auto err = parser.parse(argc, argv);
-		if (err) 
+		u8 peripheral_cycle = cycles;
+		if (cpu::is_double_speed)
 		{
-			std::cout << err << std::endl;
-			return 1;
+			peripheral_cycle >>= 1;
 		}
 
-		if (parser.exists("help")) 
-		{
-			parser.print_help();
-			return 0;
-		}
-		else if (parser.exists("d"))
-		{
-			std::string rom_filename = parser.get<std::string>("r");
-			rom rom(rom_filename.c_str());
-			memory_module::initialize(nullptr, &rom);
 
-			// export disassembler to file and close
-			std::string outfilename = rom.filename.substr(0, rom.filename.rfind("."));
-			outfilename.append(".gbasm");
-
-			disassembler::disassemble_to_file(outfilename.c_str());
-
-			return 0;
-		}
-		else if (parser.exists("a"))
-		{
-			// not supported
-			return 1;
-		}
-		else if (parser.exists("u"))
-		{
-			if (parser.exists("p") == false || parser.exists("c") == false)
-			{
-				parser.print_help();
-				return 1;
-			}
-
-			std::string rom_filename = parser.get<std::string>("r");
-			std::string checksum = parser.get<std::string>("c");
-			s32 abort_pc = std::stoi(parser.get<std::string>("p"), 0, 16);
-
-			memory_module::disable_warnings();
-
-			int ret = run_emulator_rom(rom_filename, false, abort_pc, checksum);
-
-			return ret;
-		}
-		else
-		{
-			std::string rom_filename = parser.get<std::string>("r");
-
-			int ret = run_emulator_rom(rom_filename);
-
-			return ret;
-		}
+		gpu::update(peripheral_cycle);
+		apu::update(peripheral_cycle);
 
 		return 0;
+	}
+
+	int update(const sf::Time& deltaTime)
+	{
+		u32 cycles_needed = cpu::cycles_per_frame;
+		if (cpu::is_double_speed)
+		{
+			cycles_needed *= 2;  // Need 2x CPU cycles in double-speed for same real-time duration
+		}
+
+		// check if vblank happened with proper amount of cycles
+
+		while (!gpu::vblank_occurred)
+		{
+			// update cpu to fetch new opcode or execute mico ops. 1 micro op at a time. 
+			u8 cycles = cpu::update();
+
+			cpu::update_timer(cycles);
+
+			if (cpu::paused)
+			{
+				// cpu is paused
+				break;
+			}
+
+			update_peripherals(cycles);
+
+			//check_test_status();
+
+			if (cpu::is_opcode_complete)
+			{
+				// Check for interrupts after instruction
+				cycles = cpu::check_interrupts();
+				cpu::update_timer(cycles);
+
+				update_peripherals(cycles);
+			}
+		}
+
+		if (!cpu::paused && cpu::running)
+		{
+			// once we have passed cycles per frame reset cycle count
+			cycle_count -= cycles_needed;
+		}
+
+		// update the framebuffer
+		framebuffer_texture.update(gpu::framebuffer, sf::Vector2u(gpu::width, gpu::height), sf::Vector2u(0, 0));
+		gpu::vblank_occurred = false;
+
+		// update 
+		debugger::update_debugger(deltaTime);
+
+		return 0;
+	}
+	
+	const sf::Texture* get_emulator_texture()
+	{
+		return &framebuffer_texture;
+	}
+
+	int set_debugger_visible(bool visible)
+	{
+		is_debugger_visible = visible;
+		debugger::window.setVisible(is_debugger_visible);
+
+		return 0;
+	}
+
+	bool get_debugger_visible()
+	{
+		return is_debugger_visible;
 	}
 }
