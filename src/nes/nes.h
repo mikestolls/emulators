@@ -4,10 +4,24 @@
 
 #include "defines.h"
 
+#include "cpu.h"
+#include "gpu.h"
+#include "rom.h"
+
 namespace nes
 {
+	rom loaded_rom;
+
+	sf::Texture framebuffer_texture;
+
 	int init_emulator(const std::string& rom_filename)
 	{
+		// load and run the rom
+		loaded_rom.load(rom_filename);
+
+		// load the boot rom file
+		bool success = framebuffer_texture.resize(sf::Vector2u(gpu::width, gpu::height));
+
 		return 0;
 	}
 
@@ -23,6 +37,8 @@ namespace nes
 
 	int update(const sf::Time& deltaTime)
 	{
+		u8 cycles = cpu::update();
+
 		return 0;
 	}
 	

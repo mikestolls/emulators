@@ -10,14 +10,17 @@
 #include <argparse.h>
 
 #include "chip8/chip8.h"
+#include "chip8/rom.h"
 #include "chip8/assembler.h"
 #include "chip8/disassembler.h"
 
 #include "gameboy/gameboy.h"
+#include "gameboy/rom.h"
 #include "gameboy/assembler.h"
 #include "gameboy/disassembler.h"
 
 #include "nes/nes.h"
+#include "nes/rom.h"
 #include "nes/assembler.h"
 #include "nes/disassembler.h"
 
@@ -108,15 +111,15 @@ namespace common
 
     int get_emulator_type_from_rom(std::string& filename)
     {
-        if (filename.find(".ch8") != std::string::npos)
+        if (filename.find(chip8::rom_extension) != std::string::npos)
         {
             return EMULATOR_TYPE_CHIP8;
         }
-        else if (filename.find(".gb") != std::string::npos)
+        else if (filename.find(gameboy::rom_extension) != std::string::npos)
         {
             return EMULATOR_TYPE_GAMEBOY;
         }
-        else if (filename.find(".nes") != std::string::npos)
+        else if (filename.find(nes::rom_extension) != std::string::npos)
         {
             return EMULATOR_TYPE_NES;
         }

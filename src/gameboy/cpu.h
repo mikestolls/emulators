@@ -127,7 +127,6 @@ namespace gameboy
 		u8* timer_modulator;
 		u8 timer_last_bit;
 
-
 		u8 timer_overflow_state = 0;
 
 		u8* divide_value;

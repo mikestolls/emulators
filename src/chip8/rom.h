@@ -4,6 +4,8 @@
 
 namespace chip8
 {
+	std::string rom_extension = ".ch8";
+
 	struct rom
 	{
 		u8* romdata;

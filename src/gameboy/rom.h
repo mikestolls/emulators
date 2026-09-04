@@ -7,6 +7,8 @@
 
 namespace gameboy
 {
+	std::string rom_extension = ".gb";
+
 	struct rom
 	{
 		struct rom_header
@@ -20,7 +22,6 @@ namespace gameboy
 			u8 version;
 			u8 cgb_flag;
 		};
-
 
 		u8* rom_data;
 		u64 rom_size;
