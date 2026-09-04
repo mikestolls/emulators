@@ -1,7 +1,6 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
-#include <argparse.h>
 
 #include "defines.h"
 
@@ -11,7 +10,6 @@
 #include "apu.h"
 #include "rom.h"
 #include "boot_rom.h"
-#include "disassembler.h"
 
 //#define USE_BOOT_ROM
 

@@ -10,14 +10,16 @@
 #include <argparse.h>
 
 #include "chip8/chip8.h"
-#include "chip8/rom.h"
 #include "chip8/assembler.h"
 #include "chip8/disassembler.h"
 
 #include "gameboy/gameboy.h"
-#include "gameboy/rom.h"
 #include "gameboy/assembler.h"
 #include "gameboy/disassembler.h"
+
+#include "nes/nes.h"
+#include "nes/assembler.h"
+#include "nes/disassembler.h"
 
 namespace common
 {
@@ -25,6 +27,7 @@ namespace common
     {
         EMULATOR_TYPE_CHIP8 = 0,
         EMULATOR_TYPE_GAMEBOY,
+        EMULATOR_TYPE_NES
     };
 
     struct EmulatorDisplay
@@ -95,6 +98,10 @@ namespace common
         {
             return EMULATOR_TYPE_GAMEBOY;
         }
+        else if (emulator == "nes")
+        {
+            return EMULATOR_TYPE_NES;
+        }
          
         return -1;
     }
@@ -108,6 +115,10 @@ namespace common
         else if (filename.find(".gb") != std::string::npos)
         {
             return EMULATOR_TYPE_GAMEBOY;
+        }
+        else if (filename.find(".nes") != std::string::npos)
+        {
+            return EMULATOR_TYPE_NES;
         }
 
         return -1;
@@ -142,6 +153,20 @@ namespace common
             emulator_function_debugger_get_visible = gameboy::get_debugger_visible;
 
             emulator_display.display_texture = gameboy::get_emulator_texture();
+            emulator_display.fps = 60;
+            emulator_display.display_scale = 4.0f;
+            break;
+        case EMULATOR_TYPE_NES:
+            emulator_function_init = nes::init_emulator;
+            emulator_function_destroy = nes::destroy_emulator;
+            emulator_function_update = nes::update;
+            emulator_function_process_event = nes::process_event;
+            emulator_function_assembler = nes::assembler::assemble_to_file;
+            emulator_function_disassembler = nes::disassembler::disassemble_to_file;
+            emulator_function_debugger_set_visible = nes::set_debugger_visible;
+            emulator_function_debugger_get_visible = nes::get_debugger_visible;
+
+            emulator_display.display_texture = nes::get_emulator_texture();
             emulator_display.fps = 60;
             emulator_display.display_scale = 4.0f;
             break;
