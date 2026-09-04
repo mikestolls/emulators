@@ -1,6 +1,6 @@
 # emulators
 different types of emulators
-v0.0.2
+v0.0.3
 
 supported emulators:
 Chip-8 (emulator, assembler, disassembler)
