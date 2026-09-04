@@ -788,11 +788,6 @@ namespace gameboy
 
 		int check_interrupts()
 		{
-			if (interrupt_master == false)
-			{
-				return 0;
-			}
-
 			for (u8 i = 0; i < INTERRUPT_COUNT; i++)
 			{
 				if (get_request_interrupt_flag(i) && get_enabled_interrupt_flag(i))
@@ -3542,6 +3537,11 @@ namespace gameboy
 
 		int update()
 		{
+			if (halt)
+			{
+				return 4;
+			}
+
 			// if micro ops is empty. we decode next op code
 			if (micro_op_queue.empty())
 			{
@@ -3608,7 +3608,7 @@ namespace gameboy
 
 			if (paused && !breakpoint_disable_one_instr)
 			{
-				return -1;
+				return 0;
 			}
 			
 			// now we can process a micro op at a time

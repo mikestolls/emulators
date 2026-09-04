@@ -180,11 +180,11 @@ namespace gameboy
 		while (!gpu::vblank_occurred)
 		{
 			// update cpu to fetch new opcode or execute mico ops. 1 micro op at a time. 
-			int cycles = cpu::update();
+			u8 cycles = cpu::update();
 
 			cpu::update_timer(cycles);
 
-			if (cycles == -1)
+			if (cpu::paused)
 			{
 				// cpu is paused
 				break;

@@ -298,3 +298,4 @@ _cmake_prj
 data/imgui.ini
 _deps
 CMakeCache.txt
+tools/bgb/bgbrecovery.sna
