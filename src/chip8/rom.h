@@ -4,30 +4,34 @@
 
 namespace chip8
 {
-	std::string rom_extension = ".ch8";
-
-	struct rom
+	namespace rom
 	{
-		u8* romdata;
-		u64 romsize;
+		std::string rom_extension = ".ch8";
+
+		u8* rom_data;
+		u64 rom_size;
 		std::string filename;
 
-		rom()
+		int reset()
 		{
 			filename = "";
-			romsize = 0x0;
-			romdata = nullptr;
-		}
+			rom_size = 0x0;
 
-		rom(const std::string& filename)
-		{
-			load(filename);
+			if (rom_data != nullptr)
+			{
+				delete[] rom_data;
+				rom_data = nullptr;
+			}
+
+			return 0;
 		}
 
 		int load(const std::string& filename)
 		{
-			romsize = 0;
-			romdata = nullptr;
+			reset();
+
+			rom_size = 0;
+			rom_data = nullptr;
 
 			FILE* file = 0;
 			fopen_s(&file, filename.c_str(), "rb");
@@ -40,21 +44,16 @@ namespace chip8
 
 			// get size
 			fseek(file, 0, SEEK_END);
-			romsize = ftell(file);
+			rom_size = ftell(file);
 			fseek(file, 0, SEEK_SET);
 
 			// read header
-			romdata = new u8[romsize];
-			fread(romdata, 1, romsize, file);
+			rom_data = new u8[rom_size];
+			fread(rom_data, 1, rom_size, file);
 
 			fclose(file);
 
 			return 0;
-		}
-
-		~rom()
-		{
-			delete[] romdata;
 		}
 	};
 }

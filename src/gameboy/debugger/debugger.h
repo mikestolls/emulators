@@ -177,10 +177,10 @@ namespace gameboy
                             gameboy::apu::reset();
 
 #ifdef USE_BOOT_ROM
-                            boot_rom boot("gameboy/boot.gb");
-                            memory_module::initialize(&boot, &gameboy::loaded_rom);
+                            boot_rom::load("gameboy/boot.gb");
+                            memory_module::initialize();
 #else
-                            memory_module::initialize(nullptr, &gameboy::loaded_rom);
+                            memory_module::initialize();
 #endif
 
                             gameboy::cycle_count = 0;

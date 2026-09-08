@@ -4,9 +4,12 @@
 #include "rom.h"
 #include "boot_rom.h"
 
+#include "mbc.h"
+#include "mbc_mbc1.h"
+
 #include <cstdarg>
 
-#define MEMORY_ACCESS_HARD_BLOCK
+//#define MEMORY_ACCESS_HARD_BLOCK
 
 namespace gameboy
 {
@@ -74,10 +77,7 @@ namespace gameboy
 			u16 addr_max;
 			u8 access;
 		};
-
-		rom* rom_ptr;
-		boot_rom* boot_ptr;
-		
+				
 		memory_map_object memory_map[MEMORY_COUNT] = {
 			{ "ROM0", nullptr, 0x0000, 0x3FFF, MEMORY_READABLE },
 			{ "ROMS", nullptr, 0x4000, 0x7FFF, MEMORY_READABLE },
@@ -336,7 +336,7 @@ namespace gameboy
 			else if (addr == 0xFF50)
 			{
 				// unload the boot rom
-				memcpy(mbc::memory_rom, rom_ptr->rom_data, 0x100);
+				memcpy(mbc::memory_rom, rom::rom_data, 0x100);
 				return;
 			}
 			else if (addr == 0xFF46)
@@ -434,7 +434,7 @@ namespace gameboy
 		int reset()
 		{
 			mbc::mbc_reset();
-			mbc::mbc_initialize(rom_ptr->rom_header.rom_size, rom_ptr->rom_header.ram_size, rom_ptr->rom_data, (u64)rom_ptr->rom_size);
+			mbc::mbc_initialize();
 
 			memory_map[MEMORY_CARTRIDGE_ROM].memory_ptr = &mbc::memory_rom;
 			memory_map[MEMORY_CARTRIDGE_SWITCHABLE_ROM].memory_ptr = &mbc::memory_switchable_rom;
@@ -448,7 +448,7 @@ namespace gameboy
 			memory_map[MEMORY_ZERO_PAGE].memory_ptr = &mbc::memory_zero_page;
 			memory_map[MEMORY_INTERRUPT_FLAG].memory_ptr = &mbc::memory_interrupt_flag;
 
-			bool is_cgb_mode = (rom_ptr->rom_header.cgb_flag == 0x80 || rom_ptr->rom_header.cgb_flag == 0xC0);
+			bool is_cgb_mode = (rom::rom_header.cgb_flag == 0x80 || rom::rom_header.cgb_flag == 0xC0);
 
 			// default key1 depending on DMG or CGB
 			u8 key1 = 0xFF;
@@ -458,9 +458,9 @@ namespace gameboy
 			}
 
 			// copy boot rom
-			if (boot_ptr)
+			if (boot_rom::rom_data != nullptr)
 			{
-				memcpy(mbc::memory_rom, boot_ptr->rom_data, 0x100);
+				memcpy(mbc::memory_rom, boot_rom::rom_data, 0x100);
 
 				mbc::memory[0xFF4D] = key1; // KEY1
 				mbc::memory[0xFF41] = (is_cgb_mode ? 0x04 : 0x84); // LCDS
@@ -508,10 +508,25 @@ namespace gameboy
 			return 0;
 		}
 
-		int initialize(boot_rom* boot, rom* rom)
+		int initialize()
 		{
-			boot_ptr = boot;
-			rom_ptr = rom;
+			// this should really be done in th ememory module init.
+			switch (rom::rom_header.cartridge_type)
+			{
+			case rom::ROM_ONLY:
+				break;
+			case rom::ROM_MBC1:
+			case rom::ROM_MBC1_RAM:
+			case rom::ROM_MBC1_RAM_BATTERY:
+				mbc::mbc_initialize = &mbc_mbc1::initialize;
+				mbc::mbc_get_rom_bank_idx = &mbc_mbc1::get_rom_bank_idx;
+				mbc::mbc_reset = &mbc_mbc1::reset;
+				mbc::mbc_write_memory = &mbc_mbc1::write_memory;
+				break;
+			default:
+				warning_assert("memory bank controller not supported yet");
+				break;
+			}
 
 			reset();
 

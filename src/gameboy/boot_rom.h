@@ -4,13 +4,13 @@
 
 namespace gameboy
 {
-	struct boot_rom
+	namespace boot_rom
 	{
 		u8* rom_data;
 		u64 rom_size;
 		std::string filename;
 
-		void open(const char* path)
+		int load(const char* path)
 		{
 			filename = path;
 
@@ -29,26 +29,22 @@ namespace gameboy
 			assert(size == 0x100);
 
 			fclose(file);
+
+			return 0;
 		}
 
-		boot_rom()
+		int reset()
 		{
 			filename = "";
 			rom_size = 0x0;
-			rom_data = nullptr;
-		}
 
-		boot_rom(const char* path)
-		{
-			open(path);
-		}
-
-		~boot_rom()
-		{
 			if (rom_data)
 			{
 				delete[] rom_data;
+				rom_data = nullptr;
 			}
+
+			return 0;
 		}
 	};
 }

@@ -4,10 +4,15 @@
 
 namespace nes
 {
-	std::string rom_extension = ".nes";
-
-	struct rom
+	namespace rom
 	{
+		std::string rom_extension = ".nes";
+
+		enum MAPPER_TYPE
+		{
+			MAPPER_NROM = 0,
+		};
+
 		struct header
 		{
 			u8 constant[4];
@@ -28,30 +33,38 @@ namespace nes
 		u8* chr_data;
 		u32 chr_size;
 
-		rom()
+		u8 mapper_id;
+
+		int reset()
 		{
 			filename = "";
 			rom_size = 0x0;
-			rom_data = nullptr;
 			memset(&rom_header, 0x0, sizeof(rom_header));
+			prg_size = 0x0;
 			prg_data = nullptr;
 			chr_data = nullptr;
+			chr_size = 0x0;
+
+			if (rom_data)
+			{
+				delete[] rom_data;
+				rom_data = nullptr;
+			}
+
+			return 0;
 		}
 
-		rom(const std::string& filename)
+		int load(const std::string& filename)
 		{
-			load(filename);
-		}
+			reset();
 
-		void load(const std::string& filename)
-		{
 			FILE* file = 0;
 			fopen_s(&file, filename.c_str(), "rb");
 
 			if (!file)
 			{
 				printf("Error - Failed to open ROM file: %s\n", filename.c_str());
-				return;
+				return -1;
 			}
 
 			// get size
@@ -99,14 +112,11 @@ namespace nes
 			{
 				chr_data = data;
 			}
-		}
 
-		~rom()
-		{
-			if (rom_data)
-			{
-				delete[] rom_data;
-			}
+			// parse out the mapper id
+			mapper_id = (rom_header.flag_6 & 0xF0) | ((rom_header.flag_7 & 0xF0) >> 4); // flag 6 and 7 high 4 bits are the mapper ids
+
+			return 0;
 		}
 	};
 }

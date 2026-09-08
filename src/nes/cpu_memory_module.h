@@ -3,6 +3,8 @@
 #include "defines.h"
 #include "rom.h"
 
+#include "mapper.h"
+
 #include <cstdarg>
 
 #define MEMORY_ACCESS_HARD_BLOCK
@@ -24,8 +26,8 @@ namespace nes
 			MEMORY_COUNT
 		};
 
-		#define MEMORY_WRITABLE		(1 << 0)
-		#define MEMORY_READABLE		(1 << 1)
+#define MEMORY_WRITABLE		(1 << 0)
+#define MEMORY_READABLE		(1 << 1)
 
 		struct memory_map_object
 		{
@@ -36,9 +38,8 @@ namespace nes
 			u8 access;
 		};
 
-		rom* rom_ptr;
 		u8 memory[0x10000]; // cover memory maps up to index 0xFFFF
-		
+
 		memory_map_object memory_map[MEMORY_COUNT] = {
 			{ "WRAM", nullptr, 0x0000, 0x07FF, MEMORY_READABLE | MEMORY_WRITABLE },
 			{ "MIRR", nullptr, 0x0800, 0x1FFF, MEMORY_READABLE | MEMORY_WRITABLE },
@@ -67,7 +68,7 @@ namespace nes
 		bool show_warnings = true;
 		void disable_warnings() { show_warnings = false; }
 		void enable_warnings() { show_warnings = true; }
-		
+
 		void print_warning(const char* str, ...)
 		{
 			if (show_warnings)
@@ -89,12 +90,12 @@ namespace nes
 					if ((memory_map[i].access & MEMORY_READABLE) == 0)
 					{
 						print_warning("Warning - reading from memory map %d that is not readable: 0x%X\n", i, addr);
-						
+
 #ifdef MEMORY_ACCESS_HARD_BLOCK
 						return 0;
 #endif
 					}
-					
+
 					if (memory_map[i].memory_ptr == nullptr)
 					{
 						return 0;
@@ -143,11 +144,11 @@ namespace nes
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
 			{
 				if (addr <= memory_map[i].addr_max)
-				{					
+				{
 					if ((memory_map[i].access & MEMORY_WRITABLE) == 0)
 					{
 						printf("Warning - writing to memory map %d that is not writable: 0x%X\n", i, addr);
-						
+
 #ifdef MEMORY_ACCESS_HARD_BLOCK
 						return;
 #endif
@@ -167,7 +168,7 @@ namespace nes
 			printf("Error - memory map not implemented for this range of addr: 0x%X\n", addr);
 			return;
 		}
-		
+
 		void write_memory(const u16 addr, const u8 value, bool force = false)
 		{
 			write_memory(addr, &value, 1, force);
@@ -186,26 +187,37 @@ namespace nes
 			memory_map[MEMORY_SRAM].memory_ptr = &memory[0x6000];
 			memory_map[MEMORY_PRG_ROM].memory_ptr = &memory[0x8000];
 
+			mapper::mapper_reset();
+			mapper::mapper_initialize();
+
 			// no boot rom set default mem values
 
 			return 0;
 		}
 
-		int initialize(rom* rom)
+	}
+}
+
+#include "mapper_nrom.h"
+
+namespace nes
+{
+	namespace cpu_memory_module
+	{
+		int initialize()
 		{
-			rom_ptr = rom;
+			switch (rom::mapper_id)
+			{
+			case rom::MAPPER_NROM:
+				mapper::mapper_initialize = &mapper_nrom::initialize;
+				mapper::mapper_reset = &mapper_nrom::reset;
+				break;
+			default:
+				warning_assert("memory mapper not supported yet");
+				break;
+			}
 
 			reset();
-
-			// copy in the rom data
-			assert(rom->prg_size <= 0x8000);
-
-			memcpy(memory_map[MEMORY_PRG_ROM].memory_ptr, rom->prg_data, rom->prg_size); // copy the rom to the memory map
-
-			if (rom->prg_size < 0x8000) // if less than 32kb we mirror. make this safer
-			{
-				memcpy(&memory_map[MEMORY_PRG_ROM].memory_ptr[0x4000], rom->prg_data, rom->prg_size);
-			}
 
 			return 0;
 		}

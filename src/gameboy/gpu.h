@@ -325,7 +325,7 @@ namespace gameboy
 
 			dot = 0;
 
-			if (memory_module::boot_ptr == nullptr)
+			if (boot_rom::rom_data == nullptr)
 			{
 				// if boot ptr is not used. setup gpu state properly
 				lcd_enabled = true;

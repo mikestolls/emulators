@@ -111,15 +111,15 @@ namespace common
 
     int get_emulator_type_from_rom(std::string& filename)
     {
-        if (filename.find(chip8::rom_extension) != std::string::npos)
+        if (filename.find(chip8::rom::rom_extension) != std::string::npos)
         {
             return EMULATOR_TYPE_CHIP8;
         }
-        else if (filename.find(gameboy::rom_extension) != std::string::npos)
+        else if (filename.find(gameboy::rom::rom_extension) != std::string::npos)
         {
             return EMULATOR_TYPE_GAMEBOY;
         }
-        else if (filename.find(nes::rom_extension) != std::string::npos)
+        else if (filename.find(nes::rom::rom_extension) != std::string::npos)
         {
             return EMULATOR_TYPE_NES;
         }

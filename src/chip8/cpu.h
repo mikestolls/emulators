@@ -2,6 +2,8 @@
 
 #include "defines.h"
 
+#include "rom.h"
+
 namespace chip8
 {
 	unsigned char chip8_fontset[80] =
@@ -82,13 +84,8 @@ namespace chip8
 
 			reset();
 
-			return 0;
-		}
-
-		int load_rom(u8* romdata, u16 romsize)
-		{
 			// copy rom memory into chip memory. program starts at location 0x200
-			memcpy(&memory[0x200], romdata, romsize);
+			memcpy(&memory[0x200], rom::rom_data, rom::rom_size & 0xFFFF);
 			PC = 0x200;
 
 			return 0;

@@ -2,6 +2,7 @@
 
 #include "defines.h"
 #include "mbc.h"
+#include "rom.h"
 
 namespace gameboy
 {	
@@ -24,7 +25,7 @@ namespace gameboy
 		std::vector<u8*> rom_banks;
 		std::vector<u8*> ram_banks;
 
-		int initialize(ROM_SIZE romsize, RAM_SIZE ramsize, u8* romdata, u64 datasize)
+		int initialize()
 		{
 			mbc::memory_rom = &mbc::memory[0x0000];
 			mbc::memory_switchable_rom = &mbc::memory[0x4000];
@@ -39,10 +40,10 @@ namespace gameboy
 			u32 banksize = 0x4000;
 
 			// copy in the static rom bank
-			u8* rom_ptr = romdata;
+			u8* rom_ptr = rom::rom_data;
 
 			// based on the size, create and copy the rom banks
-			u64 num_banks = datasize / banksize;
+			u64 num_banks = rom::rom_size / banksize;
 			for (u32 i = 0; i < num_banks; i++)
 			{
 				u8* bank = new u8[banksize];
@@ -59,11 +60,11 @@ namespace gameboy
 			mbc::memory_switchable_rom = rom_banks[0x1];
 
 			// based on the ram setting. create external ram banks
-			switch (ramsize)
+			switch (rom::rom_header.ram_size)
 			{
-			case RAM_NONE:
-			case RAM_2KB:
-			case RAM_8KB:
+			case rom::RAM_NONE:
+			case rom::RAM_2KB:
+			case rom::RAM_8KB:
 				ram_bank_idx = 0x0;
 				mbc::memory_external_ram = &mbc::memory[0xA000];
 				break;
@@ -72,7 +73,7 @@ namespace gameboy
 				for (u32 i = 0; i < 4; i++)
 				{
 					u8* bank = new u8[banksize];
-					memcpy(bank, 0x0, banksize);
+					memset(bank, 0x0, banksize);
 					ram_banks.push_back(bank);
 				}
 
@@ -107,8 +108,6 @@ namespace gameboy
 
 		bool write_memory(u16 addr, u8 value)
 		{
-			bool handled = false;
-
 			if (addr < 0x2000)
 			{
 				u8 val = value & 0xF;
@@ -123,7 +122,7 @@ namespace gameboy
 					memory_module::enable_external_ram(false);
 				}
 
-				handled = true;
+				return true;
 			}
 			else if (addr < 0x4000)
 			{
@@ -152,7 +151,7 @@ namespace gameboy
 				//printf("Rom bank: %d\n", rom_bank_idx);
 				mbc::memory_switchable_rom = rom_banks[rom_bank_idx];
 
-				handled = true;
+				return true;
 			}
 			else if (addr < 0x6000)
 			{
@@ -179,7 +178,7 @@ namespace gameboy
 					//printf("Rom bank: %d\n", rom_bank_idx);
 					mbc::memory_switchable_rom = rom_banks[rom_bank_idx];
 
-					handled = true;
+					return true;
 				}
 				else
 				{
@@ -188,7 +187,7 @@ namespace gameboy
 
 					mbc::memory_external_ram = ram_banks[ram_bank_idx];
 
-					handled = true;
+					return true;
 				}
 			}
 			else if (addr < 0x8000)
@@ -211,10 +210,10 @@ namespace gameboy
 					mode_select = mode;
 				}
 
-				handled = true;
+				return true;
 			}
 
-			return handled;
+			return false;
 		}
 
 		int get_rom_bank_idx()

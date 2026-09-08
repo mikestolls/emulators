@@ -37,23 +37,23 @@ namespace chip8
 
 		int disassemble_to_file(const std::string& filename)
 		{
-			chip8::rom rom(filename);
+			rom::load(filename);
 
 			// create a texst file with asa extension
-			std::string outfilename = rom.filename.substr(0, rom.filename.rfind("."));
+			std::string outfilename = rom::filename.substr(0, rom::filename.rfind("."));
 			outfilename.append(".c8a");
 
 			FILE* file = fopen(outfilename.c_str(), "w");
 
 			// disasseble the rom data
 			u16 PC = 0;
-			while (PC < rom.romsize)
+			while (PC < rom::rom_size)
 			{
 				u16 addr = PC;
 
 				// fetch opcode
-				u16 opcode = (rom.romdata[PC++] << 8);
-				opcode |= rom.romdata[PC++];
+				u16 opcode = (rom::rom_data[PC++] << 8);
+				opcode |= rom::rom_data[PC++];
 
 				u16 NNN = opcode & 0x0FFF;
 				u8 NN = opcode & 0x00FF;

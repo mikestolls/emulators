@@ -966,10 +966,9 @@ namespace gameboy
 			R.pc = 0x0000;
 			R.sp = 0x0000;
 
-			if (!memory_module::boot_ptr)
+			if (boot_rom::rom_data == nullptr)
 			{
-				bool is_cgb_mode = (memory_module::rom_ptr->rom_header.cgb_flag == 0x80 ||
-					memory_module::rom_ptr->rom_header.cgb_flag == 0xC0);
+				bool is_cgb_mode = (rom::rom_header.cgb_flag == 0x80 ||	rom::rom_header.cgb_flag == 0xC0);
 
 				if (is_cgb_mode)
 				{

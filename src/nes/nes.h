@@ -11,19 +11,17 @@
 
 namespace nes
 {
-	rom loaded_rom;
-
 	sf::Texture framebuffer_texture;
 
 	int init_emulator(const std::string& rom_filename)
 	{
 		// load and run the rom
-		loaded_rom.load(rom_filename);
+		rom::load(rom_filename);
 
 		// load the boot rom file
 		bool success = framebuffer_texture.resize(sf::Vector2u(gpu::width, gpu::height));
 
-		cpu_memory_module::initialize(&loaded_rom);
+		cpu_memory_module::initialize();
 
 		cpu::initialize();
 

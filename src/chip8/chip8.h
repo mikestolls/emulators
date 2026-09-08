@@ -30,8 +30,6 @@ namespace chip8
 		{sf::Keyboard::Key::V, 0xF},
 	};
 
-	rom loaded_rom;
-
 	// init sfml
 	u8 pixel_size = 16;
 	sf::RectangleShape white_rect(sf::Vector2f(pixel_size, pixel_size));
@@ -40,9 +38,8 @@ namespace chip8
 	int init_emulator(const std::string& rom_filename)
 	{
 		// init cpu and load rom
+		rom::load(rom_filename);
 		cpu::initialize();
-		loaded_rom.load(rom_filename);
-		cpu::load_rom(loaded_rom.romdata, loaded_rom.romsize & 0xFFFF);
 
 		white_rect.setFillColor(sf::Color::White);
 

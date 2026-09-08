@@ -15,7 +15,6 @@
 
 namespace gameboy
 {
-	rom loaded_rom;
 	u32 cycle_count = 0;
 
 	bool is_debugger_visible;
@@ -47,7 +46,7 @@ namespace gameboy
 	int init_emulator(const std::string& rom_filename)
 	{
 		// load and run the rom
-		loaded_rom.load(rom_filename);
+		rom::load(rom_filename);
 
 		// load the boot rom file
 		bool success = framebuffer_texture.resize(sf::Vector2u(gpu::width, gpu::height));
@@ -64,10 +63,10 @@ namespace gameboy
 
 		// init cpu and load rom
 #ifdef USE_BOOT_ROM
-		boot_rom boot("gameboy/boot.gb");
-		memory_module::initialize(&boot, &loaded_rom);
+		boot_rom::load("gameboy/boot.gb");
+		memory_module::initialize();
 #else
-		memory_module::initialize(nullptr, &loaded_rom);
+		memory_module::initialize();
 #endif
 
 		cpu::initialize();

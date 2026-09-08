@@ -4,36 +4,6 @@
 
 namespace gameboy
 {
-	enum CATRIDGE_TYPE
-	{
-		ROM_ONLY = 0,
-		ROM_MBC1,
-		ROM_MBC1_RAM,
-		ROM_MBC1_RAM_BATTERY,
-		ROM_MBC2,
-		ROM_MBC2_BATTERY,
-	};
-
-	enum ROM_SIZE
-	{
-		ROM_32KB = 0,
-		ROM_64KB,
-		ROM_128KB,
-		ROM_256KB,
-		ROM_512KB,
-		ROM_1MB,
-		ROM_2MB,
-		ROM_4MB,
-	};
-
-	enum RAM_SIZE
-	{
-		RAM_NONE = 0,
-		RAM_2KB,
-		RAM_8KB,
-		RAM_32KB,
-	};
-
 	namespace mbc
 	{
 		u8 memory[0x10000]; // cover memory maps up to index 0xFFFF
@@ -48,14 +18,14 @@ namespace gameboy
 		u8* memory_zero_page;
 		u8* memory_interrupt_flag;
 		
-		int initialize(ROM_SIZE romsize, RAM_SIZE ramsize, u8* romdata, u64 datasize)
+		int initialize()
 		{
 			memset(memory, 0x0, sizeof(memory));
 
 			// copy in the rom data
-			assert(datasize <= 0x8000);
+			assert(rom::rom_size <= 0x8000);
 			
-			memcpy(memory, romdata, datasize);
+			memcpy(memory, rom::rom_data, rom::rom_size);
 
 			memory_rom = &memory[0x0000];
 			memory_switchable_rom = &memory[0x4000];
@@ -89,7 +59,7 @@ namespace gameboy
 
 
 		// function pointers for mbc
-		int(*mbc_initialize)(ROM_SIZE romsize, RAM_SIZE ramsize, u8* romdata, u64 datasize) = &initialize;
+		int(*mbc_initialize)() = &initialize;
 		int(*mbc_reset)() = &reset;
 		bool(*mbc_write_memory)(u16 addr, u8 value) = &write_memory;
 		int(*mbc_get_rom_bank_idx)() = &get_rom_bank_idx;
