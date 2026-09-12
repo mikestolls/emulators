@@ -14,8 +14,11 @@ namespace nes
 		{
 			NOP,
 			FETCH_OP,
+			FETCH_PC_TO_TEMP_VALUE,
 			READ_BUS_EXECUTE_ALU,
+			READ_IMMEDIATE_EXECUTE_ALU,
 			READ_MODIFY_WRITE,
+			WRITE_BUS_TO_TEMP_ADDR,
 			EXECUTE_IMPLIED
 		};
 
@@ -25,6 +28,7 @@ namespace nes
 			void(*alu_funct)(u8);
 			u8(*mod_funct)(u8);
 			void(*implied_funct)();
+			bool is_read_high;
 		};
 
 		struct Registers
@@ -38,10 +42,24 @@ namespace nes
 		} R;
 
 		bool running = true;
-		u16 pc = 0x0;
 		bool is_opcode_complete;
 
 		std::deque<MicroOp> micro_op_queue;
+		u16 micro_op_temp_value;
+		u8 micro_op_data_bus;
+
+		// read 8 and 16 bit at PC. increment PC
+		inline u8 readpc_u8()
+		{
+			u8 val = cpu_memory_module::read_memory(R.pc++);
+
+			return val;
+		}
+
+		inline u16 get_current_pc()
+		{
+			return R.pc;
+		}
 
 		// flag macros and functions
 		enum FLAGS
@@ -78,35 +96,66 @@ namespace nes
 			R.p = 0x0;
 		}
 
+		inline void update_flags_nz(u8 value)
+		{
+			// set the zero flag
+			if (value == 0x0)
+			{
+				set_flag(FLAG_ZERO);
+			}
+			else
+			{
+				clear_flag(FLAG_ZERO);
+			}
+
+			// set the negative flag
+			if (value & 0x80)
+			{
+				set_flag(FLAG_NEGATIVE);
+			}
+			else
+			{
+				clear_flag(FLAG_NEGATIVE);
+			}
+		}
+
 		// ALU function pointers
 		inline void alu_ora(u8 data)
 		{
 			// bitwise or
+			assert(false);
 		}
 
 		inline void alu_and(u8 data)
 		{
 			// bitwise and
+			assert(false);
 		}
 
 		inline void alu_eor(u8 data)
 		{
 			// bitwise xor
+			assert(false);
 		}
 
 		inline void alu_adc(u8 data)
 		{
 			// add with carry
+			assert(false);
 		}
 
 		inline void alu_lda(u8 data)
 		{
 			// ld accumulator
+			R.a = data;
+
+			update_flags_nz(R.a);
 		}
 
 		inline void alu_cmp(u8 data)
 		{
 			// compare
+			assert(false);
 		}
 
 		inline void alu_sbc(u8 data)
@@ -118,21 +167,31 @@ namespace nes
 		inline void alu_bit(u8 data)
 		{
 			// bit test
+			assert(false);
 		}
 
 		inline void alu_ldy(u8 data)
 		{
 			// load y reg
+			assert(false);
+		}
+
+		inline void alu_ldx(u8 data)
+		{
+			// load y reg
+			R.x = data;
 		}
 
 		inline void alu_cpy(u8 data)
 		{
 			// compare y reg
+			assert(false);
 		}
 
 		inline void alu_cpx(u8 data)
 		{
 			// compare x reg
+			assert(false);
 		}
 
 		void(*alu_function_group_0[])(u8) = { nullptr, nullptr, nullptr, nullptr, alu_bit, alu_ldy, alu_cpy, alu_cpx };
@@ -142,36 +201,42 @@ namespace nes
 		inline u8 mod_asl(u8 data)
 		{
 			// shift left
+			assert(false);
 			return 0;
 		}
 
 		inline u8 mod_rol(u8 data)
 		{
 			// rotate left
+			assert(false);
 			return 0;
 		}
 
 		inline u8 mod_lsr(u8 data)
 		{
 			// logical shift right
+			assert(false);
 			return 0;
 		}
 
 		inline u8 mod_ror(u8 data)
 		{
 			// rotate right
+			assert(false);
 			return 0;
 		}
 
 		inline u8 mod_dec(u8 data)
 		{
 			// dec mem
+			assert(false);
 			return 0;
 		}
 
 		inline u8 mod_inc(u8 data)
 		{
 			// inc mem
+			assert(false);
 			return 0;
 		}
 
@@ -181,50 +246,67 @@ namespace nes
 		inline void addr_immediate()
 		{
 			// immediate addr mode. load temp addr from pc
+			micro_op_data_bus = readpc_u8();
 		}
 
 		inline void addr_zeropage()
 		{
 			// zero page. micro op to read zero page addr
+			assert(false);
 		}
 
 		inline void addr_zeropage_x()
 		{
 			// zero page fetch. add x and wrap to 0xFF
+			assert(false);
 		}
 
 		inline void addr_zeropage_y()
 		{
 			// zero page fetch. add y and wrap to 0xFF
+			assert(false);
 		}
 
 		inline void addr_absolute()
 		{
 			// absolute addr. two micro ops to read low and high to temp values
+			MicroOp fetch_low;
+			fetch_low.micro_op_type = FETCH_PC_TO_TEMP_VALUE;
+			fetch_low.is_read_high = false;
+			micro_op_queue.push_back(fetch_low);
+
+			MicroOp fetch_high;
+			fetch_high.micro_op_type = FETCH_PC_TO_TEMP_VALUE;
+			fetch_high.is_read_high = true;
+			micro_op_queue.push_back(fetch_high);
 		}
 
 		inline void addr_absolute_x()
 		{
 			// feth abosulte add low and high to temp, add x register to temp conditional check page cross
+			assert(false);
 		}
 
 		inline void addr_absolute_y()
 		{
 			// feth abosulte add low and high to temp, add y register to temp conditional check page cross
+			assert(false);
 		}
 
 		inline void addr_indirect_x()
 		{
 			// read base pointer. offset by x and warp 0xFF. read vector high and low
+			assert(false);
 		}
 
 		inline void addr_indirect_y()
 		{
 			// read base pointer. offset by y and wrap 0xFF. read vector high and low
+			assert(false);
 		}
 
-		void(*addr_mode_function_group_0[])() = { addr_immediate, addr_zeropage, addr_immediate, addr_absolute, addr_indirect_x, addr_zeropage_x, addr_indirect_y, addr_absolute_x };
-		void(*addr_mode_function_group_1[])() = { addr_immediate, addr_zeropage, nullptr, addr_absolute, nullptr, addr_zeropage_y, nullptr, addr_absolute_y };
+		void(*addr_mode_function_group_0[])() = { addr_immediate, addr_zeropage, nullptr, addr_absolute, nullptr, addr_zeropage_y, nullptr, addr_absolute_y };
+		void(*addr_mode_function_group_1[])() = { addr_immediate, addr_zeropage, addr_immediate, addr_absolute, addr_indirect_x, addr_zeropage_x, addr_indirect_y, addr_absolute_x };
 		void(*addr_mode_function_group_2[])() = { addr_immediate, addr_zeropage, nullptr, addr_absolute, nullptr, addr_zeropage_x, nullptr, addr_absolute_x };
 		
 		// implied execute functions
@@ -270,35 +352,14 @@ namespace nes
 			set_flag(FLAG_DECIMAL);
 		}
 
-		// read 8 and 16 bit at PC. increment PC
-		inline u8 readpc_u8()
-		{
-			u8 val = cpu_memory_module::read_memory(pc++);
-
-			return val;
-		}
-
-		inline u16 readpc_u16()
-		{
-			// lsb is first in memory
-			u16 val = cpu_memory_module::read_memory(pc++);
-			val |= (cpu_memory_module::read_memory(pc++) << 8);
-
-			return val;
-		}
-
-		inline u16 get_current_pc()
-		{
-			return pc;
-		}
-
 		int reset()
 		{
 			running = true;
-			pc = 0x0;
 			is_opcode_complete = false;
 
 			micro_op_queue.clear();
+			micro_op_temp_value = 0x0;
+			micro_op_data_bus = 0x0;
 
 			// initial values
 			R.a = 0x0;
@@ -319,8 +380,8 @@ namespace nes
 			u8 reset_low = cpu_memory_module::read_memory(0xFFFC);
 			u16 reset_high = cpu_memory_module::read_memory(0xFFFD);
 
-			pc = cpu_memory_module::read_memory(0xFFFC);
-			pc |= cpu_memory_module::read_memory(0xFFFD) << 8;
+			R.pc = cpu_memory_module::read_memory(0xFFFC);
+			R.pc |= cpu_memory_module::read_memory(0xFFFD) << 8;
 
 			return 0;
 		}
@@ -526,12 +587,21 @@ namespace nes
 				if (aaa == 0x4)
 				{
 					// STA
-					assert(false);
+					addr_mode_function_group_1[bbb](); // this should add two micro ops to fetch PC to low, fetch pc to high.
+
+					// should also ad R.a to bus
+					micro_op_data_bus = R.a;
+
+					// then a micro op to write bus to temp_add. 
+					MicroOp write_bus;
+					write_bus.micro_op_type = WRITE_BUS_TO_TEMP_ADDR;
+					micro_op_queue.push_back(write_bus);
 				}
 				else
 				{
 					// other ALU ops (ora, and, eor, adc, lda, cmp, sbc)
-					assert(false);
+					addr_mode_function_group_1[bbb]();
+
 					MicroOp read_bus_exec;
 					read_bus_exec.micro_op_type = READ_BUS_EXECUTE_ALU;
 					read_bus_exec.alu_funct = alu_function_group_1[aaa];
@@ -550,7 +620,10 @@ namespace nes
 				else if (aaa == 0x5) 
 				{
 					// LDX
-					assert(false);
+					MicroOp ldx;
+					ldx.micro_op_type = READ_IMMEDIATE_EXECUTE_ALU;
+					ldx.alu_funct = alu_ldx;
+					micro_op_queue.push_back(ldx);
 				}
 				else
 				{
@@ -598,12 +671,43 @@ namespace nes
 				is_opcode_complete = false;
 				break;
 			}
+			case FETCH_PC_TO_TEMP_VALUE:
+			{
+				u8 value = readpc_u8();
+
+				if (op.is_read_high)
+				{
+					micro_op_temp_value &= 0xFF; // kep low
+					micro_op_temp_value |= ((value & 0xFF) << 8); 
+				}
+				else
+				{
+					micro_op_temp_value &= 0xFF00; // keep high
+					micro_op_temp_value |= (value & 0xFF);
+				}
+				break;
+			}
 			case READ_BUS_EXECUTE_ALU:
 			{
+				op.alu_funct(micro_op_data_bus);
+
+				break;
+			}
+			case READ_IMMEDIATE_EXECUTE_ALU:
+			{
+				u8 value = readpc_u8();
+				op.alu_funct(value);
+
 				break;
 			}
 			case READ_MODIFY_WRITE:
 			{
+				assert(false);
+				break;
+			}
+			case WRITE_BUS_TO_TEMP_ADDR:
+			{
+				cpu_memory_module::write_memory(micro_op_temp_value, micro_op_data_bus);
 				break;
 			}
 			case EXECUTE_IMPLIED:
