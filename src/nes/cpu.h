@@ -20,7 +20,8 @@ namespace nes
 			READ_MODIFY_WRITE,
 			WRITE_BUS_TO_TEMP_ADDR,
 			EXECUTE_FUNCTION,
-			TRANSFER_VALUES
+			TRANSFER_VALUES,
+			CONDITIONAL_BRANCH,
 		};
 
 		struct MicroOp
@@ -30,10 +31,12 @@ namespace nes
 			void(*alu_funct)(u8) = nullptr;
 			u8(*mod_funct)(u8) = nullptr;
 			void(*implied_funct)() = nullptr;
-			bool is_read_high = false;
+			bool is_high_byte = false;
 			u8* transfer_source = nullptr;
 			u8* transfer_dest = nullptr;
 			bool is_update_flags = false;
+			u8 conditional_value = 0x0;
+			u8 conditional_flag = 0x0;
 		};
 
 		struct Registers
@@ -287,13 +290,13 @@ namespace nes
 			MicroOp fetch_low;
 			fetch_low.opcode = current_opcode;
 			fetch_low.micro_op_type = FETCH_PC_TO_TEMP_VALUE;
-			fetch_low.is_read_high = false;
+			fetch_low.is_high_byte = false;
 			micro_op_queue.push_back(fetch_low);
 
 			MicroOp fetch_high;
 			fetch_high.opcode = current_opcode;
 			fetch_high.micro_op_type = FETCH_PC_TO_TEMP_VALUE;
-			fetch_high.is_read_high = true;
+			fetch_high.is_high_byte = true;
 			micro_op_queue.push_back(fetch_high);
 		}
 
@@ -398,6 +401,48 @@ namespace nes
 
 			R.pc = cpu_memory_module::read_memory(0xFFFC);
 			R.pc |= cpu_memory_module::read_memory(0xFFFD) << 8;
+
+			return 0;
+		}
+
+		int decode_branch_instruction(u8 opcode)
+		{
+			// opcode can be split up. bit 5 is whether we are comparing to 0 or 1. bit 6, 7 are the flag we are checking
+			MicroOp condition;
+			condition.opcode = current_opcode;
+			condition.micro_op_type = CONDITIONAL_BRANCH;
+			condition.conditional_value = (opcode >> 5) & 0x1;
+
+			switch ((opcode >> 6) & 0x3) // bit 6 and 7 is the flag to check
+			{
+			case 0x0:
+			{
+				// negative
+				condition.conditional_flag = get_flag(FLAG_NEGATIVE);
+				break;
+			}
+			case 0x1:
+			{
+				// overflow
+				condition.conditional_flag = get_flag(FLAG_OVERFLOW);
+				break;
+			}
+			case 0x2:
+			{
+				// carry
+				condition.conditional_flag = get_flag(FLAG_CARRY);
+				break;
+			}
+			case 0x3:
+			{
+				// zero
+				condition.conditional_flag = get_flag(FLAG_ZERO);
+				break;
+			}
+			}
+
+			// push back condition check. it will fetch signed offset
+			micro_op_queue.push_back(condition);
 
 			return 0;
 		}
@@ -601,8 +646,7 @@ namespace nes
 			// check if opcode is condition branch
 			if ((opcode & 0x1F) == 0x10)
 			{
-				assert(false);
-				return 0;
+				return decode_branch_instruction(opcode);
 			}
 
 			// check all single byte implied instructions
@@ -765,7 +809,7 @@ namespace nes
 			{
 				u8 value = readpc_u8();
 
-				if (op.is_read_high)
+				if (op.is_high_byte)
 				{
 					micro_op_temp_value &= 0xFF; // kep low
 					micro_op_temp_value |= ((value & 0xFF) << 8); 
@@ -811,12 +855,56 @@ namespace nes
 				// we will move one pointer value to another
 				assert(op.transfer_source != nullptr && op.transfer_dest != nullptr);
 				
-				*op.transfer_dest = *op.transfer_source;
+				if (op.is_high_byte)
+				{
+					*(op.transfer_dest + 1) = *(op.transfer_source + 1);
+				}
+				else
+				{
+					*op.transfer_dest = *op.transfer_source;
+				}
 
 				if (op.is_update_flags)
 				{
 					update_flags_nz(*op.transfer_dest);
 				}
+				break;
+			}
+			case CONDITIONAL_BRANCH:
+			{
+				// we will fetch the offset
+				s8 offset = (s8)readpc_u8();
+
+				// check if the condition passes
+				if (op.conditional_value == op.conditional_flag)
+				{
+					u16 new_pc = R.pc + offset;
+
+					// push micro op to change low byte of pc
+					MicroOp low_byte;
+					low_byte.opcode = op.opcode;
+					low_byte.micro_op_type = TRANSFER_VALUES;
+					low_byte.is_high_byte = false;
+					low_byte.is_update_flags = false;
+					low_byte.transfer_source = (u8*)&micro_op_temp_value;
+					low_byte.transfer_dest = (u8*)&R.pc;
+					micro_op_queue.push_back(low_byte);
+
+					if ((R.pc & 0xFF00) != (new_pc & 0xFF00))
+					{
+						MicroOp high_byte;
+						high_byte.opcode = op.opcode;
+						high_byte.micro_op_type = TRANSFER_VALUES;
+						high_byte.is_high_byte = true;
+						high_byte.is_update_flags = false;
+						high_byte.transfer_source = (u8*)&micro_op_temp_value;
+						high_byte.transfer_dest = (u8*)&R.pc;
+						micro_op_queue.push_back(high_byte);
+					}
+
+					micro_op_temp_value = new_pc; // store this for the transfer
+				}
+
 				break;
 			}
 			}
