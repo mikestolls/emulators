@@ -25,14 +25,15 @@ namespace nes
 
 		struct MicroOp
 		{			
-			MICRO_OP_TYPE micro_op_type;
-			u8 opcode;
+			MICRO_OP_TYPE micro_op_type = NOP;
+			u8 opcode = 0x0;;
 			void(*alu_funct)(u8) = nullptr;
 			u8(*mod_funct)(u8) = nullptr;
 			void(*implied_funct)() = nullptr;
 			bool is_read_high = false;
 			u8* transfer_source = nullptr;
 			u8* transfer_dest = nullptr;
+			bool is_update_flags = false;
 		};
 
 		struct Registers
@@ -125,75 +126,83 @@ namespace nes
 		}
 
 		// ALU function pointers
-		inline void alu_ora(u8 data)
+		inline void alu_ora(u8 value)
 		{
 			// bitwise or
-			assert(false);
+			R.a |= value;
+
+			update_flags_nz(R.a);
 		}
 
-		inline void alu_and(u8 data)
+		inline void alu_and(u8 value)
 		{
 			// bitwise and
-			assert(false);
+			R.a &= value;
+
+			update_flags_nz(R.a);
 		}
 
-		inline void alu_eor(u8 data)
+		inline void alu_eor(u8 value)
 		{
 			// bitwise xor
-			assert(false);
+			R.a ^= value;
+
+			update_flags_nz(R.a);
 		}
 
-		inline void alu_adc(u8 data)
+		inline void alu_adc(u8 value)
 		{
 			// add with carry
 			assert(false);
 		}
 
-		inline void alu_lda(u8 data)
+		inline void alu_lda(u8 value)
 		{
 			// ld accumulator
-			R.a = data;
+			R.a = value;
 
 			update_flags_nz(R.a);
 		}
 
-		inline void alu_cmp(u8 data)
+		inline void alu_cmp(u8 value)
 		{
 			// compare
 			assert(false);
 		}
 
-		inline void alu_sbc(u8 data)
+		inline void alu_sbc(u8 value)
 		{
 			// subtract with carry
-			alu_adc(data); // invert bits of data and pass to add
+			alu_adc(value); // invert bits of data and pass to add
 		}
 
-		inline void alu_bit(u8 data)
+		inline void alu_bit(u8 value)
 		{
 			// bit test
 			assert(false);
 		}
 
-		inline void alu_ldy(u8 data)
+		inline void alu_ldy(u8 value)
 		{
 			// load y reg
 			assert(false);
 		}
 
-		inline void alu_ldx(u8 data)
+		inline void alu_ldx(u8 value)
 		{
 			// load y reg
-			R.x = data;
+			R.x = value;
+
+			update_flags_nz(R.x);
 		}
 
-		inline void alu_cpy(u8 data)
+		inline void alu_cpy(u8 value)
 		{
 			// compare y reg
 			assert(false);
 		}
 
-		inline void alu_cpx(u8 data)
+		inline void alu_cpx(u8 value)
 		{
 			// compare x reg
 			assert(false);
@@ -477,7 +486,14 @@ namespace nes
 			case 0x8A:
 			{
 				// transfer x to a
-				assert(false);
+				MicroOp transfer;
+				transfer.opcode = current_opcode;
+				transfer.micro_op_type = TRANSFER_VALUES;
+				transfer.transfer_source = &R.x;
+				transfer.transfer_dest = &R.a;
+				transfer.is_update_flags = true;
+
+				micro_op_queue.push_back(transfer);
 				break;
 			}
 			case 0x9A:
@@ -488,6 +504,7 @@ namespace nes
 				transfer.micro_op_type = TRANSFER_VALUES;
 				transfer.transfer_source = &R.x;
 				transfer.transfer_dest = &R.sp;
+				transfer.is_update_flags = false;
 
 				micro_op_queue.push_back(transfer);
 				break;
@@ -500,6 +517,7 @@ namespace nes
 				transfer.micro_op_type = TRANSFER_VALUES;
 				transfer.transfer_source = &R.a;
 				transfer.transfer_dest = &R.x;
+				transfer.is_update_flags = true;
 
 				micro_op_queue.push_back(transfer);
 				break;
@@ -512,6 +530,7 @@ namespace nes
 				transfer.micro_op_type = TRANSFER_VALUES;
 				transfer.transfer_source = &R.sp;
 				transfer.transfer_dest = &R.x;
+				transfer.is_update_flags = true;
 
 				micro_op_queue.push_back(transfer);
 				break;
@@ -536,6 +555,7 @@ namespace nes
 				transfer.micro_op_type = TRANSFER_VALUES;
 				transfer.transfer_source = &R.y;
 				transfer.transfer_dest = &R.a;
+				transfer.is_update_flags = true;
 
 				micro_op_queue.push_back(transfer);
 				break;
@@ -548,6 +568,7 @@ namespace nes
 				transfer.micro_op_type = TRANSFER_VALUES;
 				transfer.transfer_source = &R.a;
 				transfer.transfer_dest = &R.y;
+				transfer.is_update_flags = true;
 
 				micro_op_queue.push_back(transfer);
 				break;
@@ -791,6 +812,11 @@ namespace nes
 				assert(op.transfer_source != nullptr && op.transfer_dest != nullptr);
 				
 				*op.transfer_dest = *op.transfer_source;
+
+				if (op.is_update_flags)
+				{
+					update_flags_nz(*op.transfer_dest);
+				}
 				break;
 			}
 			}
