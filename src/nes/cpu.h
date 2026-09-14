@@ -15,20 +15,24 @@ namespace nes
 			NOP,
 			FETCH_OP,
 			FETCH_PC_TO_TEMP_VALUE,
+			FETCH_IMMEDIATE_EXECUTE_ALU,
 			READ_BUS_EXECUTE_ALU,
-			READ_IMMEDIATE_EXECUTE_ALU,
 			READ_MODIFY_WRITE,
 			WRITE_BUS_TO_TEMP_ADDR,
-			EXECUTE_IMPLIED
+			EXECUTE_FUNCTION,
+			TRANSFER_VALUES
 		};
 
 		struct MicroOp
 		{			
 			MICRO_OP_TYPE micro_op_type;
-			void(*alu_funct)(u8);
-			u8(*mod_funct)(u8);
-			void(*implied_funct)();
-			bool is_read_high;
+			u8 opcode;
+			void(*alu_funct)(u8) = nullptr;
+			u8(*mod_funct)(u8) = nullptr;
+			void(*implied_funct)() = nullptr;
+			bool is_read_high = false;
+			u8* transfer_source = nullptr;
+			u8* transfer_dest = nullptr;
 		};
 
 		struct Registers
@@ -42,6 +46,7 @@ namespace nes
 		} R;
 
 		bool running = true;
+		u8 current_opcode = 0x0;
 		bool is_opcode_complete;
 
 		std::deque<MicroOp> micro_op_queue;
@@ -271,11 +276,13 @@ namespace nes
 		{
 			// absolute addr. two micro ops to read low and high to temp values
 			MicroOp fetch_low;
+			fetch_low.opcode = current_opcode;
 			fetch_low.micro_op_type = FETCH_PC_TO_TEMP_VALUE;
 			fetch_low.is_read_high = false;
 			micro_op_queue.push_back(fetch_low);
 
 			MicroOp fetch_high;
+			fetch_high.opcode = current_opcode;
 			fetch_high.micro_op_type = FETCH_PC_TO_TEMP_VALUE;
 			fetch_high.is_read_high = true;
 			micro_op_queue.push_back(fetch_high);
@@ -388,50 +395,83 @@ namespace nes
 
 		int decode_implied_instruction(u8 opcode)
 		{
-			void(*implied_funct)() = nullptr;
-
 			switch (opcode)
 			{
 			case 0x18:
 			{
 				// clear carry
-				implied_funct = implied_clc;
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.implied_funct = implied_clc;
+
+				micro_op_queue.push_back(execute_implied);
 				break;
 			}
 			case 0x38:
 			{
 				// set carry
-				implied_funct = implied_sec;
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.implied_funct = implied_sec;
+
+				micro_op_queue.push_back(execute_implied);
 				break;
 			}
 			case 0x58:
 			{
 				// clear interrupt disable
-				implied_funct = implied_cli;
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.implied_funct = implied_cli;
+
+				micro_op_queue.push_back(execute_implied);
 				break;
 			}
 			case 0x78:
 			{
 				// set interrupt
-				implied_funct = implied_sei;
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.implied_funct = implied_sei;
+
+				micro_op_queue.push_back(execute_implied);
 				break;
 			}
 			case 0xB8:
 			{
 				// clear overflow
-				implied_funct = implied_clv;
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.implied_funct = implied_clv;
+
+				micro_op_queue.push_back(execute_implied);
 				break;
 			}
 			case 0xD8:
 			{
 				// clear decimal
-				implied_funct = implied_cld;
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.implied_funct = implied_cld;
+
+				micro_op_queue.push_back(execute_implied);
 				break;
 			}
 			case 0xF8:
 			{
 				// set decimal
-				implied_funct = implied_sed;
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.implied_funct = implied_sed;
+
+				micro_op_queue.push_back(execute_implied);
 				break;
 			}
 			case 0x8A:
@@ -443,19 +483,37 @@ namespace nes
 			case 0x9A:
 			{
 				// transfer x to stack pointer
-				assert(false);
+				MicroOp transfer;
+				transfer.opcode = current_opcode;
+				transfer.micro_op_type = TRANSFER_VALUES;
+				transfer.transfer_source = &R.x;
+				transfer.transfer_dest = &R.sp;
+
+				micro_op_queue.push_back(transfer);
 				break;
 			}
 			case 0xAA:
 			{
 				// transfer a to x
-				assert(false);
+				MicroOp transfer;
+				transfer.opcode = current_opcode;
+				transfer.micro_op_type = TRANSFER_VALUES;
+				transfer.transfer_source = &R.a;
+				transfer.transfer_dest = &R.x;
+
+				micro_op_queue.push_back(transfer);
 				break;
 			}
 			case 0xBA:
 			{
 				// transfer stack pointer to x
-				assert(false);
+				MicroOp transfer;
+				transfer.opcode = current_opcode;
+				transfer.micro_op_type = TRANSFER_VALUES;
+				transfer.transfer_source = &R.sp;
+				transfer.transfer_dest = &R.x;
+
+				micro_op_queue.push_back(transfer);
 				break;
 			}
 			case 0xCA:
@@ -473,13 +531,25 @@ namespace nes
 			case 0x98:
 			{
 				// transfer y to a
-				assert(false);
+				MicroOp transfer;
+				transfer.opcode = current_opcode;
+				transfer.micro_op_type = TRANSFER_VALUES;
+				transfer.transfer_source = &R.y;
+				transfer.transfer_dest = &R.a;
+
+				micro_op_queue.push_back(transfer);
 				break;
 			}
 			case 0xA8:
 			{
 				// transfer a to y
-				assert(false);
+				MicroOp transfer;
+				transfer.opcode = current_opcode;
+				transfer.micro_op_type = TRANSFER_VALUES;
+				transfer.transfer_source = &R.a;
+				transfer.transfer_dest = &R.y;
+
+				micro_op_queue.push_back(transfer);
 				break;
 			}
 			case 0xC8:
@@ -501,12 +571,6 @@ namespace nes
 				break;
 			}
 			}
-
-			MicroOp execute_implied;
-			execute_implied.micro_op_type = EXECUTE_IMPLIED;
-			execute_implied.implied_funct = implied_funct;
-
-			micro_op_queue.push_back(execute_implied);
 
 			return 0;
 		}
@@ -575,6 +639,7 @@ namespace nes
 					// other alu ops (bit, ldy, cpy, cpx)
 					assert(false);
 					MicroOp read_bus_exec;
+					read_bus_exec.opcode = current_opcode;
 					read_bus_exec.micro_op_type = READ_BUS_EXECUTE_ALU;
 					read_bus_exec.alu_funct = alu_function_group_0[aaa];
 
@@ -594,6 +659,7 @@ namespace nes
 
 					// then a micro op to write bus to temp_add. 
 					MicroOp write_bus;
+					write_bus.opcode = current_opcode;
 					write_bus.micro_op_type = WRITE_BUS_TO_TEMP_ADDR;
 					micro_op_queue.push_back(write_bus);
 				}
@@ -603,6 +669,7 @@ namespace nes
 					addr_mode_function_group_1[bbb]();
 
 					MicroOp read_bus_exec;
+					read_bus_exec.opcode = current_opcode;
 					read_bus_exec.micro_op_type = READ_BUS_EXECUTE_ALU;
 					read_bus_exec.alu_funct = alu_function_group_1[aaa];
 
@@ -621,7 +688,8 @@ namespace nes
 				{
 					// LDX
 					MicroOp ldx;
-					ldx.micro_op_type = READ_IMMEDIATE_EXECUTE_ALU;
+					ldx.opcode = current_opcode;
+					ldx.micro_op_type = FETCH_IMMEDIATE_EXECUTE_ALU;
 					ldx.alu_funct = alu_ldx;
 					micro_op_queue.push_back(ldx);
 				}
@@ -630,6 +698,7 @@ namespace nes
 					// other mod ops (asl, rol, lsr, ror, dec, inc)
 					assert(false);
 					MicroOp read_modify_write;
+					read_modify_write.opcode = current_opcode;
 					read_modify_write.micro_op_type = READ_MODIFY_WRITE;
 					read_modify_write.mod_funct = mod_functions_group_2[aaa];
 
@@ -663,9 +732,9 @@ namespace nes
 			}
 			case MICRO_OP_TYPE::FETCH_OP:
 			{
-				u8 opcode = readpc_u8();
+				current_opcode = readpc_u8();
 
-				decode_opcode(opcode);
+				decode_opcode(current_opcode);
 
 				// set this as we have started a new opcode
 				is_opcode_complete = false;
@@ -693,7 +762,7 @@ namespace nes
 
 				break;
 			}
-			case READ_IMMEDIATE_EXECUTE_ALU:
+			case FETCH_IMMEDIATE_EXECUTE_ALU:
 			{
 				u8 value = readpc_u8();
 				op.alu_funct(value);
@@ -710,10 +779,18 @@ namespace nes
 				cpu_memory_module::write_memory(micro_op_temp_value, micro_op_data_bus);
 				break;
 			}
-			case EXECUTE_IMPLIED:
+			case EXECUTE_FUNCTION:
 			{
 				// we can execute the function pointer from the micro op
 				op.implied_funct();
+				break;
+			}
+			case TRANSFER_VALUES:
+			{
+				// we will move one pointer value to another
+				assert(op.transfer_source != nullptr && op.transfer_dest != nullptr);
+				
+				*op.transfer_dest = *op.transfer_source;
 				break;
 			}
 			}
