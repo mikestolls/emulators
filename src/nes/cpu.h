@@ -16,9 +16,9 @@ namespace nes
 			FETCH_OP,
 			FETCH_IMMEDIATE,
 			FETCH_IMMEDIATE_EXECUTE_ALU,
-			READ_BUS_EXECUTE_ALU,
+			READ_ADDR_BUS_EXECUTE_ALU,
 			READ_MODIFY_WRITE,
-			WRITE_BUS_TO_TEMP_ADDR,
+			WRITE_DATA_BUS_TO_ADDR_BUS,
 			EXECUTE_FUNCTION,
 			TRANSFER_VALUES,
 			CONDITIONAL_BRANCH,
@@ -54,7 +54,7 @@ namespace nes
 		bool is_opcode_complete;
 
 		std::deque<MicroOp> micro_op_queue;
-		u16 micro_op_temp_value;
+		u16 micro_op_addr_bus;
 		u8 micro_op_data_bus;
 
 		// read 8 and 16 bit at PC. increment PC
@@ -292,14 +292,14 @@ namespace nes
 			MicroOp fetch_low;
 			fetch_low.opcode = current_opcode;
 			fetch_low.micro_op_type = FETCH_IMMEDIATE;
-			fetch_low.transfer_dest = (u8*)& micro_op_temp_value;
+			fetch_low.transfer_dest = (u8*)&micro_op_addr_bus;
 			fetch_low.is_high_byte = false;
 			micro_op_queue.push_back(fetch_low);
 
 			MicroOp fetch_high;
 			fetch_high.opcode = current_opcode;
 			fetch_high.micro_op_type = FETCH_IMMEDIATE;
-			fetch_high.transfer_dest = (u8*)&micro_op_temp_value;
+			fetch_high.transfer_dest = (u8*)&micro_op_addr_bus;
 			fetch_high.is_high_byte = true;
 			micro_op_queue.push_back(fetch_high);
 		}
@@ -328,8 +328,8 @@ namespace nes
 			assert(false);
 		}
 
-		void(*addr_mode_function_group_0[])() = { addr_immediate, addr_zeropage, nullptr, addr_absolute, nullptr, addr_zeropage_y, nullptr, addr_absolute_y };
-		void(*addr_mode_function_group_1[])() = { addr_immediate, addr_zeropage, addr_immediate, addr_absolute, addr_indirect_x, addr_zeropage_x, addr_indirect_y, addr_absolute_x };
+		void(*addr_mode_function_group_0[])() = { addr_immediate, addr_zeropage, nullptr, addr_absolute, nullptr, addr_zeropage_x, nullptr, addr_absolute_x };
+		void(*addr_mode_function_group_1[])() = { addr_indirect_x, addr_zeropage, addr_immediate, addr_absolute, addr_indirect_y, addr_zeropage_x, addr_absolute_y, addr_absolute_x };
 		void(*addr_mode_function_group_2[])() = { addr_immediate, addr_zeropage, nullptr, addr_absolute, nullptr, addr_zeropage_x, nullptr, addr_absolute_x };
 		
 		// implied execute functions
@@ -381,7 +381,7 @@ namespace nes
 			is_opcode_complete = false;
 
 			micro_op_queue.clear();
-			micro_op_temp_value = 0x0;
+			micro_op_addr_bus = 0x0;
 			micro_op_data_bus = 0x0;
 
 			// initial values
@@ -710,7 +710,7 @@ namespace nes
 					// other alu ops (bit, ldy, cpy, cpx)
 					MicroOp read_bus_exec;
 					read_bus_exec.opcode = current_opcode;
-					read_bus_exec.micro_op_type = READ_BUS_EXECUTE_ALU;
+					read_bus_exec.micro_op_type = READ_ADDR_BUS_EXECUTE_ALU;
 					read_bus_exec.alu_funct = alu_function_group_0[aaa];
 
 					micro_op_queue.push_back(read_bus_exec);
@@ -729,7 +729,7 @@ namespace nes
 					// then a micro op to write bus to temp_add. 
 					MicroOp write_bus;
 					write_bus.opcode = current_opcode;
-					write_bus.micro_op_type = WRITE_BUS_TO_TEMP_ADDR;
+					write_bus.micro_op_type = WRITE_DATA_BUS_TO_ADDR_BUS;
 					micro_op_queue.push_back(write_bus);
 				}
 				else
@@ -737,7 +737,7 @@ namespace nes
 					// other ALU ops (ora, and, eor, adc, lda, cmp, sbc)
 					MicroOp read_bus_exec;
 					read_bus_exec.opcode = current_opcode;
-					read_bus_exec.micro_op_type = READ_BUS_EXECUTE_ALU;
+					read_bus_exec.micro_op_type = READ_ADDR_BUS_EXECUTE_ALU;
 					read_bus_exec.alu_funct = alu_function_group_1[aaa];
 
 					micro_op_queue.push_back(read_bus_exec);
@@ -749,11 +749,13 @@ namespace nes
 				if (aaa == 0x4) 
 				{
 					// STX
+					// for bbb = 5 or 7 the mapping is different.
 					assert(false);
 				}
 				else if (aaa == 0x5) 
 				{
 					// LDX
+					// for bbb = 5 or 7 the mapping is different. 
 					MicroOp ldx;
 					ldx.opcode = current_opcode;
 					ldx.micro_op_type = FETCH_IMMEDIATE_EXECUTE_ALU;
@@ -763,6 +765,8 @@ namespace nes
 				else
 				{
 					// other mod ops (asl, rol, lsr, ror, dec, inc)
+					addr_mode_function_group_2[bbb];
+
 					assert(false);
 					MicroOp read_modify_write;
 					read_modify_write.opcode = current_opcode;
@@ -823,8 +827,10 @@ namespace nes
 				}
 				break;
 			}
-			case READ_BUS_EXECUTE_ALU:
+			case READ_ADDR_BUS_EXECUTE_ALU:
 			{
+				micro_op_data_bus = cpu_memory_module::read_memory(micro_op_addr_bus);
+
 				op.alu_funct(micro_op_data_bus);
 
 				break;
@@ -841,9 +847,9 @@ namespace nes
 				assert(false);
 				break;
 			}
-			case WRITE_BUS_TO_TEMP_ADDR:
+			case WRITE_DATA_BUS_TO_ADDR_BUS:
 			{
-				cpu_memory_module::write_memory(micro_op_temp_value, micro_op_data_bus);
+				cpu_memory_module::write_memory(micro_op_addr_bus, micro_op_data_bus);
 				break;
 			}
 			case EXECUTE_FUNCTION:
@@ -888,7 +894,7 @@ namespace nes
 					low_byte.micro_op_type = TRANSFER_VALUES;
 					low_byte.is_high_byte = false;
 					low_byte.is_update_flags = false;
-					low_byte.transfer_source = (u8*)&micro_op_temp_value;
+					low_byte.transfer_source = (u8*)&micro_op_addr_bus;
 					low_byte.transfer_dest = (u8*)&R.pc;
 					micro_op_queue.push_back(low_byte);
 
@@ -899,12 +905,12 @@ namespace nes
 						high_byte.micro_op_type = TRANSFER_VALUES;
 						high_byte.is_high_byte = true;
 						high_byte.is_update_flags = false;
-						high_byte.transfer_source = (u8*)&micro_op_temp_value;
+						high_byte.transfer_source = (u8*)&micro_op_addr_bus;
 						high_byte.transfer_dest = (u8*)&R.pc;
 						micro_op_queue.push_back(high_byte);
 					}
 
-					micro_op_temp_value = new_pc; // store this for the transfer
+					micro_op_addr_bus = new_pc; // store this for the transfer
 				}
 
 				break;
