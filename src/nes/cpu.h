@@ -14,7 +14,7 @@ namespace nes
 		{
 			NOP,
 			FETCH_OP,
-			FETCH_PC_TO_TEMP_VALUE,
+			FETCH_IMMEDIATE,
 			FETCH_IMMEDIATE_EXECUTE_ALU,
 			READ_BUS_EXECUTE_ALU,
 			READ_MODIFY_WRITE,
@@ -188,7 +188,9 @@ namespace nes
 		inline void alu_ldy(u8 value)
 		{
 			// load y reg
-			assert(false);
+			R.y = value;
+
+			update_flags_nz(R.x);
 		}
 
 		inline void alu_ldx(u8 value)
@@ -289,13 +291,15 @@ namespace nes
 			// absolute addr. two micro ops to read low and high to temp values
 			MicroOp fetch_low;
 			fetch_low.opcode = current_opcode;
-			fetch_low.micro_op_type = FETCH_PC_TO_TEMP_VALUE;
+			fetch_low.micro_op_type = FETCH_IMMEDIATE;
+			fetch_low.transfer_dest = (u8*)& micro_op_temp_value;
 			fetch_low.is_high_byte = false;
 			micro_op_queue.push_back(fetch_low);
 
 			MicroOp fetch_high;
 			fetch_high.opcode = current_opcode;
-			fetch_high.micro_op_type = FETCH_PC_TO_TEMP_VALUE;
+			fetch_high.micro_op_type = FETCH_IMMEDIATE;
+			fetch_high.transfer_dest = (u8*)&micro_op_temp_value;
 			fetch_high.is_high_byte = true;
 			micro_op_queue.push_back(fetch_high);
 		}
@@ -664,6 +668,8 @@ namespace nes
 			{
 			case 0x0: // op group for control and misc alu ops
 			{
+				addr_mode_function_group_0[bbb]();
+
 				if (opcode == 0x00)
 				{
 					// BRK
@@ -702,7 +708,6 @@ namespace nes
 				else
 				{
 					// other alu ops (bit, ldy, cpy, cpx)
-					assert(false);
 					MicroOp read_bus_exec;
 					read_bus_exec.opcode = current_opcode;
 					read_bus_exec.micro_op_type = READ_BUS_EXECUTE_ALU;
@@ -714,13 +719,12 @@ namespace nes
 			}
 			case 0x1: // op group for alu, load and store
 			{
+				addr_mode_function_group_1[bbb]();
+
 				if (aaa == 0x4)
 				{
-					// STA
-					addr_mode_function_group_1[bbb](); // this should add two micro ops to fetch PC to low, fetch pc to high.
-
-					// should also ad R.a to bus
-					micro_op_data_bus = R.a;
+					// STA					
+					micro_op_data_bus = R.a; // put R.a to bus
 
 					// then a micro op to write bus to temp_add. 
 					MicroOp write_bus;
@@ -731,8 +735,6 @@ namespace nes
 				else
 				{
 					// other ALU ops (ora, and, eor, adc, lda, cmp, sbc)
-					addr_mode_function_group_1[bbb]();
-
 					MicroOp read_bus_exec;
 					read_bus_exec.opcode = current_opcode;
 					read_bus_exec.micro_op_type = READ_BUS_EXECUTE_ALU;
@@ -805,19 +807,19 @@ namespace nes
 				is_opcode_complete = false;
 				break;
 			}
-			case FETCH_PC_TO_TEMP_VALUE:
+			case FETCH_IMMEDIATE:
 			{
+				assert(op.transfer_dest != nullptr);
+
 				u8 value = readpc_u8();
 
 				if (op.is_high_byte)
 				{
-					micro_op_temp_value &= 0xFF; // kep low
-					micro_op_temp_value |= ((value & 0xFF) << 8); 
+					*(op.transfer_dest + 1) = value;
 				}
 				else
 				{
-					micro_op_temp_value &= 0xFF00; // keep high
-					micro_op_temp_value |= (value & 0xFF);
+					*op.transfer_dest = value;
 				}
 				break;
 			}
