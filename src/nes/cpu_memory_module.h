@@ -111,6 +111,14 @@ namespace nes
 
 		u8 read_memory(u16 addr, bool force = false)
 		{
+			if (addr == 0x2002)
+			{
+				// temp vblank ppu status return
+				u8 status = 0x80;
+
+				return status;
+			}
+
 			// loop though memory map
 			for (unsigned int i = 0; i < MEMORY_COUNT; i++)
 			{

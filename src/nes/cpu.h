@@ -449,6 +449,38 @@ namespace nes
 			set_flag(FLAG_DECIMAL);
 		}
 
+		inline void implied_dey()
+		{
+			// dec y and set flags
+			R.y--;
+
+			update_flags_nz(R.y);
+		}
+
+		inline void implied_iny()
+		{
+			// inc y and set flags
+			R.y++;
+
+			update_flags_nz(R.y);
+		}
+
+		inline void implied_dex()
+		{
+			// dec x and set flags
+			R.x--;
+
+			update_flags_nz(R.x);
+		}
+
+		inline void implied_inx()
+		{
+			// inc x and set flags
+			R.x++;
+
+			update_flags_nz(R.x);
+		}
+
 		int reset()
 		{
 			running = true;
@@ -610,23 +642,45 @@ namespace nes
 			case 0x88:
 			{
 				// dec y
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
+				execute_implied.implied_funct = implied_dey;
+
+				micro_op_queue.push_back(execute_implied);
 				break;
 			}
 			case 0xC8:
 			{
 				// inc y
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
+				execute_implied.implied_funct = implied_iny;
+
+				micro_op_queue.push_back(execute_implied);
 				break;
 			}
 			case 0xCA:
 			{
 				// dec x
-				assert(false);
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
+				execute_implied.implied_funct = implied_dex;
+
+				micro_op_queue.push_back(execute_implied);
 				break;
 			}
 			case 0xE8:
 			{
 				// inc x
-				assert(false);
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
+				execute_implied.implied_funct = implied_inx;
+
+				micro_op_queue.push_back(execute_implied);
 				break;
 			}
 			case 0x8A:
