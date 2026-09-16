@@ -17,11 +17,14 @@ namespace nes
 			FETCH_IMMEDIATE,
 			FETCH_IMMEDIATE_EXECUTE_ALU,
 			READ_ADDR_BUS_EXECUTE_ALU,
-			READ_MODIFY_WRITE,
+			READ_INDIRECT_ADDR,
+			//READ_MODIFY_WRITE,
 			WRITE_DATA_BUS_TO_ADDR_BUS,
+			EXECUTE_DATA_BUS_ALU,
 			EXECUTE_FUNCTION,
 			TRANSFER_VALUES,
 			CONDITIONAL_BRANCH,
+			ADD_INDEX_TO_ADDR_BUS,
 		};
 
 		struct MicroOp
@@ -56,6 +59,7 @@ namespace nes
 		std::deque<MicroOp> micro_op_queue;
 		u16 micro_op_addr_bus;
 		u8 micro_op_data_bus;
+		u8 micro_op_zeropage;
 
 		// read 8 and 16 bit at PC. increment PC
 		inline u8 readpc_u8()
@@ -271,7 +275,14 @@ namespace nes
 		inline void addr_zeropage()
 		{
 			// zero page. micro op to read zero page addr
-			assert(false);
+			micro_op_addr_bus = 0x0;
+
+			MicroOp fetch_low;
+			fetch_low.opcode = current_opcode;
+			fetch_low.micro_op_type = FETCH_IMMEDIATE;
+			fetch_low.transfer_dest = (u8*)&micro_op_addr_bus;
+			fetch_low.is_high_byte = false;
+			micro_op_queue.push_back(fetch_low);
 		}
 
 		inline void addr_zeropage_x()
@@ -325,7 +336,36 @@ namespace nes
 		inline void addr_indirect_y()
 		{
 			// read base pointer. offset by y and wrap 0xFF. read vector high and low
-			assert(false);
+
+			// zero page. micro op to read zero page addr
+			micro_op_addr_bus = 0x0;
+
+			MicroOp fetch_low;
+			fetch_low.opcode = current_opcode;
+			fetch_low.micro_op_type = FETCH_IMMEDIATE;
+			fetch_low.transfer_dest = (u8*)&micro_op_zeropage;
+			fetch_low.is_high_byte = false;
+			micro_op_queue.push_back(fetch_low);
+
+			MicroOp read_low;
+			read_low.opcode = current_opcode;
+			read_low.micro_op_type = READ_INDIRECT_ADDR;
+			read_low.transfer_dest = (u8*)&micro_op_addr_bus;
+			read_low.is_high_byte = false;
+			micro_op_queue.push_back(read_low);
+
+			MicroOp read_high;
+			read_high.opcode = current_opcode;
+			read_high.micro_op_type = READ_INDIRECT_ADDR;
+			read_high.transfer_dest = (u8*)&micro_op_addr_bus;
+			read_high.is_high_byte = true;
+			micro_op_queue.push_back(read_high);
+
+			MicroOp add_index;
+			add_index.opcode = current_opcode;
+			add_index.micro_op_type = ADD_INDEX_TO_ADDR_BUS;
+			add_index.transfer_source = &R.y;
+			micro_op_queue.push_back(add_index);
 		}
 
 		void(*addr_mode_function_group_0[])() = { addr_immediate, addr_zeropage, nullptr, addr_absolute, nullptr, addr_zeropage_x, nullptr, addr_absolute_x };
@@ -383,6 +423,7 @@ namespace nes
 			micro_op_queue.clear();
 			micro_op_addr_bus = 0x0;
 			micro_op_data_bus = 0x0;
+			micro_op_zeropage = 0x0;
 
 			// initial values
 			R.a = 0x0;
@@ -703,7 +744,12 @@ namespace nes
 				else if (aaa == 0x4)
 				{
 					// STY
-					assert(false);
+					micro_op_data_bus = R.y; // will put reg y on data bus to reuse micro op
+
+					MicroOp write_bus;
+					write_bus.opcode = current_opcode;
+					write_bus.micro_op_type = WRITE_DATA_BUS_TO_ADDR_BUS;
+					micro_op_queue.push_back(write_bus);
 				}
 				else
 				{
@@ -737,9 +783,8 @@ namespace nes
 					// other ALU ops (ora, and, eor, adc, lda, cmp, sbc)
 					MicroOp read_bus_exec;
 					read_bus_exec.opcode = current_opcode;
-					read_bus_exec.micro_op_type = READ_ADDR_BUS_EXECUTE_ALU;
+					read_bus_exec.micro_op_type = EXECUTE_DATA_BUS_ALU;
 					read_bus_exec.alu_funct = alu_function_group_1[aaa];
-
 					micro_op_queue.push_back(read_bus_exec);
 				}
 				break;
@@ -768,12 +813,12 @@ namespace nes
 					addr_mode_function_group_2[bbb];
 
 					assert(false);
-					MicroOp read_modify_write;
-					read_modify_write.opcode = current_opcode;
-					read_modify_write.micro_op_type = READ_MODIFY_WRITE;
-					read_modify_write.mod_funct = mod_functions_group_2[aaa];
+					//MicroOp read_modify_write;
+					//read_modify_write.opcode = current_opcode;
+					//read_modify_write.micro_op_type = READ_MODIFY_WRITE;
+					//read_modify_write.mod_funct = mod_functions_group_2[aaa];
 
-					micro_op_queue.push_back(read_modify_write);
+					//micro_op_queue.push_back(read_modify_write);
 				}
 				break;
 			}
@@ -827,6 +872,13 @@ namespace nes
 				}
 				break;
 			}
+			case FETCH_IMMEDIATE_EXECUTE_ALU:
+			{
+				u8 value = readpc_u8();
+				op.alu_funct(value);
+
+				break;
+			}
 			case READ_ADDR_BUS_EXECUTE_ALU:
 			{
 				micro_op_data_bus = cpu_memory_module::read_memory(micro_op_addr_bus);
@@ -835,21 +887,35 @@ namespace nes
 
 				break;
 			}
-			case FETCH_IMMEDIATE_EXECUTE_ALU:
+			case READ_INDIRECT_ADDR:
 			{
-				u8 value = readpc_u8();
-				op.alu_funct(value);
+				// read indirect using the zeropoint pointer
+				if (op.is_high_byte)
+				{
+					*(op.transfer_dest + 1) = cpu_memory_module::read_memory((micro_op_zeropage + 1) & 0xFF);
+				}
+				else
+				{
+					*op.transfer_dest = cpu_memory_module::read_memory(micro_op_zeropage);
+				}
 
 				break;
 			}
-			case READ_MODIFY_WRITE:
-			{
-				assert(false);
-				break;
-			}
+			//case READ_MODIFY_WRITE:
+			//{
+			//	assert(false);
+			//	break;
+			//}
 			case WRITE_DATA_BUS_TO_ADDR_BUS:
 			{
 				cpu_memory_module::write_memory(micro_op_addr_bus, micro_op_data_bus);
+				break;
+			}
+			case EXECUTE_DATA_BUS_ALU:
+			{
+				// execute alu function with value on data bus
+				op.alu_funct(micro_op_data_bus);
+
 				break;
 			}
 			case EXECUTE_FUNCTION:
@@ -913,6 +979,15 @@ namespace nes
 					micro_op_addr_bus = new_pc; // store this for the transfer
 				}
 
+				break;
+			}
+			case ADD_INDEX_TO_ADDR_BUS:
+			{
+				// offset the existing addr on the addr bus based on the transfer_src pointer.
+				u16 dummy_addr = (micro_op_addr_bus & 0xFF00) | ((micro_op_addr_bus + *op.transfer_source) & 0x00FF);
+				cpu_memory_module::read_memory(dummy_addr); // dummy address is uncarried. lower byte wraps around. we call this to trigger side effects of the read
+
+				micro_op_addr_bus += *op.transfer_source;
 				break;
 			}
 			}
