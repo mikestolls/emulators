@@ -18,10 +18,10 @@ namespace nes
 			FETCH_IMMEDIATE_EXECUTE_ALU,
 			READ_ADDR_BUS_EXECUTE_ALU,
 			READ_INDIRECT_ADDR,
-			//READ_MODIFY_WRITE,
+			READ_ADDR_BUS,
 			WRITE_DATA_BUS_TO_ADDR_BUS,
-			EXECUTE_DATA_BUS_ALU,
-			EXECUTE_FUNCTION,
+			MODIFY_WRITE_DATA_BUS_TO_ADDR_BUS,
+			EXECUTE_IMPLIED_FUNCTION,
 			TRANSFER_VALUES,
 			CONDITIONAL_BRANCH,
 			ADD_INDEX_TO_ADDR_BUS,
@@ -40,6 +40,7 @@ namespace nes
 			bool is_update_flags = false;
 			u8 conditional_value = 0x0;
 			u8 conditional_flag = 0x0;
+			bool is_wrap_low = false;
 		};
 
 		struct Registers
@@ -330,7 +331,39 @@ namespace nes
 		inline void addr_indirect_x()
 		{
 			// read base pointer. offset by x and warp 0xFF. read vector high and low
-			assert(false);
+			
+			// zero page read
+			micro_op_addr_bus = 0x0;
+
+			MicroOp fetch_low;
+			fetch_low.opcode = current_opcode;
+			fetch_low.micro_op_type = FETCH_IMMEDIATE;
+			fetch_low.transfer_dest = (u8*)&micro_op_zeropage;
+			fetch_low.is_high_byte = false;
+			micro_op_queue.push_back(fetch_low);
+
+			// add x to addr and wrap 0xFF
+			MicroOp add_index;
+			add_index.opcode = current_opcode;
+			add_index.micro_op_type = ADD_INDEX_TO_ADDR_BUS;
+			add_index.transfer_source = &R.x;
+			add_index.transfer_dest = (u8*)&micro_op_zeropage;
+			add_index.is_wrap_low = true;
+			micro_op_queue.push_back(add_index);
+
+			MicroOp read_low;
+			read_low.opcode = current_opcode;
+			read_low.micro_op_type = READ_INDIRECT_ADDR;
+			read_low.transfer_dest = (u8*)&micro_op_addr_bus;
+			read_low.is_high_byte = false;
+			micro_op_queue.push_back(read_low);
+
+			MicroOp read_high;
+			read_high.opcode = current_opcode;
+			read_high.micro_op_type = READ_INDIRECT_ADDR;
+			read_high.transfer_dest = (u8*)&micro_op_addr_bus;
+			read_high.is_high_byte = true;
+			micro_op_queue.push_back(read_high);
 		}
 
 		inline void addr_indirect_y()
@@ -365,6 +398,7 @@ namespace nes
 			add_index.opcode = current_opcode;
 			add_index.micro_op_type = ADD_INDEX_TO_ADDR_BUS;
 			add_index.transfer_source = &R.y;
+			add_index.transfer_dest = (u8*)&micro_op_addr_bus;
 			micro_op_queue.push_back(add_index);
 		}
 
@@ -501,7 +535,7 @@ namespace nes
 				// clear carry
 				MicroOp execute_implied;
 				execute_implied.opcode = current_opcode;
-				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_clc;
 
 				micro_op_queue.push_back(execute_implied);
@@ -512,7 +546,7 @@ namespace nes
 				// set carry
 				MicroOp execute_implied;
 				execute_implied.opcode = current_opcode;
-				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_sec;
 
 				micro_op_queue.push_back(execute_implied);
@@ -523,7 +557,7 @@ namespace nes
 				// clear interrupt disable
 				MicroOp execute_implied;
 				execute_implied.opcode = current_opcode;
-				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_cli;
 
 				micro_op_queue.push_back(execute_implied);
@@ -534,7 +568,7 @@ namespace nes
 				// set interrupt
 				MicroOp execute_implied;
 				execute_implied.opcode = current_opcode;
-				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_sei;
 
 				micro_op_queue.push_back(execute_implied);
@@ -545,7 +579,7 @@ namespace nes
 				// clear overflow
 				MicroOp execute_implied;
 				execute_implied.opcode = current_opcode;
-				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_clv;
 
 				micro_op_queue.push_back(execute_implied);
@@ -556,7 +590,7 @@ namespace nes
 				// clear decimal
 				MicroOp execute_implied;
 				execute_implied.opcode = current_opcode;
-				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_cld;
 
 				micro_op_queue.push_back(execute_implied);
@@ -567,10 +601,32 @@ namespace nes
 				// set decimal
 				MicroOp execute_implied;
 				execute_implied.opcode = current_opcode;
-				execute_implied.micro_op_type = EXECUTE_FUNCTION;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_sed;
 
 				micro_op_queue.push_back(execute_implied);
+				break;
+			}
+			case 0x88:
+			{
+				// dec y
+				break;
+			}
+			case 0xC8:
+			{
+				// inc y
+				break;
+			}
+			case 0xCA:
+			{
+				// dec x
+				assert(false);
+				break;
+			}
+			case 0xE8:
+			{
+				// inc x
+				assert(false);
 				break;
 			}
 			case 0x8A:
@@ -586,6 +642,19 @@ namespace nes
 				micro_op_queue.push_back(transfer);
 				break;
 			}
+			case 0x98:
+			{
+				// transfer y to a
+				MicroOp transfer;
+				transfer.opcode = current_opcode;
+				transfer.micro_op_type = TRANSFER_VALUES;
+				transfer.transfer_source = &R.y;
+				transfer.transfer_dest = &R.a;
+				transfer.is_update_flags = true;
+
+				micro_op_queue.push_back(transfer);
+				break;
+			}
 			case 0x9A:
 			{
 				// transfer x to stack pointer
@@ -595,6 +664,19 @@ namespace nes
 				transfer.transfer_source = &R.x;
 				transfer.transfer_dest = &R.sp;
 				transfer.is_update_flags = false;
+
+				micro_op_queue.push_back(transfer);
+				break;
+			}
+			case 0xA8:
+			{
+				// transfer a to y
+				MicroOp transfer;
+				transfer.opcode = current_opcode;
+				transfer.micro_op_type = TRANSFER_VALUES;
+				transfer.transfer_source = &R.a;
+				transfer.transfer_dest = &R.y;
+				transfer.is_update_flags = true;
 
 				micro_op_queue.push_back(transfer);
 				break;
@@ -625,53 +707,9 @@ namespace nes
 				micro_op_queue.push_back(transfer);
 				break;
 			}
-			case 0xCA:
-			{
-				// dec x
-				assert(false);
-				break;
-			}
 			case 0xEA:
 			{
 				// no op
-				assert(false);
-				break;
-			}
-			case 0x98:
-			{
-				// transfer y to a
-				MicroOp transfer;
-				transfer.opcode = current_opcode;
-				transfer.micro_op_type = TRANSFER_VALUES;
-				transfer.transfer_source = &R.y;
-				transfer.transfer_dest = &R.a;
-				transfer.is_update_flags = true;
-
-				micro_op_queue.push_back(transfer);
-				break;
-			}
-			case 0xA8:
-			{
-				// transfer a to y
-				MicroOp transfer;
-				transfer.opcode = current_opcode;
-				transfer.micro_op_type = TRANSFER_VALUES;
-				transfer.transfer_source = &R.a;
-				transfer.transfer_dest = &R.y;
-				transfer.is_update_flags = true;
-
-				micro_op_queue.push_back(transfer);
-				break;
-			}
-			case 0xC8:
-			{
-				// inc y
-				assert(false);
-				break;
-			}
-			case 0xE8:
-			{
-				// inc y
 				assert(false);
 				break;
 			}
@@ -783,7 +821,7 @@ namespace nes
 					// other ALU ops (ora, and, eor, adc, lda, cmp, sbc)
 					MicroOp read_bus_exec;
 					read_bus_exec.opcode = current_opcode;
-					read_bus_exec.micro_op_type = EXECUTE_DATA_BUS_ALU;
+					read_bus_exec.micro_op_type = READ_ADDR_BUS_EXECUTE_ALU;
 					read_bus_exec.alu_funct = alu_function_group_1[aaa];
 					micro_op_queue.push_back(read_bus_exec);
 				}
@@ -812,11 +850,20 @@ namespace nes
 					// other mod ops (asl, rol, lsr, ror, dec, inc)
 					addr_mode_function_group_2[bbb];
 
-					assert(false);
-					//MicroOp read_modify_write;
-					//read_modify_write.opcode = current_opcode;
-					//read_modify_write.micro_op_type = READ_MODIFY_WRITE;
-					//read_modify_write.mod_funct = mod_functions_group_2[aaa];
+					// will read the addr bus address to data bus
+					MicroOp read;
+					read.opcode = current_opcode;
+					read.micro_op_type = READ_ADDR_BUS;
+
+					// the dummy write. write unmodified back to addr
+					MicroOp dummy_write;
+					dummy_write.opcode = current_opcode;
+					dummy_write.micro_op_type = WRITE_DATA_BUS_TO_ADDR_BUS;
+
+					MicroOp mod_write;
+					mod_write.opcode = current_opcode;
+					mod_write.micro_op_type = MODIFY_WRITE_DATA_BUS_TO_ADDR_BUS;
+					mod_write.mod_funct = mod_functions_group_2[aaa];
 
 					//micro_op_queue.push_back(read_modify_write);
 				}
@@ -901,25 +948,29 @@ namespace nes
 
 				break;
 			}
-			//case READ_MODIFY_WRITE:
-			//{
-			//	assert(false);
-			//	break;
-			//}
+			case READ_ADDR_BUS:
+			{
+				micro_op_data_bus = cpu_memory_module::read_memory(micro_op_addr_bus);
+				break;
+			}
 			case WRITE_DATA_BUS_TO_ADDR_BUS:
 			{
 				cpu_memory_module::write_memory(micro_op_addr_bus, micro_op_data_bus);
 				break;
 			}
-			case EXECUTE_DATA_BUS_ALU:
+			case MODIFY_WRITE_DATA_BUS_TO_ADDR_BUS:
 			{
-				// execute alu function with value on data bus
-				op.alu_funct(micro_op_data_bus);
+				// modify value on data bus
+				micro_op_data_bus = op.mod_funct(micro_op_data_bus);
 
+				// write it to addr
+				cpu_memory_module::write_memory(micro_op_addr_bus, micro_op_data_bus);
 				break;
 			}
-			case EXECUTE_FUNCTION:
+			case EXECUTE_IMPLIED_FUNCTION:
 			{
+				cpu_memory_module::read_memory(R.pc); // dummy read of the pc without incrementing
+
 				// we can execute the function pointer from the micro op
 				op.implied_funct();
 				break;
@@ -984,10 +1035,17 @@ namespace nes
 			case ADD_INDEX_TO_ADDR_BUS:
 			{
 				// offset the existing addr on the addr bus based on the transfer_src pointer.
-				u16 dummy_addr = (micro_op_addr_bus & 0xFF00) | ((micro_op_addr_bus + *op.transfer_source) & 0x00FF);
+				u16 dummy_addr = (*op.transfer_dest & 0xFF00) | ((*op.transfer_dest + *op.transfer_source) & 0x00FF);
 				cpu_memory_module::read_memory(dummy_addr); // dummy address is uncarried. lower byte wraps around. we call this to trigger side effects of the read
 
-				micro_op_addr_bus += *op.transfer_source;
+				if (op.is_wrap_low)
+				{
+					*op.transfer_dest = (*op.transfer_dest & 0xFF00) | ((*op.transfer_dest + *op.transfer_source) & 0xFF);
+				}
+				else
+				{
+					*op.transfer_dest += *op.transfer_source;
+				}
 				break;
 			}
 			}
