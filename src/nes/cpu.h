@@ -22,6 +22,7 @@ namespace nes
 			WRITE_DATA_BUS_TO_ADDR_BUS,
 			MODIFY_WRITE_DATA_BUS_TO_ADDR_BUS,
 			EXECUTE_IMPLIED_FUNCTION,
+			DATA_BUS_EXECUTE_ALU,
 			TRANSFER_VALUES,
 			CONDITIONAL_BRANCH,
 			ADD_INDEX_TO_ADDR_BUS,
@@ -253,14 +254,18 @@ namespace nes
 		inline u8 mod_dec(u8 data)
 		{
 			// dec mem
-			assert(false);
-			return 0;
+			data--;
+
+			update_flags_nz(data);
+			return data;
 		}
 
 		inline u8 mod_inc(u8 data)
 		{
 			// inc mem
-			assert(false);
+			data++;
+
+			update_flags_nz(data);
 			return 0;
 		}
 
@@ -851,6 +856,11 @@ namespace nes
 					read_bus_exec.micro_op_type = READ_ADDR_BUS_EXECUTE_ALU;
 					read_bus_exec.alu_funct = alu_function_group_0[aaa];
 
+					if (bbb == 0x0) // immeidate addr mode
+					{
+						read_bus_exec.micro_op_type = DATA_BUS_EXECUTE_ALU;
+					}
+
 					micro_op_queue.push_back(read_bus_exec);
 				}
 				break;
@@ -877,6 +887,12 @@ namespace nes
 					read_bus_exec.opcode = current_opcode;
 					read_bus_exec.micro_op_type = READ_ADDR_BUS_EXECUTE_ALU;
 					read_bus_exec.alu_funct = alu_function_group_1[aaa];
+
+					if (bbb == 0x2) // immeidate addr mode
+					{
+						read_bus_exec.micro_op_type = DATA_BUS_EXECUTE_ALU;
+					}
+
 					micro_op_queue.push_back(read_bus_exec);
 				}
 				break;
@@ -902,24 +918,25 @@ namespace nes
 				else
 				{
 					// other mod ops (asl, rol, lsr, ror, dec, inc)
-					addr_mode_function_group_2[bbb];
+					addr_mode_function_group_2[bbb]();
 
 					// will read the addr bus address to data bus
 					MicroOp read;
 					read.opcode = current_opcode;
 					read.micro_op_type = READ_ADDR_BUS;
+					micro_op_queue.push_back(read);
 
 					// the dummy write. write unmodified back to addr
 					MicroOp dummy_write;
 					dummy_write.opcode = current_opcode;
 					dummy_write.micro_op_type = WRITE_DATA_BUS_TO_ADDR_BUS;
+					micro_op_queue.push_back(dummy_write);
 
 					MicroOp mod_write;
 					mod_write.opcode = current_opcode;
 					mod_write.micro_op_type = MODIFY_WRITE_DATA_BUS_TO_ADDR_BUS;
 					mod_write.mod_funct = mod_functions_group_2[aaa];
-
-					//micro_op_queue.push_back(read_modify_write);
+					micro_op_queue.push_back(mod_write);
 				}
 				break;
 			}
@@ -1027,6 +1044,11 @@ namespace nes
 
 				// we can execute the function pointer from the micro op
 				op.implied_funct();
+				break;
+			}
+			case DATA_BUS_EXECUTE_ALU:
+			{
+				op.alu_funct(micro_op_data_bus);
 				break;
 			}
 			case TRANSFER_VALUES:
