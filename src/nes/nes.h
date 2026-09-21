@@ -40,7 +40,12 @@ namespace nes
 
 	int update(const sf::Time& deltaTime)
 	{
-		u8 cycles = cpu::update();
+		u8 cycles = cpu::cpu_cycles_per_frame;
+		
+		while (cycles >= 0)
+		{
+			cycles -= cpu::update();
+		}
 
 		return 0;
 	}

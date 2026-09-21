@@ -98,7 +98,6 @@ namespace gameboy
 		const u32 cycles_per_line = 456;
 		const u32 lines_per_frame = 154;
 		const u32 cycles_per_frame = cycles_per_line * lines_per_frame;  // = 70224
-		const u32 fps = 60;
 
 		bool running = true;
 		u8 ei_occcurred = 0;

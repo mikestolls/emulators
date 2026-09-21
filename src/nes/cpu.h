@@ -19,6 +19,7 @@ namespace nes
 			READ_ADDR_BUS_EXECUTE_ALU,
 			READ_INDIRECT_ADDR,
 			READ_ADDR_BUS,
+			WRITE_PC_TO_STACK,
 			WRITE_DATA_BUS_TO_ADDR_BUS,
 			MODIFY_WRITE_DATA_BUS_TO_ADDR_BUS,
 			EXECUTE_IMPLIED_FUNCTION,
@@ -26,6 +27,7 @@ namespace nes
 			TRANSFER_VALUES,
 			CONDITIONAL_BRANCH,
 			ADD_INDEX_TO_ADDR_BUS,
+			INTERNAL_DELAY,
 		};
 
 		struct MicroOp
@@ -36,12 +38,13 @@ namespace nes
 			u8(*mod_funct)(u8) = nullptr;
 			void(*implied_funct)() = nullptr;
 			bool is_high_byte = false;
-			u8* transfer_source = nullptr;
+			u8* transfer_src = nullptr;
 			u8* transfer_dest = nullptr;
 			bool is_update_flags = false;
 			u8 conditional_value = 0x0;
 			u8 conditional_flag = 0x0;
 			bool is_wrap_low = false;
+			bool is_transfer_addr_to_pc = false;
 		};
 
 		struct Registers
@@ -53,6 +56,16 @@ namespace nes
 			u8 sp;
 			u8 p;
 		} R;
+
+		// NTSC NES Clock & Frame Timing
+		const u32 master_clock_hz = 21477272; // NTSC Master Clock frequency (~21.48 MHz)
+		const u32 cpu_cycles_per_sec = 1789773;  // Master Clock / 12 (~1.79 MHz)
+		const u32 ppu_cycles_per_sec = 5369318;  // Master Clock / 4  (~5.37 MHz)
+
+		const u32 cycles_per_line = 341;      // PPU cycles per scanline (113.66 CPU cycles)
+		const u32 lines_per_frame = 262;      // Total scanlines (240 visible + 1 dummy + 21 VBlank)
+		const u32 ppu_cycles_per_frame = cycles_per_line * lines_per_frame; // = 89342 PPU dots
+		const u32 cpu_cycles_per_frame = ppu_cycles_per_frame / 3;          // ~29780.67 CPU cycles
 
 		bool running = true;
 		u8 current_opcode = 0x0;
@@ -351,7 +364,7 @@ namespace nes
 			MicroOp add_index;
 			add_index.opcode = current_opcode;
 			add_index.micro_op_type = ADD_INDEX_TO_ADDR_BUS;
-			add_index.transfer_source = &R.x;
+			add_index.transfer_src = &R.x;
 			add_index.transfer_dest = (u8*)&micro_op_zeropage;
 			add_index.is_wrap_low = true;
 			micro_op_queue.push_back(add_index);
@@ -402,7 +415,7 @@ namespace nes
 			MicroOp add_index;
 			add_index.opcode = current_opcode;
 			add_index.micro_op_type = ADD_INDEX_TO_ADDR_BUS;
-			add_index.transfer_source = &R.y;
+			add_index.transfer_src = &R.y;
 			add_index.transfer_dest = (u8*)&micro_op_addr_bus;
 			micro_op_queue.push_back(add_index);
 		}
@@ -694,7 +707,7 @@ namespace nes
 				MicroOp transfer;
 				transfer.opcode = current_opcode;
 				transfer.micro_op_type = TRANSFER_VALUES;
-				transfer.transfer_source = &R.x;
+				transfer.transfer_src = &R.x;
 				transfer.transfer_dest = &R.a;
 				transfer.is_update_flags = true;
 
@@ -707,7 +720,7 @@ namespace nes
 				MicroOp transfer;
 				transfer.opcode = current_opcode;
 				transfer.micro_op_type = TRANSFER_VALUES;
-				transfer.transfer_source = &R.y;
+				transfer.transfer_src = &R.y;
 				transfer.transfer_dest = &R.a;
 				transfer.is_update_flags = true;
 
@@ -720,7 +733,7 @@ namespace nes
 				MicroOp transfer;
 				transfer.opcode = current_opcode;
 				transfer.micro_op_type = TRANSFER_VALUES;
-				transfer.transfer_source = &R.x;
+				transfer.transfer_src = &R.x;
 				transfer.transfer_dest = &R.sp;
 				transfer.is_update_flags = false;
 
@@ -733,7 +746,7 @@ namespace nes
 				MicroOp transfer;
 				transfer.opcode = current_opcode;
 				transfer.micro_op_type = TRANSFER_VALUES;
-				transfer.transfer_source = &R.a;
+				transfer.transfer_src = &R.a;
 				transfer.transfer_dest = &R.y;
 				transfer.is_update_flags = true;
 
@@ -746,7 +759,7 @@ namespace nes
 				MicroOp transfer;
 				transfer.opcode = current_opcode;
 				transfer.micro_op_type = TRANSFER_VALUES;
-				transfer.transfer_source = &R.a;
+				transfer.transfer_src = &R.a;
 				transfer.transfer_dest = &R.x;
 				transfer.is_update_flags = true;
 
@@ -759,7 +772,7 @@ namespace nes
 				MicroOp transfer;
 				transfer.opcode = current_opcode;
 				transfer.micro_op_type = TRANSFER_VALUES;
-				transfer.transfer_source = &R.sp;
+				transfer.transfer_src = &R.sp;
 				transfer.transfer_dest = &R.x;
 				transfer.is_update_flags = true;
 
@@ -785,6 +798,8 @@ namespace nes
 
 		int decode_opcode(u8 opcode)
 		{
+			//printf("opcode: 0x%02hX R.y: 0x%02hX\n", opcode, R.y);
+
 			// check if opcode is condition branch
 			if ((opcode & 0x1F) == 0x10)
 			{
@@ -806,8 +821,6 @@ namespace nes
 			{
 			case 0x0: // op group for control and misc alu ops
 			{
-				addr_mode_function_group_0[bbb]();
-
 				if (opcode == 0x00)
 				{
 					// BRK
@@ -816,7 +829,43 @@ namespace nes
 				else if (opcode == 0x20)
 				{
 					// JSR
-					assert(false);
+					micro_op_addr_bus = 0x0;
+
+					// fetch low byte
+					MicroOp fetch_low;
+					fetch_low.opcode = current_opcode;
+					fetch_low.micro_op_type = FETCH_IMMEDIATE;
+					fetch_low.transfer_dest = (u8*)&micro_op_addr_bus;
+					fetch_low.is_high_byte = false;
+					micro_op_queue.push_back(fetch_low);
+
+					// internal delay
+					MicroOp internal_delay;
+					internal_delay.opcode = current_opcode;
+					internal_delay.micro_op_type = INTERNAL_DELAY;
+					micro_op_queue.push_back(internal_delay);
+
+					// write PC high byte to stack
+					MicroOp stack_high;
+					stack_high.opcode = opcode;
+					stack_high.micro_op_type = WRITE_PC_TO_STACK;
+					stack_high.is_high_byte = true;
+					micro_op_queue.push_back(stack_high);
+
+					// write PC low byte to stack
+					MicroOp stack_low;
+					stack_low.opcode = opcode;
+					stack_low.micro_op_type = WRITE_PC_TO_STACK;
+					micro_op_queue.push_back(stack_low);
+
+					// fetch high byte and transfer to PC.
+					MicroOp fetch_high;
+					fetch_high.opcode = current_opcode;
+					fetch_high.micro_op_type = FETCH_IMMEDIATE;
+					fetch_high.transfer_dest = (u8*)&micro_op_addr_bus;
+					fetch_high.is_high_byte = true;
+					fetch_high.is_transfer_addr_to_pc = true;
+					micro_op_queue.push_back(fetch_high);
 				}
 				else if (opcode == 0x40)
 				{
@@ -841,6 +890,8 @@ namespace nes
 				else if (aaa == 0x4)
 				{
 					// STY
+					addr_mode_function_group_0[bbb]();
+
 					micro_op_data_bus = R.y; // will put reg y on data bus to reuse micro op
 
 					MicroOp write_bus;
@@ -851,6 +902,8 @@ namespace nes
 				else
 				{
 					// other alu ops (bit, ldy, cpy, cpx)
+					addr_mode_function_group_0[bbb]();
+
 					MicroOp read_bus_exec;
 					read_bus_exec.opcode = current_opcode;
 					read_bus_exec.micro_op_type = READ_ADDR_BUS_EXECUTE_ALU;
@@ -988,6 +1041,13 @@ namespace nes
 				{
 					*op.transfer_dest = value;
 				}
+
+				// small hack to set pc to the addr of the addr bus
+				if (op.is_transfer_addr_to_pc)
+				{
+					R.pc = micro_op_addr_bus;
+				}
+
 				break;
 			}
 			case FETCH_IMMEDIATE_EXECUTE_ALU:
@@ -1024,6 +1084,21 @@ namespace nes
 				micro_op_data_bus = cpu_memory_module::read_memory(micro_op_addr_bus);
 				break;
 			}
+			case WRITE_PC_TO_STACK:
+			{
+				if (op.is_high_byte)
+				{
+					cpu_memory_module::write_memory(0x0100 + R.sp, (u8)(R.pc >> 8));
+				}
+				else
+				{
+					cpu_memory_module::write_memory(0x0100 + R.sp, (u8)(R.pc & 0xFF));
+				}
+
+				R.sp--;
+
+				break;
+			}
 			case WRITE_DATA_BUS_TO_ADDR_BUS:
 			{
 				cpu_memory_module::write_memory(micro_op_addr_bus, micro_op_data_bus);
@@ -1054,15 +1129,15 @@ namespace nes
 			case TRANSFER_VALUES:
 			{
 				// we will move one pointer value to another
-				assert(op.transfer_source != nullptr && op.transfer_dest != nullptr);
+				assert(op.transfer_src != nullptr && op.transfer_dest != nullptr);
 				
 				if (op.is_high_byte)
 				{
-					*(op.transfer_dest + 1) = *(op.transfer_source + 1);
+					*(op.transfer_dest + 1) = *(op.transfer_src + 1);
 				}
 				else
 				{
-					*op.transfer_dest = *op.transfer_source;
+					*op.transfer_dest = *op.transfer_src;
 				}
 
 				if (op.is_update_flags)
@@ -1087,7 +1162,7 @@ namespace nes
 					low_byte.micro_op_type = TRANSFER_VALUES;
 					low_byte.is_high_byte = false;
 					low_byte.is_update_flags = false;
-					low_byte.transfer_source = (u8*)&micro_op_addr_bus;
+					low_byte.transfer_src = (u8*)&micro_op_addr_bus;
 					low_byte.transfer_dest = (u8*)&R.pc;
 					micro_op_queue.push_back(low_byte);
 
@@ -1098,7 +1173,7 @@ namespace nes
 						high_byte.micro_op_type = TRANSFER_VALUES;
 						high_byte.is_high_byte = true;
 						high_byte.is_update_flags = false;
-						high_byte.transfer_source = (u8*)&micro_op_addr_bus;
+						high_byte.transfer_src = (u8*)&micro_op_addr_bus;
 						high_byte.transfer_dest = (u8*)&R.pc;
 						micro_op_queue.push_back(high_byte);
 					}
@@ -1111,17 +1186,22 @@ namespace nes
 			case ADD_INDEX_TO_ADDR_BUS:
 			{
 				// offset the existing addr on the addr bus based on the transfer_src pointer.
-				u16 dummy_addr = (*op.transfer_dest & 0xFF00) | ((*op.transfer_dest + *op.transfer_source) & 0x00FF);
+				u16 dummy_addr = (*op.transfer_dest & 0xFF00) | ((*op.transfer_dest + *op.transfer_src) & 0x00FF);
 				cpu_memory_module::read_memory(dummy_addr); // dummy address is uncarried. lower byte wraps around. we call this to trigger side effects of the read
 
 				if (op.is_wrap_low)
 				{
-					*op.transfer_dest = (*op.transfer_dest & 0xFF00) | ((*op.transfer_dest + *op.transfer_source) & 0xFF);
+					*op.transfer_dest = (*op.transfer_dest & 0xFF00) | ((*op.transfer_dest + *op.transfer_src) & 0xFF);
 				}
 				else
 				{
-					*op.transfer_dest += *op.transfer_source;
+					*op.transfer_dest += *op.transfer_src;
 				}
+				break;
+			}
+			case INTERNAL_DELAY:
+			{
+				// does nothing. just a cycle delay
 				break;
 			}
 			}
@@ -1149,7 +1229,7 @@ namespace nes
 
 			is_opcode_complete = micro_op_queue.empty(); // if its empty then we completed opcode
 
-			return 4;
+			return 1;
 		}
 	}
 }
