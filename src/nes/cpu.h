@@ -19,7 +19,8 @@ namespace nes
 			READ_ADDR_BUS_EXECUTE_ALU,
 			READ_INDIRECT_ADDR,
 			READ_ADDR_BUS,
-			WRITE_PC_TO_STACK,
+			READ_VALUE_FROM_STACK,
+			WRITE_VALUE_TO_STACK,
 			WRITE_DATA_BUS_TO_ADDR_BUS,
 			MODIFY_WRITE_DATA_BUS_TO_ADDR_BUS,
 			EXECUTE_IMPLIED_FUNCTION,
@@ -27,7 +28,6 @@ namespace nes
 			TRANSFER_VALUES,
 			CONDITIONAL_BRANCH,
 			ADD_INDEX_TO_ADDR_BUS,
-			INTERNAL_DELAY,
 		};
 
 		struct MicroOp
@@ -189,7 +189,18 @@ namespace nes
 		inline void alu_cmp(u8 value)
 		{
 			// compare
-			assert(false);
+			u16 result = (u16)R.a - (u16)value;
+
+			if (R.a >= value)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else 
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			update_flags_nz((u8)result);
 		}
 
 		inline void alu_sbc(u8 value)
@@ -223,13 +234,35 @@ namespace nes
 		inline void alu_cpy(u8 value)
 		{
 			// compare y reg
-			assert(false);
+			u16 result = (u16)R.y - (u16)value;
+
+			if (R.y >= value)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			update_flags_nz((u8)result);
 		}
 
 		inline void alu_cpx(u8 value)
 		{
 			// compare x reg
-			assert(false);
+			u16 result = (u16)R.x - (u16)value;
+
+			if (R.x >= value)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			update_flags_nz((u8)result);
 		}
 
 		void(*alu_function_group_0[])(u8) = { nullptr, nullptr, nullptr, nullptr, alu_bit, alu_ldy, alu_cpy, alu_cpx };
@@ -587,7 +620,6 @@ namespace nes
 				execute_implied.opcode = current_opcode;
 				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_clc;
-
 				micro_op_queue.push_back(execute_implied);
 				break;
 			}
@@ -598,7 +630,6 @@ namespace nes
 				execute_implied.opcode = current_opcode;
 				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_sec;
-
 				micro_op_queue.push_back(execute_implied);
 				break;
 			}
@@ -609,7 +640,6 @@ namespace nes
 				execute_implied.opcode = current_opcode;
 				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_cli;
-
 				micro_op_queue.push_back(execute_implied);
 				break;
 			}
@@ -620,7 +650,6 @@ namespace nes
 				execute_implied.opcode = current_opcode;
 				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_sei;
-
 				micro_op_queue.push_back(execute_implied);
 				break;
 			}
@@ -631,7 +660,6 @@ namespace nes
 				execute_implied.opcode = current_opcode;
 				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_clv;
-
 				micro_op_queue.push_back(execute_implied);
 				break;
 			}
@@ -642,7 +670,6 @@ namespace nes
 				execute_implied.opcode = current_opcode;
 				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_cld;
-
 				micro_op_queue.push_back(execute_implied);
 				break;
 			}
@@ -653,7 +680,6 @@ namespace nes
 				execute_implied.opcode = current_opcode;
 				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_sed;
-
 				micro_op_queue.push_back(execute_implied);
 				break;
 			}
@@ -664,7 +690,6 @@ namespace nes
 				execute_implied.opcode = current_opcode;
 				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_dey;
-
 				micro_op_queue.push_back(execute_implied);
 				break;
 			}
@@ -675,7 +700,6 @@ namespace nes
 				execute_implied.opcode = current_opcode;
 				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_iny;
-
 				micro_op_queue.push_back(execute_implied);
 				break;
 			}
@@ -686,7 +710,6 @@ namespace nes
 				execute_implied.opcode = current_opcode;
 				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_dex;
-
 				micro_op_queue.push_back(execute_implied);
 				break;
 			}
@@ -697,7 +720,6 @@ namespace nes
 				execute_implied.opcode = current_opcode;
 				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
 				execute_implied.implied_funct = implied_inx;
-
 				micro_op_queue.push_back(execute_implied);
 				break;
 			}
@@ -710,7 +732,6 @@ namespace nes
 				transfer.transfer_src = &R.x;
 				transfer.transfer_dest = &R.a;
 				transfer.is_update_flags = true;
-
 				micro_op_queue.push_back(transfer);
 				break;
 			}
@@ -723,7 +744,6 @@ namespace nes
 				transfer.transfer_src = &R.y;
 				transfer.transfer_dest = &R.a;
 				transfer.is_update_flags = true;
-
 				micro_op_queue.push_back(transfer);
 				break;
 			}
@@ -736,7 +756,6 @@ namespace nes
 				transfer.transfer_src = &R.x;
 				transfer.transfer_dest = &R.sp;
 				transfer.is_update_flags = false;
-
 				micro_op_queue.push_back(transfer);
 				break;
 			}
@@ -749,7 +768,6 @@ namespace nes
 				transfer.transfer_src = &R.a;
 				transfer.transfer_dest = &R.y;
 				transfer.is_update_flags = true;
-
 				micro_op_queue.push_back(transfer);
 				break;
 			}
@@ -762,7 +780,6 @@ namespace nes
 				transfer.transfer_src = &R.a;
 				transfer.transfer_dest = &R.x;
 				transfer.is_update_flags = true;
-
 				micro_op_queue.push_back(transfer);
 				break;
 			}
@@ -775,13 +792,64 @@ namespace nes
 				transfer.transfer_src = &R.sp;
 				transfer.transfer_dest = &R.x;
 				transfer.is_update_flags = true;
-
 				micro_op_queue.push_back(transfer);
 				break;
 			}
 			case 0xEA:
 			{
 				// no op
+				assert(false);
+				break;
+			}
+			case 0x48:
+			{
+				// push accumulator
+				MicroOp delay;
+				delay.opcode = current_opcode;
+				delay.micro_op_type = NOP;
+				micro_op_queue.push_back(delay); // dont need to dummy read. just cycle delay
+
+				MicroOp stack;
+				stack.opcode = opcode;
+				stack.micro_op_type = WRITE_VALUE_TO_STACK;
+				stack.transfer_src = &R.a;
+				micro_op_queue.push_back(stack);
+
+				break;
+			}
+			case 0x68:
+			{		
+				// pull accumulator
+				MicroOp delay;
+				delay.opcode = current_opcode;
+				delay.micro_op_type = NOP;
+				micro_op_queue.push_back(delay); // dont need to dummy read. just cycle delay
+
+				// this read just increases stack pointer
+				MicroOp stack_inc;
+				stack_inc.opcode = opcode;
+				stack_inc.micro_op_type = READ_VALUE_FROM_STACK;
+				stack_inc.transfer_dest = &micro_op_data_bus;
+				micro_op_queue.push_back(stack_inc);
+
+				MicroOp stack;
+				stack.opcode = opcode;
+				stack.micro_op_type = READ_VALUE_FROM_STACK;
+				stack.transfer_dest = &R.a;
+				stack.is_update_flags = true;
+				micro_op_queue.push_back(stack);
+
+				break;
+			}
+			case 0x08:
+			{
+				// push processor status
+				assert(false);
+				break;
+			}
+			case 0x28:
+			{
+				// pull processor status
 				assert(false);
 				break;
 			}
@@ -842,20 +910,21 @@ namespace nes
 					// internal delay
 					MicroOp internal_delay;
 					internal_delay.opcode = current_opcode;
-					internal_delay.micro_op_type = INTERNAL_DELAY;
+					internal_delay.micro_op_type = NOP;
 					micro_op_queue.push_back(internal_delay);
 
 					// write PC high byte to stack
 					MicroOp stack_high;
 					stack_high.opcode = opcode;
-					stack_high.micro_op_type = WRITE_PC_TO_STACK;
-					stack_high.is_high_byte = true;
+					stack_high.micro_op_type = WRITE_VALUE_TO_STACK;
+					stack_high.transfer_src = ((u8*)&R.pc) + 1;
 					micro_op_queue.push_back(stack_high);
 
 					// write PC low byte to stack
 					MicroOp stack_low;
 					stack_low.opcode = opcode;
-					stack_low.micro_op_type = WRITE_PC_TO_STACK;
+					stack_low.micro_op_type = WRITE_VALUE_TO_STACK;
+					stack_low.transfer_src = (u8*)&R.pc;
 					micro_op_queue.push_back(stack_low);
 
 					// fetch high byte and transfer to PC.
@@ -1101,16 +1170,22 @@ namespace nes
 				micro_op_data_bus = cpu_memory_module::read_memory(micro_op_addr_bus);
 				break;
 			}
-			case WRITE_PC_TO_STACK:
+			case READ_VALUE_FROM_STACK:
 			{
-				if (op.is_high_byte)
+				*op.transfer_dest = cpu_memory_module::read_memory(0x0100 + R.sp);
+
+				if (op.is_update_flags)
 				{
-					cpu_memory_module::write_memory(0x0100 + R.sp, (u8)(R.pc >> 8));
+					update_flags_nz(*op.transfer_dest);
 				}
-				else
-				{
-					cpu_memory_module::write_memory(0x0100 + R.sp, (u8)(R.pc & 0xFF));
-				}
+
+				R.sp++;
+
+				break;
+			}
+			case WRITE_VALUE_TO_STACK:
+			{
+				cpu_memory_module::write_memory(0x0100 + R.sp, *op.transfer_src & 0xFF);
 
 				R.sp--;
 
@@ -1214,11 +1289,6 @@ namespace nes
 				{
 					*op.transfer_dest += *op.transfer_src;
 				}
-				break;
-			}
-			case INTERNAL_DELAY:
-			{
-				// does nothing. just a cycle delay
 				break;
 			}
 			}
