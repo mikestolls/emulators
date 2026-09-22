@@ -105,13 +105,12 @@ namespace nes
 		// set and get flag helpers
 		inline void set_flag(u8 flag)
 		{
-			R.p = (1 << flag);
+			R.p |= (1 << flag);
 		}
 
 		inline void clear_flag(u8 flag)
 		{
-			flag = (1 << flag);
-			R.p = ~flag;
+			R.p &= ~(1 << flag);
 		}
 
 		inline u8 get_flag(u8 flag)
@@ -866,7 +865,7 @@ namespace nes
 
 		int decode_opcode(u8 opcode)
 		{
-			//printf("opcode: 0x%02hX R.y: 0x%02hX\n", opcode, R.y);
+			printf("pc: 0x%04hX opcode: 0x%02hX\n", R.pc - 1, opcode);
 
 			// check if opcode is condition branch
 			if ((opcode & 0x1F) == 0x10)
@@ -944,7 +943,40 @@ namespace nes
 				else if (opcode == 0x60)
 				{
 					// RTS
-					assert(false);
+					// internal delay
+					MicroOp internal_delay;
+					internal_delay.opcode = current_opcode;
+					internal_delay.micro_op_type = NOP;
+					micro_op_queue.push_back(internal_delay);
+
+					// inc stack. discard read
+					MicroOp stack_inc;
+					stack_inc.opcode = opcode;
+					stack_inc.micro_op_type = READ_VALUE_FROM_STACK;
+					stack_inc.transfer_dest = &micro_op_data_bus;
+					micro_op_queue.push_back(stack_inc);
+
+					// read low byte
+					MicroOp stack_low;
+					stack_low.opcode = opcode;
+					stack_low.micro_op_type = READ_VALUE_FROM_STACK;
+					stack_low.transfer_dest = (u8*)&micro_op_addr_bus;
+					micro_op_queue.push_back(stack_low);
+
+					// read high byte
+					MicroOp stack_high;
+					stack_high.opcode = opcode;
+					stack_high.micro_op_type = READ_VALUE_FROM_STACK;
+					stack_high.transfer_dest = ((u8*)&micro_op_addr_bus) + 1;
+					stack_high.is_transfer_addr_to_pc = true;
+					micro_op_queue.push_back(stack_high);
+
+					// this should fetch from pc to incr. but then set pc to addr bus addr.
+					MicroOp fetch_pc;
+					fetch_pc.opcode = current_opcode;
+					fetch_pc.micro_op_type = FETCH_IMMEDIATE;
+					fetch_pc.transfer_dest = (u8*)&micro_op_data_bus;
+					micro_op_queue.push_back(fetch_pc);
 				}
 				else if (aaa == 0x2)
 				{
@@ -1180,6 +1212,12 @@ namespace nes
 				}
 
 				R.sp++;
+
+				// small hack to set pc to the addr of the addr bus
+				if (op.is_transfer_addr_to_pc)
+				{
+					R.pc = micro_op_addr_bus;
+				}
 
 				break;
 			}
