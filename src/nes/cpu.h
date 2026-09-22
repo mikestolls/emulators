@@ -880,7 +880,24 @@ namespace nes
 				else if (aaa == 0x2)
 				{
 					// JMP absolute
-					assert(false);
+					micro_op_addr_bus = 0x0;
+
+					// fetch low byte
+					MicroOp fetch_low;
+					fetch_low.opcode = current_opcode;
+					fetch_low.micro_op_type = FETCH_IMMEDIATE;
+					fetch_low.transfer_dest = (u8*)&micro_op_addr_bus;
+					fetch_low.is_high_byte = false;
+					micro_op_queue.push_back(fetch_low);
+
+					// fetch high byte and transfer to PC.
+					MicroOp fetch_high;
+					fetch_high.opcode = current_opcode;
+					fetch_high.micro_op_type = FETCH_IMMEDIATE;
+					fetch_high.transfer_dest = (u8*)&micro_op_addr_bus;
+					fetch_high.is_high_byte = true;
+					fetch_high.is_transfer_addr_to_pc = true;
+					micro_op_queue.push_back(fetch_high);
 				}
 				else if (aaa == 0x3)
 				{
