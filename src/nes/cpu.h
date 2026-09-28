@@ -174,7 +174,32 @@ namespace nes
 		inline void alu_adc(u8 value)
 		{
 			// add with carry
-			assert(false);
+			u8 carry = get_flag(FLAG_CARRY) ? 0x1 : 0x0;
+			u16 result = R.a + value + carry;
+			u8 flags = R.p;
+
+			// check carry flag
+			if (result > 0xFF)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			// check overflow - a xor value checks if same sign, a xor result checks sign. and the two to see if overflowed
+			if (~(R.a ^ value) & (R.a ^ (u8)result) & 0x80)
+			{
+				set_flag(FLAG_OVERFLOW);
+			}
+			else
+			{ 
+				clear_flag(FLAG_OVERFLOW);
+			}
+
+			R.a = (u8)result;
+			update_flags_nz(R.a);
 		}
 
 		inline void alu_lda(u8 value)
@@ -205,7 +230,7 @@ namespace nes
 		inline void alu_sbc(u8 value)
 		{
 			// subtract with carry
-			alu_adc(value); // invert bits of data and pass to add
+			alu_adc(~value); // invert bits of data and pass to add
 		}
 
 		inline void alu_bit(u8 value)
@@ -531,6 +556,110 @@ namespace nes
 			update_flags_nz(R.x);
 		}
 
+		inline void implied_asl_a()
+		{
+			if (R.a & 0x80)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			R.a <<= 1;
+
+			if (R.a == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
+			else
+			{
+				clear_flag(FLAG_ZERO);
+			}
+
+			clear_flag(FLAG_NEGATIVE);
+		}
+
+		inline void implied_rol_a()
+		{
+			u8 carry = get_flag(FLAG_CARRY) ? 0x1 : 0x0;
+
+			if (R.a & 0x80)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			R.a = (R.a << 1) | carry;
+
+			if (R.a == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
+			else
+			{
+				clear_flag(FLAG_ZERO);
+			}
+
+			clear_flag(FLAG_NEGATIVE);
+		}
+
+		inline void implied_lsr_a()
+		{
+			if (R.a & 0x1)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			R.a >>= 1;
+			
+			if (R.a == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
+			else
+			{
+				clear_flag(FLAG_ZERO);
+			}
+
+			clear_flag(FLAG_NEGATIVE);
+		}
+
+		inline void implied_ror_a()
+		{
+			u8 carry = get_flag(FLAG_CARRY) ? 0x80 : 0x0;
+
+			if (R.a & 0x1)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			R.a = (R.a >> 1) | carry;
+
+			if (R.a == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
+			else
+			{
+				clear_flag(FLAG_ZERO);
+			}
+
+			clear_flag(FLAG_NEGATIVE);
+		}
+
 		int reset()
 		{
 			running = true;
@@ -819,17 +948,16 @@ namespace nes
 			case 0x68:
 			{		
 				// pull accumulator
-				MicroOp delay;
-				delay.opcode = current_opcode;
-				delay.micro_op_type = NOP;
-				micro_op_queue.push_back(delay); // dont need to dummy read. just cycle delay
+				MicroOp delay_0;
+				delay_0.opcode = current_opcode;
+				delay_0.micro_op_type = NOP;
+				micro_op_queue.push_back(delay_0); // dont need to dummy read. just cycle delay
 
 				// this read just increases stack pointer
-				MicroOp stack_inc;
-				stack_inc.opcode = opcode;
-				stack_inc.micro_op_type = READ_VALUE_FROM_STACK;
-				stack_inc.transfer_dest = &micro_op_data_bus;
-				micro_op_queue.push_back(stack_inc);
+				MicroOp delay_1;
+				delay_1.opcode = opcode;
+				delay_1.micro_op_type = NOP;
+				micro_op_queue.push_back(delay_1);
 
 				MicroOp stack;
 				stack.opcode = opcode;
@@ -852,6 +980,46 @@ namespace nes
 				assert(false);
 				break;
 			}
+			case 0x0A:
+			{
+				// arith shift left a
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
+				execute_implied.implied_funct = implied_asl_a;
+				micro_op_queue.push_back(execute_implied);
+				break;
+			}
+			case 0x2A:
+			{
+				// rotate left a
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
+				execute_implied.implied_funct = implied_rol_a;
+				micro_op_queue.push_back(execute_implied);
+				break;
+			}
+			case 0x4A:
+			{
+				// logi shift right a
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
+				execute_implied.implied_funct = implied_lsr_a;
+				micro_op_queue.push_back(execute_implied);
+				break;
+			}
+			case 0x6A:
+			{
+				// rotate right a
+				MicroOp execute_implied;
+				execute_implied.opcode = current_opcode;
+				execute_implied.micro_op_type = EXECUTE_IMPLIED_FUNCTION;
+				execute_implied.implied_funct = implied_ror_a;
+				micro_op_queue.push_back(execute_implied);
+				break;
+			}
 			default:
 			{
 				// not implemented
@@ -865,7 +1033,7 @@ namespace nes
 
 		int decode_opcode(u8 opcode)
 		{
-			printf("pc: 0x%04hX opcode: 0x%02hX\n", R.pc - 1, opcode);
+			printf("pc: 0x%04hX opcode: 0x%02hX sp: 0x%02hX\n", R.pc - 1, opcode, R.sp);
 
 			// check if opcode is condition branch
 			if ((opcode & 0x1F) == 0x10)
@@ -944,17 +1112,16 @@ namespace nes
 				{
 					// RTS
 					// internal delay
-					MicroOp internal_delay;
-					internal_delay.opcode = current_opcode;
-					internal_delay.micro_op_type = NOP;
-					micro_op_queue.push_back(internal_delay);
+					MicroOp delay_0;
+					delay_0.opcode = current_opcode;
+					delay_0.micro_op_type = NOP;
+					micro_op_queue.push_back(delay_0);
 
-					// inc stack. discard read
-					MicroOp stack_inc;
-					stack_inc.opcode = opcode;
-					stack_inc.micro_op_type = READ_VALUE_FROM_STACK;
-					stack_inc.transfer_dest = &micro_op_data_bus;
-					micro_op_queue.push_back(stack_inc);
+					// internal delay
+					MicroOp delay_1;
+					delay_1.opcode = current_opcode;
+					delay_1.micro_op_type = NOP;
+					micro_op_queue.push_back(delay_1);
 
 					// read low byte
 					MicroOp stack_low;
@@ -1204,14 +1371,15 @@ namespace nes
 			}
 			case READ_VALUE_FROM_STACK:
 			{
+				// pre increment sp
+				R.sp++;
+
 				*op.transfer_dest = cpu_memory_module::read_memory(0x0100 + R.sp);
 
 				if (op.is_update_flags)
 				{
 					update_flags_nz(*op.transfer_dest);
 				}
-
-				R.sp++;
 
 				// small hack to set pc to the addr of the addr bus
 				if (op.is_transfer_addr_to_pc)
