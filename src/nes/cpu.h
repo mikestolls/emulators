@@ -292,51 +292,130 @@ namespace nes
 		void(*alu_function_group_0[])(u8) = { nullptr, nullptr, nullptr, nullptr, alu_bit, alu_ldy, alu_cpy, alu_cpx };
 		void(*alu_function_group_1[])(u8) = { alu_ora, alu_and, alu_eor, alu_adc, nullptr, alu_lda, alu_cmp, alu_sbc };
 
-		// modify function pointers
-		inline u8 mod_asl(u8 data)
+		inline u8 mod_asl(u8 value)
 		{
-			// shift left
-			assert(false);
-			return 0;
+			if (value & 0x80)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			value <<= 1;
+
+			if (value == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
+			else
+			{
+				clear_flag(FLAG_ZERO);
+			}
+
+			clear_flag(FLAG_NEGATIVE);
+			return value;
 		}
 
-		inline u8 mod_rol(u8 data)
+		inline u8 mod_rol(u8 value)
 		{
-			// rotate left
-			assert(false);
-			return 0;
+			u8 carry = get_flag(FLAG_CARRY) ? 0x1 : 0x0;
+
+			if (value & 0x80)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			value = (value << 1) | carry;
+
+			if (value == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
+			else
+			{
+				clear_flag(FLAG_ZERO);
+			}
+
+			clear_flag(FLAG_NEGATIVE);
+			return value;
 		}
 
-		inline u8 mod_lsr(u8 data)
+		inline u8 mod_lsr(u8 value)
 		{
-			// logical shift right
-			assert(false);
-			return 0;
+			if (value & 0x1)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			value >>= 1;
+
+			if (value == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
+			else
+			{
+				clear_flag(FLAG_ZERO);
+			}
+
+			clear_flag(FLAG_NEGATIVE);
+			return value;
 		}
 
-		inline u8 mod_ror(u8 data)
+		inline u8 mod_ror(u8 value)
 		{
-			// rotate right
-			assert(false);
-			return 0;
+			u8 carry = get_flag(FLAG_CARRY) ? 0x80 : 0x0;
+
+			if (value & 0x1)
+			{
+				set_flag(FLAG_CARRY);
+			}
+			else
+			{
+				clear_flag(FLAG_CARRY);
+			}
+
+			value = (value >> 1) | carry;
+
+			if (value == 0)
+			{
+				set_flag(FLAG_ZERO);
+			}
+			else
+			{
+				clear_flag(FLAG_ZERO);
+			}
+
+			clear_flag(FLAG_NEGATIVE);
+			return value;
 		}
 
-		inline u8 mod_dec(u8 data)
+		inline u8 mod_dec(u8 value)
 		{
 			// dec mem
-			data--;
+			value--;
 
-			update_flags_nz(data);
-			return data;
+			update_flags_nz(value);
+			return value;
 		}
 
-		inline u8 mod_inc(u8 data)
+		inline u8 mod_inc(u8 value)
 		{
 			// inc mem
-			data++;
+			value++;
 
-			update_flags_nz(data);
-			return 0;
+			update_flags_nz(value);
+			return value;
 		}
 
 		u8(*mod_functions_group_2[])(u8) = { mod_asl, mod_rol, mod_lsr, mod_ror, nullptr, nullptr, mod_dec, mod_inc };
@@ -558,106 +637,22 @@ namespace nes
 
 		inline void implied_asl_a()
 		{
-			if (R.a & 0x80)
-			{
-				set_flag(FLAG_CARRY);
-			}
-			else
-			{
-				clear_flag(FLAG_CARRY);
-			}
-
-			R.a <<= 1;
-
-			if (R.a == 0)
-			{
-				set_flag(FLAG_ZERO);
-			}
-			else
-			{
-				clear_flag(FLAG_ZERO);
-			}
-
-			clear_flag(FLAG_NEGATIVE);
+			R.a = mod_asl(R.a);
 		}
 
 		inline void implied_rol_a()
 		{
-			u8 carry = get_flag(FLAG_CARRY) ? 0x1 : 0x0;
-
-			if (R.a & 0x80)
-			{
-				set_flag(FLAG_CARRY);
-			}
-			else
-			{
-				clear_flag(FLAG_CARRY);
-			}
-
-			R.a = (R.a << 1) | carry;
-
-			if (R.a == 0)
-			{
-				set_flag(FLAG_ZERO);
-			}
-			else
-			{
-				clear_flag(FLAG_ZERO);
-			}
-
-			clear_flag(FLAG_NEGATIVE);
+			R.a = mod_rol(R.a);
 		}
 
 		inline void implied_lsr_a()
 		{
-			if (R.a & 0x1)
-			{
-				set_flag(FLAG_CARRY);
-			}
-			else
-			{
-				clear_flag(FLAG_CARRY);
-			}
-
-			R.a >>= 1;
-			
-			if (R.a == 0)
-			{
-				set_flag(FLAG_ZERO);
-			}
-			else
-			{
-				clear_flag(FLAG_ZERO);
-			}
-
-			clear_flag(FLAG_NEGATIVE);
+			R.a = mod_lsr(R.a);
 		}
 
 		inline void implied_ror_a()
 		{
-			u8 carry = get_flag(FLAG_CARRY) ? 0x80 : 0x0;
-
-			if (R.a & 0x1)
-			{
-				set_flag(FLAG_CARRY);
-			}
-			else
-			{
-				clear_flag(FLAG_CARRY);
-			}
-
-			R.a = (R.a >> 1) | carry;
-
-			if (R.a == 0)
-			{
-				set_flag(FLAG_ZERO);
-			}
-			else
-			{
-				clear_flag(FLAG_ZERO);
-			}
-
-			clear_flag(FLAG_NEGATIVE);
+			R.a = mod_ror(R.a);
 		}
 
 		int reset()
@@ -1407,6 +1402,8 @@ namespace nes
 				// modify value on data bus
 				micro_op_data_bus = op.mod_funct(micro_op_data_bus);
 
+				printf("opcode: 0x%02hX addr: 0x%04hX data: 0x%02hX mem: 0x%02hX\n", op.opcode, micro_op_addr_bus, micro_op_data_bus, *cpu_memory_module::get_memory(micro_op_addr_bus));
+				
 				// write it to addr
 				cpu_memory_module::write_memory(micro_op_addr_bus, micro_op_data_bus);
 				break;
