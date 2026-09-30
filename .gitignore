@@ -299,3 +299,4 @@ data/imgui.ini
 _deps
 CMakeCache.txt
 tools/bgb/bgbrecovery.sna
+tools/fceux/fceux.cfg
