@@ -35,8 +35,8 @@ namespace common
 
     struct EmulatorDisplay
     {
-        int fps;
-        float display_scale;
+        int fps = 30;
+        float display_scale = 1.0f;
         const sf::Texture* display_texture = nullptr;
     };
 
@@ -370,7 +370,7 @@ namespace common
         ImGuiIO& io = ImGui::GetIO();
         io.Fonts->Clear();
         io.Fonts->AddFontFromFileTTF("courbd.ttf", 24);
-        ImGui::SFML::UpdateFontTexture();
+        success = ImGui::SFML::UpdateFontTexture();
 
         // if a rom is passed we will load it right away
 		if (parser.exists("r"))

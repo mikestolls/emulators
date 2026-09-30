@@ -109,7 +109,6 @@ namespace gameboy
 		std::vector<u16> breakpoints;
 		std::vector<u16> soft_breakpoints;
 		std::vector<u16> memory_breakpoints;
-		bool breakpoint_hit;
 		bool breakpoint_disable_one_instr;
 		s32 memory_breakpoint_last_addr;
 		u16 memory_breakpoint_last_pc;
@@ -865,7 +864,11 @@ namespace gameboy
 				return 5;   // 64 T-cycles
 			case 3: 
 				return 7;   // 256 T-cycles
+			default:
+				assert(false); // shouldnt get here
 			}
+
+			return -1;
 		}
 
 		bool is_tima_overflow_pending()
@@ -1017,7 +1020,6 @@ namespace gameboy
 			halt = false;
 			halt_bug = false;
 			is_double_speed = false;
-			breakpoint_hit = false;
 			breakpoint_disable_one_instr = false;
 			memory_breakpoint_last_addr = -1;
 			memory_breakpoint_last_pc = -1;
@@ -1049,7 +1051,6 @@ namespace gameboy
 				if (memory_breakpoint_itr != memory_breakpoints.end())
 				{
 					paused = true;
-					breakpoint_hit = true;
 					memory_breakpoint_last_addr = addr;
 					memory_breakpoint_last_pc = pc;
 
@@ -3573,7 +3574,6 @@ namespace gameboy
 						if (breakpoint_itr != breakpoints.end())
 						{
 							paused = true;
-							breakpoint_hit = true;
 							return 0;
 						}
 					}
@@ -3587,7 +3587,6 @@ namespace gameboy
 							if (memory_breakpoint_last_addr == -1) // hacky to get mem breakpoints working
 							{
 								paused = true;
-								breakpoint_hit = true;
 							}
 
 							soft_breakpoints.erase(breakpoint_itr);
@@ -3598,7 +3597,6 @@ namespace gameboy
 
 				if (breakpoint_disable_one_instr)
 				{
-					breakpoint_hit = true;
 					breakpoint_disable_one_instr = false;
 				}
 			}

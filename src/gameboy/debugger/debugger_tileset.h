@@ -8,7 +8,7 @@
 #include <imgui.h>
 #include <imgui-SFML.h>
 
-#include "debugger_helper.h"
+#include "common/debugger/debugger_helper.h"
 
 namespace gameboy
 {
@@ -111,11 +111,11 @@ namespace gameboy
                     title_str.append("0x8000");
                 }
 
-                if (debugger::debugger_panel_begin(title_str.c_str(), ImVec2(tileset_size.x, tileset_size.y), is_focused, 0.7f))
+                if (common::debugger::debugger_panel_begin(title_str.c_str(), ImVec2(tileset_size.x, tileset_size.y), is_focused, 0.7f))
                 {
                     ImGui::Image(tileset_texture, tileset_size);
 
-                    debugger::debugger_panel_end();
+                    common::debugger::debugger_panel_end();
                 }
 
                 return 0;

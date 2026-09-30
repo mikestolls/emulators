@@ -8,8 +8,7 @@
 #include <imgui.h>
 #include <imgui-SFML.h>
 
-// start with some helper functions
-namespace gameboy
+namespace common
 {
     namespace debugger
     {

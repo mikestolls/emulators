@@ -11,7 +11,7 @@
 #include "common/debugger/debugger_helper.h"
 #include "../disassembler.h"
 
-namespace gameboy
+namespace nes
 {
 	namespace debugger
 	{
@@ -31,7 +31,7 @@ namespace gameboy
 
 			u16 find_next_instr(u16 pc)
 			{
-				u16 next_pc = gameboy::disassembler::disassemble_instr(pc); // this is the true next pc
+				u16 next_pc = nes::disassembler::disassemble_instr(pc); // this is the true next pc
 
 				// try to find in our list
 				auto itr = std::find(program_addr.begin(), program_addr.end(), pc);
@@ -63,7 +63,7 @@ namespace gameboy
 						// there is a gap. fill it
 						while (pc != next_pc)
 						{
-							pc = gameboy::disassembler::disassemble_instr(pc); // this is the true next pc
+							pc = nes::disassembler::disassemble_instr(pc); // this is the true next pc
 							itr = program_addr.insert(itr, pc);
 						}
 
@@ -94,7 +94,7 @@ namespace gameboy
 					u16 i = 0;
 					while (i != pc)
 					{
-						i = gameboy::disassembler::disassemble_instr(i); // this is the true next pc
+						i = nes::disassembler::disassemble_instr(i); // this is the true next pc
 						program_addr.push_back(i);
 					}
 
@@ -111,7 +111,7 @@ namespace gameboy
 				{
 					// found pc in the list. start from the prev entry, walk up to pc to fill gap
 					u16 prev_pc = *(itr - 1);
-					u16 next_pc = gameboy::disassembler::disassemble_instr(prev_pc);
+					u16 next_pc = nes::disassembler::disassemble_instr(prev_pc);
 
 					if (next_pc == *(itr)) // no gap in list
 					{
@@ -126,7 +126,7 @@ namespace gameboy
 						do
 						{
 							prev_pc = next_pc;
-							next_pc = gameboy::disassembler::disassemble_instr(next_pc); // this is the true next pc
+							next_pc = nes::disassembler::disassemble_instr(next_pc); // this is the true next pc
 							program_addr.push_back(next_pc);
 						} while (next_pc != pc);
 
@@ -247,8 +247,8 @@ namespace gameboy
                     
                     for (unsigned int i = 0; i < LINE_COUNT; i++)
                     {
-                        gameboy::disassembler::symbol sym;
-                        pc = gameboy::disassembler::disassemble_instr(pc, sym);
+                        nes::disassembler::symbol sym;
+                        pc = nes::disassembler::disassemble_instr(pc, sym);
 
                         if (sym.addr > program_addr.back())
                         {
@@ -329,7 +329,7 @@ namespace gameboy
                     ImGui::PopStyleVar();
                     ImGui::SetWindowFontScale(1.0f);
 
-					common::debugger::debugger_panel_end();
+                    common::debugger::debugger_panel_end();
                 }
 
                 return 0;
@@ -395,8 +395,8 @@ namespace gameboy
 					{
 						if (cpu::paused)
 						{
-							gameboy::disassembler::symbol sym;
-							gameboy::disassembler::disassemble_instr(cpu::R.pc, sym);
+							nes::disassembler::symbol sym;
+							nes::disassembler::disassemble_instr(cpu::R.pc, sym);
 
 							u16 next_pc = find_next_instr(cpu::R.pc);
 

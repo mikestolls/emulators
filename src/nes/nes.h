@@ -11,6 +11,13 @@
 
 namespace nes
 {
+	bool is_debugger_visible;
+}
+
+#include "debugger/debugger.h"
+
+namespace nes
+{
 	sf::Texture framebuffer_texture;
 
 	int init_emulator(const std::string& rom_filename)
@@ -25,11 +32,17 @@ namespace nes
 
 		cpu::initialize();
 
+		debugger::init_debugger();
+		debugger::window.setVisible(false);
+		is_debugger_visible = false;
+
 		return 0;
 	}
 
 	int destroy_emulator()
 	{
+		debugger::destroy_debugger();
+
 		return 0;
 	}
 
@@ -40,12 +53,15 @@ namespace nes
 
 	int update(const sf::Time& deltaTime)
 	{
-		u8 cycles = cpu::cpu_cycles_per_frame;
+		s32 cycles = cpu::cpu_cycles_per_frame;
 		
 		while (cycles >= 0)
 		{
 			cycles -= cpu::update();
 		}
+
+		// update 
+		debugger::update_debugger(deltaTime);
 
 		return 0;
 	}
@@ -57,11 +73,14 @@ namespace nes
 
 	int set_debugger_visible(bool visible)
 	{
+		is_debugger_visible = visible;
+		debugger::window.setVisible(is_debugger_visible);
+
 		return 0;
 	}
 
 	bool get_debugger_visible()
 	{
-		return false;
+		return is_debugger_visible;
 	}
 }

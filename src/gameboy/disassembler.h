@@ -25,12 +25,12 @@ namespace gameboy
 		std::string alu_function_str[] = { "ADD", "ADC", "SUB", "SBC", "AND", "XOR", "OR", "CP" };
 		std::string rot_function_str[] = { "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SWAP", "SRL" };
 
-		u16 PC;
+		u16 pc;
 
-		// read 8 and 16 bit at PC. increment PC
+		// read 8 and 16 bit at pc. increment pc
 		inline u8 readpc_u8()
 		{
-			u8 val = memory_module::read_memory(PC++, true);
+			u8 val = memory_module::read_memory(pc++, true);
 
 			return val;
 		}
@@ -38,8 +38,8 @@ namespace gameboy
 		inline u16 readpc_u16()
 		{
 			// lsb is first in memory
-			u16 val = memory_module::read_memory(PC++, true);
-			val |= (memory_module::read_memory(PC++, true) << 8);
+			u16 val = memory_module::read_memory(pc++, true);
+			val |= (memory_module::read_memory(pc++, true) << 8);
 
 			return val;
 		}
@@ -577,9 +577,9 @@ namespace gameboy
 
 		u16 disassemble_instr(u16 addr, symbol& sym)
 		{
-			PC = addr;
+			pc = addr;
 
-			sym.addr = PC;
+			sym.addr = pc;
 			sym.opcode = readpc_u8();
 
 			if (sym.opcode == 0xCB)
@@ -592,7 +592,7 @@ namespace gameboy
 				disassemble_nonprefixed(sym.opcode, sym);
 			}
 
-			return PC;
+			return pc;
 		}
 
 		u16 disassemble_instr(u16 addr)
@@ -646,11 +646,11 @@ namespace gameboy
 			FILE* file = fopen(filename.c_str(), "w");
 
 			// disasseble the rom data
-			PC = 0x0;
-			while (PC <= memory_module::memory_map[memory_module::MEMORY_CARTRIDGE_SWITCHABLE_ROM].addr_max)
+			pc = 0x0;
+			while (pc <= memory_module::memory_map[memory_module::MEMORY_CARTRIDGE_SWITCHABLE_ROM].addr_max)
 			{
 				symbol sym;
-				PC = disassemble_instr(PC, sym);
+				pc = disassemble_instr(pc, sym);
 				write_instruction(file, sym.addr, sym.opcode, sym.cb_opcode, sym.mnemonic.c_str(), sym.operands.c_str(), sym.comment.c_str());
 			}
 

@@ -68,8 +68,16 @@ namespace nes
 		const u32 cpu_cycles_per_frame = ppu_cycles_per_frame / 3;          // ~29780.67 CPU cycles
 
 		bool running = true;
+		bool paused = false;
 		u8 current_opcode = 0x0;
 		bool is_opcode_complete;
+
+		bool breakpoint_disable_one_instr = false;
+		std::vector<u16> breakpoints;
+		std::vector<u16> soft_breakpoints;
+		std::vector<u16> memory_breakpoints;
+		s32 memory_breakpoint_last_addr;
+		u16 memory_breakpoint_last_pc;
 
 		std::deque<MicroOp> micro_op_queue;
 		u16 micro_op_addr_bus;
@@ -658,7 +666,13 @@ namespace nes
 		int reset()
 		{
 			running = true;
+			paused = false;
 			is_opcode_complete = false;
+
+			breakpoints.clear();
+			soft_breakpoints.clear();
+			memory_breakpoints.clear();
+			breakpoint_disable_one_instr = false;
 
 			micro_op_queue.clear();
 			micro_op_addr_bus = 0x0;
@@ -1028,7 +1042,7 @@ namespace nes
 
 		int decode_opcode(u8 opcode)
 		{
-			printf("pc: 0x%04hX opcode: 0x%02hX sp: 0x%02hX\n", R.pc - 1, opcode, R.sp);
+			//printf("pc: 0x%04hX opcode: 0x%02hX sp: 0x%02hX\n", R.pc - 1, opcode, R.sp);
 
 			// check if opcode is condition branch
 			if ((opcode & 0x1F) == 0x10)
@@ -1401,8 +1415,6 @@ namespace nes
 			{
 				// modify value on data bus
 				micro_op_data_bus = op.mod_funct(micro_op_data_bus);
-
-				printf("opcode: 0x%02hX addr: 0x%04hX data: 0x%02hX mem: 0x%02hX\n", op.opcode, micro_op_addr_bus, micro_op_data_bus, *cpu_memory_module::get_memory(micro_op_addr_bus));
 				
 				// write it to addr
 				cpu_memory_module::write_memory(micro_op_addr_bus, micro_op_data_bus);
@@ -1444,7 +1456,9 @@ namespace nes
 			case CONDITIONAL_BRANCH:
 			{
 				// we will fetch the offset
-				s8 offset = (s8)readpc_u8();
+				u8 read = readpc_u8();
+				s8 offset = (s8)read; 
+				int64_t off = (int64_t)(int8_t)read;
 
 				// check if the condition passes
 				if (op.conditional_value == op.conditional_flag)

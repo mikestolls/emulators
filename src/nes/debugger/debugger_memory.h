@@ -10,7 +10,7 @@
 
 #include "common/debugger/debugger_helper.h"
 
-namespace gameboy
+namespace nes
 {
 	namespace debugger
 	{
@@ -140,7 +140,7 @@ namespace gameboy
                                     if (sscanf(input_buf, "%hhx", &value) == 1)
                                     {
                                         u16 addr = mem_start + (active_line * MEM_PER_LINE) + active_column;
-                                        memory_module::write_memory(addr, value, true);
+                                        cpu_memory_module::write_memory(addr, value, true);
                                     }
                                     is_mem_prompt = false;
                                 }
@@ -152,7 +152,7 @@ namespace gameboy
                             if (is_mem_prompt && input_buf[0] == '\0')
                             {
                                 u16 addr = mem_start + (active_line * MEM_PER_LINE) + active_column;
-                                u8 val = memory_module::read_memory(addr, true);
+                                u8 val = cpu_memory_module::read_memory(addr, true);
                                 snprintf(input_buf, sizeof(input_buf), "%02X", val);
                             }
 
@@ -167,7 +167,7 @@ namespace gameboy
                         u16 addr = mem_start + (i * MEM_PER_LINE);
 
                         // draw memory line
-                        memory_module::memory_map_object* map = memory_module::find_map(addr);
+                        cpu_memory_module::memory_map_object* map = cpu_memory_module::find_map(addr);
 
                         // Determine background color
                         ImVec4 bgColor(row_color, row_color, row_color, 1.0f);
@@ -183,14 +183,7 @@ namespace gameboy
                         ImGui::GetWindowDrawList()->AddRectFilled(lineStart, lineEnd, ImGui::ColorConvertFloat4ToU32(bgColor));
 
                         // Draw memory map name in cyan
-                        if (map->map_name.compare("ROMS") == 0)
-                        {
-                            ImGui::TextColored(ImVec4(0.0f, 1.0f, 1.0f, 1.0f), "ROM%d", mbc::mbc_get_rom_bank_idx());
-                        }
-                        else
-                        {
-                            ImGui::TextColored(ImVec4(0.0f, 1.0f, 1.0f, 1.0f), "%s", map->map_name.c_str());
-                        }
+                        ImGui::TextColored(ImVec4(0.0f, 1.0f, 1.0f, 1.0f), "%s", map->map_name.c_str());
                         
                         ImGui::SameLine();
                         ImGui::SetCursorPosX(60);
@@ -208,7 +201,7 @@ namespace gameboy
                                 ImGui::SameLine(0, 4);
                             }
                             
-                            u8 val = memory_module::read_memory(addr + j, true);
+                            u8 val = cpu_memory_module::read_memory(addr + j, true);
                             
                             // Highlight if this is the active column
                             if (i == active_line && j == active_column)
@@ -243,7 +236,7 @@ namespace gameboy
                         // Draw ASCII representation in light green
                         for (unsigned int j = 0; j < MEM_PER_LINE; j++)
                         {
-                            u8 val = memory_module::read_memory(addr + j, true);
+                            u8 val = cpu_memory_module::read_memory(addr + j, true);
                             char displayStr[5] = { 0 }; // UTF-8 can be up to 4 bytes + null
                             
                             if (val < 0x20 || val == 0x7F) // Control characters

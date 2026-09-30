@@ -106,6 +106,8 @@ namespace gameboy
 			rom_header.ram_size = (RAM_SIZE)rom_data[0x149];
 			rom_header.version = rom_data[0x14C];
 			rom_header.cgb_flag = rom_data[0x143];
+
+			return 0;
 		}
 	};
 }
